@@ -33,53 +33,27 @@ const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {link.label}
-            </a>
+            <a key={link.label} href={link.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{link.label}</a>
           ))}
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/dashboard">Log In</Link>
-          </Button>
-          <Button size="sm" className="glow-sm" asChild>
-            <Link to="/dashboard">Get Started</Link>
-          </Button>
+          <Button variant="ghost" size="sm" asChild><Link to="/dashboard">Log In</Link></Button>
+          <Button size="sm" className="glow-sm" asChild><Link to="/dashboard">Get Started</Link></Button>
         </div>
 
-        <button
-          className="md:hidden text-foreground"
-          onClick={() => setMobileOpen(!mobileOpen)}
-        >
+        <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {mobileOpen && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          className="md:hidden border-t border-border bg-card/95 backdrop-blur-xl"
-        >
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="md:hidden border-t border-border bg-card/95 backdrop-blur-xl">
           <div className="flex flex-col p-4 gap-3">
             {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-sm text-muted-foreground hover:text-foreground py-2"
-                onClick={() => setMobileOpen(false)}
-              >
-                {link.label}
-              </a>
+              <a key={link.label} href={link.href} className="text-sm text-muted-foreground hover:text-foreground py-2" onClick={() => setMobileOpen(false)}>{link.label}</a>
             ))}
-            <Button size="sm" className="mt-2" asChild>
-              <Link to="/dashboard">Get Started</Link>
-            </Button>
+            <Button size="sm" className="mt-2" asChild><Link to="/dashboard">Get Started</Link></Button>
           </div>
         </motion.div>
       )}
