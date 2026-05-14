@@ -18,9 +18,9 @@ from botocore.config import Config
 ENDPOINTS = {
     "kokoro": os.environ.get("KOKORO_ENDPOINT_ID", "erpnk7ibq46vsv"),
     "zimage": os.environ.get("ZIMAGE_ENDPOINT_ID", "a6cjdpnprs4r1c"),
-    "ltxv": os.environ.get("LTXV_ENDPOINT_ID", "pl7cjtlgbzprzy"),
-    "stable_audio": os.environ.get("STABLE_AUDIO_ENDPOINT_ID", "6zpsjihu5p33m0"),
-    "hallo2": os.environ.get("HALLO2_ENDPOINT_ID", "pqjd47cdvwe8d5"),
+    "ltxv": os.environ.get("LTXV_ENDPOINT_ID", "pplcnagwfpyjgo"),
+    "stable_audio": os.environ.get("STABLE_AUDIO_ENDPOINT_ID", "0kfc7l9nht1yr8"),
+    "hallo2": os.environ.get("HALLO2_ENDPOINT_ID", "sbzo98l4kq8x5x"),
 }
 
 RUNPOD_API_KEY = os.environ.get("RUNPOD_API_KEY", "")
