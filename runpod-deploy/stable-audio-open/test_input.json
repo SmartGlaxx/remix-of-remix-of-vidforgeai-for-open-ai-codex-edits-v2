@@ -1,0 +1,11 @@
+{
+  "input": {
+    "prompt": "Ambient cinematic background music with soft piano and strings, warm and nostalgic",
+    "negative_prompt": "Low quality, distorted, noisy",
+    "duration": 15.0,
+    "num_inference_steps": 100,
+    "seed": 42,
+    "guidance_scale": 7.0,
+    "output_format": "wav"
+  }
+}

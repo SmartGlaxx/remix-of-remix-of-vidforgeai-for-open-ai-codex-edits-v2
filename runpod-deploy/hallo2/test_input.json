@@ -1,0 +1,12 @@
+{
+  "input": {
+    "image_url": "https://example.com/portrait.jpg",
+    "audio_url": "https://example.com/speech.wav",
+    "pose_weight": 1.0,
+    "face_weight": 1.0,
+    "lip_weight": 1.0,
+    "guidance_scale": 3.5,
+    "num_inference_steps": 40,
+    "face_expand_ratio": 1.2
+  }
+}
