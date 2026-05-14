@@ -143,7 +143,7 @@ def voxai_generate_audio(params):
         return {"error": "prompt is required"}
 
     job_id = call_endpoint_async("stable_audio", params)
-    result = poll_job("stable_audio", job_id, timeout=600)
+    result = poll_job("stable_audio", job_id, timeout=900)
 
     output = result.get("output", result) if isinstance(result, dict) else result
     return {"status": "success", "output": output}
@@ -246,7 +246,7 @@ def workflow_full_video(params):
     video_job = call_endpoint_async("ltxv", video_params)
 
     # wait for music and video
-    music_result = poll_job("stable_audio", audio_job, timeout=600)
+    music_result = poll_job("stable_audio", audio_job, timeout=900)
     music_output = music_result.get("output", music_result) if isinstance(music_result, dict) else music_result
     results["music"] = music_output
 
