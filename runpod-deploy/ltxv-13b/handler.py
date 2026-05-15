@@ -144,13 +144,13 @@ def handler(job):
 
         s3 = boto3.client(
             "s3",
-            endpoint_url=os.environ.get("BUCKET_ENDPOINT_URL", "https://s3.filebase.com"),
-            aws_access_key_id=os.environ.get("BUCKET_ACCESS_KEY_ID", "BD440AF08461870E4884"),
-            aws_secret_access_key=os.environ.get("BUCKET_SECRET_ACCESS_KEY", "6Q2qS1oiTwWRaaz4TL0J7tbUuExdPvd5PQ1yeGzi"),
+            endpoint_url=os.environ.get("BUCKET_ENDPOINT_URL"),
+            aws_access_key_id=os.environ.get("BUCKET_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("BUCKET_SECRET_ACCESS_KEY"),
             config=Config(signature_version="s3v4"),
             region_name="us-east-1",
         )
-        bucket = os.environ.get("BUCKET_NAME", "z-image")
+        bucket = os.environ.get("BUCKET_NAME")
         key = f"ltxv/{output_filename}"
         s3.upload_file(output_path, bucket, key)
         head = s3.head_object(Bucket=bucket, Key=key)

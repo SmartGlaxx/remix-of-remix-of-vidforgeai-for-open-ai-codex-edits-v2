@@ -27,10 +27,10 @@ RUNPOD_API_KEY = os.environ.get("RUNPOD_API_KEY", "")
 RUNPOD_BASE = "https://api.runpod.ai/v2"
 
 # filebase s3 config
-S3_ENDPOINT = os.environ.get("BUCKET_ENDPOINT_URL", "https://s3.filebase.com")
-S3_ACCESS_KEY = os.environ.get("BUCKET_ACCESS_KEY_ID", "BD440AF08461870E4884")
-S3_SECRET_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY", "6Q2qS1oiTwWRaaz4TL0J7tbUuExdPvd5PQ1yeGzi")
-S3_BUCKET = os.environ.get("BUCKET_NAME", "z-image")
+S3_ENDPOINT = os.environ.get("BUCKET_ENDPOINT_URL")
+S3_ACCESS_KEY = os.environ.get("BUCKET_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY")
+S3_BUCKET = os.environ.get("BUCKET_NAME")
 
 
 def get_s3_client():

@@ -19,10 +19,10 @@ REPO_DIR = "/app/hallo2"
 PRETRAINED_DIR = os.path.join(REPO_DIR, "pretrained_models")
 CONFIG_PATH = os.path.join(REPO_DIR, "configs", "inference", "long.yaml")
 
-S3_ENDPOINT = os.environ.get("BUCKET_ENDPOINT_URL", "https://s3.filebase.com")
-S3_ACCESS_KEY = os.environ.get("BUCKET_ACCESS_KEY_ID", "BD440AF08461870E4884")
-S3_SECRET_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY", "6Q2qS1oiTwWRaaz4TL0J7tbUuExdPvd5PQ1yeGzi")
-S3_BUCKET = os.environ.get("BUCKET_NAME", "z-image")
+S3_ENDPOINT = os.environ.get("BUCKET_ENDPOINT_URL")
+S3_ACCESS_KEY = os.environ.get("BUCKET_ACCESS_KEY_ID")
+S3_SECRET_KEY = os.environ.get("BUCKET_SECRET_ACCESS_KEY")
+S3_BUCKET = os.environ.get("BUCKET_NAME")
 
 # torch dynamo startup
 STARTUP_SCRIPT = os.path.join(tempfile.gettempdir(), "_torch_startup.py")
