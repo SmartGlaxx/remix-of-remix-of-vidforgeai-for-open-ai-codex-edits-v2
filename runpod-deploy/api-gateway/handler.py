@@ -329,6 +329,94 @@ def storage_cleanup(params):
     return {"status": "success", "deleted_count": len(deleted), "deleted": deleted}
 
 
+def workflow_stitch(params):
+    video_url = params.get("video_url")
+    voice_url = params.get("voice_url")
+    music_url = params.get("music_url")
+    music_volume = float(params.get("music_volume", 0.3))
+
+    if not video_url:
+        return {"error": "video_url is required"}
+
+    import subprocess
+
+    work_dir = os.path.join(tempfile.gettempdir(), uuid.uuid4().hex)
+    os.makedirs(work_dir, exist_ok=True)
+
+    try:
+        # download input files
+        video_path = os.path.join(work_dir, "video.mp4")
+        r = requests.get(video_url, timeout=120)
+        r.raise_for_status()
+        with open(video_path, "wb") as f:
+            f.write(r.content)
+
+        inputs = ["-i", video_path]
+        filter_parts = []
+        audio_count = 0
+
+        if voice_url:
+            voice_path = os.path.join(work_dir, "voice.mp3")
+            r = requests.get(voice_url, timeout=120)
+            r.raise_for_status()
+            with open(voice_path, "wb") as f:
+                f.write(r.content)
+            inputs += ["-i", voice_path]
+            audio_count += 1
+            filter_parts.append(f"[{audio_count}:a]volume=1.0[voice]")
+
+        if music_url:
+            music_path = os.path.join(work_dir, "music.mp3")
+            r = requests.get(music_url, timeout=120)
+            r.raise_for_status()
+            with open(music_path, "wb") as f:
+                f.write(r.content)
+            inputs += ["-i", music_path]
+            audio_count += 1
+            filter_parts.append(f"[{audio_count}:a]volume={music_volume}[music]")
+
+        output_path = os.path.join(work_dir, "output.mp4")
+
+        if voice_url and music_url:
+            filter_str = f"[1:a]volume=1.0[voice];[2:a]volume={music_volume}[music];[voice][music]amix=inputs=2:duration=longest[out]"
+            cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", filter_str, "-map", "0:v", "-map", "[out]", "-c:v", "copy", "-c:a", "aac", "-shortest", output_path]
+        elif voice_url:
+            cmd = ["ffmpeg", "-y"] + inputs + ["-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-shortest", output_path]
+        elif music_url:
+            cmd = ["ffmpeg", "-y"] + inputs + ["-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-shortest", output_path]
+        else:
+            import shutil
+            shutil.copy(video_path, output_path)
+            cmd = None
+
+        if cmd:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode != 0:
+                return {"error": f"ffmpeg failed: {result.stderr[-500:]}"}
+
+        # upload to filebase
+        s3 = get_s3_client()
+        key = f"stitched/{uuid.uuid4().hex}.mp4"
+        s3.upload_file(output_path, S3_BUCKET, key)
+        head = s3.head_object(Bucket=S3_BUCKET, Key=key)
+        cid = head.get("Metadata", {}).get("Cid", "") or head.get("Metadata", {}).get("cid", "")
+        final_url = f"https://ipfs.filebase.io/ipfs/{cid}" if cid else f"https://{S3_BUCKET}.s3.filebase.com/{key}"
+
+        file_size = os.path.getsize(output_path)
+
+        return {
+            "status": "success",
+            "output": {
+                "url": final_url,
+                "format": "mp4",
+                "size_bytes": file_size,
+            },
+        }
+    finally:
+        import shutil
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
 def job_status(params):
     endpoint_id = params.get("endpoint_id")
     job_id = params.get("job_id")
@@ -355,6 +443,7 @@ ROUTES = {
     "workflow/generate-tts": voxai_generate_tts,
     "workflow/lip-sync": voxai_lip_sync,
     "workflow/full-video": workflow_full_video,
+    "workflow/stitch": workflow_stitch,
     "storage/list": storage_list,
     "storage/delete": storage_delete,
     "storage/cleanup": storage_cleanup,
