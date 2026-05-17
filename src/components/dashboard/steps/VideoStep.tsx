@@ -154,7 +154,7 @@ const VideoStep = () => {
           <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Script</label>
           <Textarea
             value={script}
-            onChange={(e) => setScript(e.target.value)}
+            onChange={(e) => setScriptOverride(e.target.value)}
             rows={4}
             disabled={busy}
             placeholder="Enter the narration text…"
