@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import {
   Wand2, BookOpen, Clock, Hash, Sparkles, RotateCw,
-  Copy, Download, AlertCircle, Lightbulb,
+  Copy, Download, AlertCircle, Lightbulb, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { useProject } from "@/contexts/ProjectContext";
 
 const tones = [
   { label: "Engaging & Dramatic", emoji: "🎭", desc: "High retention" },
@@ -17,6 +19,51 @@ const tones = [
 
 const ScriptStep = () => {
   const [selectedTone, setSelectedTone] = useState(0);
+  const [duration, setDuration] = useState("8-10 min");
+  const [hook, setHook] = useState("Shocking Fact");
+  const [language, setLanguage] = useState("English");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { selectedTitle, scriptSections, setScriptSections, scriptMeta, setScriptMeta } = useProject();
+
+  const generate = async () => {
+    if (!selectedTitle) {
+      toast({ title: "No title selected", description: "Pick a title in the previous step first.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-script", {
+        body: { title: selectedTitle, tone: tones[selectedTone].label, duration, hook, language },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setScriptSections(Array.isArray(data?.sections) ? data.sections : []);
+      setScriptMeta(data?.meta ?? null);
+    } catch (e) {
+      const msg = (e as Error).message;
+      setError(msg);
+      toast({ title: "Script generation failed", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyAll = () => {
+    const text = scriptSections.map((s) => `${s.section}\n${s.text}`).join("\n\n");
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard" });
+  };
+
+  const downloadTxt = () => {
+    const text = scriptSections.map((s) => `${s.section}\n${s.text}`).join("\n\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "script.txt"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -35,7 +82,9 @@ const ScriptStep = () => {
         {/* Selected title */}
         <div className="bg-secondary/40 rounded-xl p-4 mb-5 border border-border">
           <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block font-semibold">Selected Title</label>
-          <div className="text-sm text-foreground font-medium">The Secret Drone Army Hunting Cartel Bosses</div>
+          <div className="text-sm text-foreground font-medium">
+            {selectedTitle ?? <span className="text-muted-foreground italic">No title selected — pick one in the Title step.</span>}
+          </div>
         </div>
 
         {/* Tone selector */}
@@ -62,7 +111,7 @@ const ScriptStep = () => {
         <div className="grid grid-cols-3 gap-3 mb-5">
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Duration</label>
-            <select className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
+            <select value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
               <option>8-10 min</option>
               <option>10-15 min</option>
               <option>15-20 min</option>
@@ -71,7 +120,7 @@ const ScriptStep = () => {
           </div>
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Hook Style</label>
-            <select className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
+            <select value={hook} onChange={(e) => setHook(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
               <option>Question</option>
               <option>Shocking Fact</option>
               <option>Story Opener</option>
@@ -79,7 +128,7 @@ const ScriptStep = () => {
           </div>
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Language</label>
-            <select className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
               <option>English</option>
               <option>Spanish</option>
               <option>Portuguese</option>
@@ -87,23 +136,31 @@ const ScriptStep = () => {
           </div>
         </div>
 
-        <Button className="w-full glow-sm h-11">
-          <Wand2 className="w-4 h-4 mr-2" /> Generate Script
+        <Button className="w-full glow-sm h-11" onClick={generate} disabled={loading || !selectedTitle}>
+          {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+          {loading ? "Generating…" : scriptSections.length ? "Regenerate Script" : "Generate Script"}
         </Button>
+        {error && (
+          <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-3">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Generated Script */}
+      {(loading || scriptSections.length > 0) && (
       <div className="glass-card p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-semibold text-foreground">Generated Script</h3>
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={generate} disabled={loading}>
               <RotateCw className="w-3 h-3 mr-1" /> Regenerate
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={copyAll}>
               <Copy className="w-3 h-3 mr-1" /> Copy
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={downloadTxt}>
               <Download className="w-3 h-3 mr-1" /> Export
             </Button>
           </div>
@@ -111,13 +168,11 @@ const ScriptStep = () => {
 
         {/* Script sections */}
         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-          {[
-            { section: "HOOK (0:00 - 0:30)", text: "Somewhere high above the Mexican desert, invisible to the naked eye, America's secret drone army is on the hunt. These aren't your typical military drones..." },
-            { section: "CONTEXT (0:30 - 2:00)", text: "For decades, the cartels operated with impunity. Their networks stretched across borders, their money laundered through legitimate businesses, their violence unchecked by local authorities..." },
-            { section: "RISING ACTION (2:00 - 5:00)", text: "But in 2024, everything changed when the DEA deployed its most advanced surveillance program ever. Code-named 'Project Skywatch,' this initiative combined AI facial recognition with a fleet of micro-drones..." },
-            { section: "CLIMAX (5:00 - 8:00)", text: "The operation's first major success came on a Tuesday morning. Three drones had been tracking a convoy for 72 hours straight, their AI systems analyzing every stop, every passenger, every phone call..." },
-            { section: "RESOLUTION (8:00 - 10:00)", text: "Today, Project Skywatch has fundamentally changed the war on drugs. But the cartels aren't sitting idle. They've begun developing their own counter-drone technology..." },
-          ].map((block) => (
+          {loading && scriptSections.length === 0
+            ? [0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-24 rounded-xl border border-border bg-secondary/30 animate-pulse" />
+              ))
+            : scriptSections.map((block) => (
             <div key={block.section} className="group">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-primary/60" />
@@ -131,19 +186,15 @@ const ScriptStep = () => {
         </div>
 
         {/* Stats bar */}
-        <div className="flex items-center gap-6 mt-4 pt-4 border-t border-border">
-          {[
-            { icon: Hash, label: "2,847 words" },
-            { icon: Clock, label: "~12 min read" },
-            { icon: Sparkles, label: "92% retention score" },
-          ].map((stat) => (
-            <div key={stat.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <stat.icon className="w-3 h-3" />
-              {stat.label}
-            </div>
-          ))}
-        </div>
+        {scriptMeta && (
+          <div className="flex items-center gap-6 mt-4 pt-4 border-t border-border">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Hash className="w-3 h-3" /> {scriptMeta.words?.toLocaleString()} words</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock className="w-3 h-3" /> ~{scriptMeta.minutes} min read</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Sparkles className="w-3 h-3" /> {scriptMeta.retention}% retention score</div>
+          </div>
+        )}
       </div>
+      )}
 
       {/* AI Suggestions */}
       <div className="glass-card p-4 border-accent/20">

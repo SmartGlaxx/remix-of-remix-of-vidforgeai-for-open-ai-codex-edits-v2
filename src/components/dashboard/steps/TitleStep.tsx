@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-  Sparkles, Eye, ThumbsUp, Globe, Flame, Target, BarChart3, Loader2, AlertCircle,
+  Sparkles, Eye, ThumbsUp, Globe, Flame, Target, BarChart3, Loader2, AlertCircle, RefreshCw, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useProject } from "@/contexts/ProjectContext";
 
 type TitleCandidate = {
   title: string;
@@ -31,13 +32,32 @@ const competitionColor = (c: string) =>
   c === "Low" ? "text-emerald-400" : c === "High" ? "text-destructive" : "text-yellow-400";
 
 const TitleStep = () => {
+  const { selectedTitle, setSelectedTitle } = useProject();
   const [topic, setTopic] = useState("");
   const [customTitle, setCustomTitle] = useState("");
   const [titles, setTitles] = useState<TitleCandidate[]>([]);
   const [seo, setSeo] = useState<SeoInsights | null>(null);
-  const [selectedTitle, setSelectedTitle] = useState<number | null>(null);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+
+  const loadSuggestions = async () => {
+    setSuggestLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-topics", { body: {} });
+      if (error) throw new Error(error.message);
+      if (Array.isArray(data?.topics)) setSuggestions(data.topics.slice(0, 3));
+    } catch (e) {
+      // silent fail; chips just won't render
+      console.warn("suggest-topics failed", e);
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
+
+  useEffect(() => { loadSuggestions(); }, []);
 
   const analyze = async (seed?: string) => {
     const value = (seed ?? topic).trim();
@@ -47,7 +67,7 @@ const TitleStep = () => {
     }
     setLoading(true);
     setError(null);
-    setSelectedTitle(null);
+    setSelectedIdx(null);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-title", {
         body: { topic: value },
@@ -99,22 +119,32 @@ const TitleStep = () => {
           </Button>
         </div>
         {/* Quick topic tags */}
-        <div className="flex gap-2 mt-3 flex-wrap">
-          {[
-            "Hidden history of WWII spies",
-            "How Bitcoin actually works",
-            "Deep sea creatures we just discovered",
-            "The fall of Blockbuster",
-          ].map((ch) => (
-            <button
-              key={ch}
-              onClick={() => { setTopic(ch); analyze(ch); }}
-              disabled={loading}
-              className="px-3 py-1 rounded-full text-[11px] bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border hover:border-primary/20 transition-all disabled:opacity-50"
-            >
-              {ch}
-            </button>
-          ))}
+        <div className="flex gap-2 mt-3 items-center">
+          <div className="flex gap-2 flex-1 min-w-0 overflow-hidden">
+            {suggestLoading && suggestions.length === 0
+              ? [0, 1, 2].map((i) => (
+                  <div key={i} className="h-6 flex-1 min-w-0 max-w-[33%] rounded-full bg-secondary/40 animate-pulse" />
+                ))
+              : suggestions.map((ch) => (
+                  <button
+                    key={ch}
+                    onClick={() => { setTopic(ch); analyze(ch); }}
+                    disabled={loading}
+                    title={ch}
+                    className="px-3 py-1 rounded-full text-[11px] bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border hover:border-primary/20 transition-all disabled:opacity-50 truncate flex-1 min-w-0 max-w-[33%]"
+                  >
+                    {ch}
+                  </button>
+                ))}
+          </div>
+          <button
+            onClick={loadSuggestions}
+            disabled={suggestLoading}
+            title="Refresh suggestions"
+            className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${suggestLoading ? "animate-spin" : ""}`} />
+          </button>
         </div>
         {error && (
           <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-3">
@@ -171,18 +201,21 @@ const TitleStep = () => {
               {sortedTitles.map((item, i) => (
                 <motion.button
                   key={`${item.title}-${i}`}
-                  onClick={() => setSelectedTitle(i)}
+                  onClick={() => { setSelectedIdx(i); setSelectedTitle(item.title); }}
                   whileHover={{ scale: 1.005 }}
                   whileTap={{ scale: 0.995 }}
                   className={`w-full text-left p-4 rounded-xl border transition-all group ${
-                    selectedTitle === i
+                    selectedIdx === i || selectedTitle === item.title
                       ? "border-primary/50 bg-primary/8 shadow-lg shadow-primary/5"
                       : "border-border hover:border-primary/25 hover:bg-primary/3"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm text-foreground font-medium block mb-2">{item.title}</span>
+                      <span className="text-sm text-foreground font-medium block mb-2 flex items-center gap-2">
+                        {selectedTitle === item.title && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                        {item.title}
+                      </span>
                       <div className="flex items-center gap-4 text-[11px] flex-wrap">
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Eye className="w-3 h-3" /> {item.views} est.
