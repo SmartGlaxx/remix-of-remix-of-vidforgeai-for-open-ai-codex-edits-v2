@@ -157,7 +157,12 @@ const TitleStep = () => {
           <Button
             variant="outline"
             className="border-border hover:border-primary/30"
-            onClick={() => customTitle.trim() && analyze(customTitle)}
+            onClick={() => {
+              const v = customTitle.trim();
+              if (!v) return;
+              setSelectedTitle(v);
+              analyze(v);
+            }}
             disabled={loading || !customTitle.trim()}
           >
             Analyze
