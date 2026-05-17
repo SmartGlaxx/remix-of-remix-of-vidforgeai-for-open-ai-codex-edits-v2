@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       "No text, no captions, no logos, no watermarks. High composition quality, realistic lighting, clear subject."
     ].join(" ");
 
-    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/runsync`, {
+    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -57,12 +57,12 @@ Deno.serve(async (req) => {
     if (!r.ok) return json({ error: data?.error || "RunPod image request failed", details: data }, r.status);
     if (data?.error) return json({ error: data.error, details: data }, 502);
 
-    const output = data?.output ?? data;
-    const nested = output?.output ?? output;
-    const imageUrl = nested?.url || nested?.image_url || nested?.ipfs_url || nested?.image?.url || nested?.image?.ipfs_url;
-    if (!imageUrl) return json({ error: "No image URL returned", details: data }, 502);
-
-    return json({ image_url: imageUrl, prompt: finalPrompt });
+    return json({
+      job_id: data?.id,
+      endpoint_id: GATEWAY_ID,
+      status: data?.status || "IN_QUEUE",
+      prompt: finalPrompt,
+    });
   } catch (e) {
     console.error("generate-visual error:", e);
     return json({ error: String((e as Error).message ?? e) }, 500);
