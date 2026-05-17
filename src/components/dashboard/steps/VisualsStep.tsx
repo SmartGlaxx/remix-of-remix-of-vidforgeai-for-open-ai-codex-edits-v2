@@ -42,6 +42,26 @@ const trimText = (text: string, max = 620) => {
   return clean.length > max ? `${clean.slice(0, max).trim()}…` : clean;
 };
 
+const extractImageUrl = (payload: any): string | undefined => {
+  const output = payload?.output ?? payload;
+  const nested = output?.output ?? output;
+  return nested?.url || nested?.image_url || nested?.ipfs_url || nested?.image?.url || nested?.image?.ipfs_url;
+};
+
+async function pollVisualJob(endpointId: string, jobId: string, timeoutMs = 600_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const { data, error } = await supabase.functions.invoke("runpod-gateway", {
+      body: { action: "status", endpoint_id: endpointId, job_id: jobId },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.status === "COMPLETED") return data;
+    if (data?.status === "FAILED") throw new Error(data?.error || "Visual job failed");
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+  }
+  throw new Error("Visual generation timed out");
+}
+
 const VisualsStep = () => {
   const {
     selectedTitle, scriptSections, scriptMeta,
@@ -86,7 +106,7 @@ const VisualsStep = () => {
         text: sceneText,
         prompt: trimText(`${selectedTitle ? `Video title: ${selectedTitle}. ` : ""}Create a visual for this narration beat: ${sceneText}`, 720),
         imageUrl: visualScenes[i]?.imageUrl,
-        status: visualScenes[i]?.imageUrl ? "done" : "pending",
+        status: (visualScenes[i]?.imageUrl ? "done" : "pending") as VisualScene["status"],
         error: undefined,
       } as VisualScene;
     });
@@ -120,7 +140,11 @@ const VisualsStep = () => {
     });
     if (invokeError) throw new Error(invokeError.message);
     if (data?.error) throw new Error(data.error);
-    const imageUrl = data?.image_url || data?.url;
+    let imageUrl = data?.image_url || data?.url;
+    if (!imageUrl && data?.job_id && data?.endpoint_id) {
+      const completed = await pollVisualJob(data.endpoint_id, data.job_id);
+      imageUrl = extractImageUrl(completed);
+    }
     if (!imageUrl) throw new Error("No image URL returned");
     updateScene(scenes, index, { status: "done", imageUrl, prompt: data?.prompt || scenes[index].prompt });
   };
@@ -134,7 +158,10 @@ const VisualsStep = () => {
     const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
     if (count !== visualCount) setVisualCount(count);
 
-    const scenes = scenePlan.slice(0, count).map((scene) => ({ ...scene, status: scene.imageUrl ? "done" : "pending" as const }));
+    const scenes: VisualScene[] = scenePlan.slice(0, count).map((scene) => ({
+      ...scene,
+      status: scene.imageUrl ? "done" : "pending",
+    }));
     setVisualScenes(scenes);
     setIsGenerating(true);
     setError(null);
