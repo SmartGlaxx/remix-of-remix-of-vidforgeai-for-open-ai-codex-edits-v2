@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useProject } from "@/contexts/ProjectContext";
 
 const sampleTexts: Record<string, string> = {
   af_alloy: "The future belongs to those who believe in the beauty of their dreams.",
@@ -141,16 +142,24 @@ const languages = [
 ];
 
 const VoiceoverStep = () => {
-  const [selectedVoice, setSelectedVoice] = useState("af_bella");
-  const [text, setText] = useState("");
+  const { scriptSections, voice: ctxVoice, setVoice: setCtxVoice } = useProject();
+  const scriptText = scriptSections.map((s) => s.text).join("\n\n").trim();
+  const [selectedVoice, setSelectedVoice] = useState(ctxVoice || "af_bella");
+  const [text, setText] = useState(scriptText);
   const [speed, setSpeed] = useState(1.0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [langFilter, setLangFilter] = useState("all");
+  const [langFilter, setLangFilter] = useState("en-us");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // If script becomes available later (user navigated back), prefill once when empty
+  useEffect(() => {
+    if (!text && scriptText) setText(scriptText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptText]);
 
   // Sample audio state
   const [sampleCache, setSampleCache] = useState<Record<string, string>>({});
@@ -275,6 +284,7 @@ const VoiceoverStep = () => {
       stopSampleAudio();
     }
     setSelectedVoice(voiceId);
+    setCtxVoice(voiceId);
   };
 
   const handleGenerate = async () => {
