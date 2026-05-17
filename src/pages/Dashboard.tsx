@@ -14,6 +14,7 @@ import VisualsStep from "@/components/dashboard/steps/VisualsStep";
 import ThumbnailStep from "@/components/dashboard/steps/ThumbnailStep";
 import SoundtrackStep from "@/components/dashboard/steps/SoundtrackStep";
 import VideoStep from "@/components/dashboard/steps/VideoStep";
+import { ProjectProvider } from "@/contexts/ProjectContext";
 
 const stepComponents: Record<string, React.FC> = {
   title: TitleStep,
@@ -54,6 +55,7 @@ const Dashboard = () => {
   };
 
   return (
+    <ProjectProvider>
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar activePage="create" />
 
@@ -126,6 +128,7 @@ const Dashboard = () => {
         </div>
       </main>
     </div>
+    </ProjectProvider>
   );
 };
 
