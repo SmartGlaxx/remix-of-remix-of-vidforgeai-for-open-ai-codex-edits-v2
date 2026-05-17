@@ -116,7 +116,10 @@ const Dashboard = () => {
               </motion.div>
             </AnimatePresence>
 
-            {activeStep !== "video" && (
+            {(() => {
+              const idx = pipelineSteps.findIndex((s) => s.id === activeStep);
+              const isLast = idx === pipelineSteps.length - 1;
+              return (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -126,18 +129,21 @@ const Dashboard = () => {
                 <Button
                   variant="ghost"
                   onClick={handleBack}
-                  disabled={pipelineSteps.findIndex((s) => s.id === activeStep) === 0}
+                  disabled={idx === 0}
                   className="h-10 px-4 text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button onClick={handleContinue} className="glow-sm h-10 px-6">
-                  Continue to {pipelineSteps[pipelineSteps.findIndex((s) => s.id === activeStep) + 1]?.label}
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
+                {!isLast && (
+                  <Button onClick={handleContinue} className="glow-sm h-10 px-6">
+                    Continue to {pipelineSteps[idx + 1]?.label}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
               </motion.div>
-            )}
+              );
+            })()}
           </div>
         </div>
       </main>
