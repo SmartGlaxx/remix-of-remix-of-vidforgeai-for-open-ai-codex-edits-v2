@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Download, Wand2, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useProject } from "@/contexts/ProjectContext";
 
 type Stage =
   | "idle"
@@ -44,16 +45,23 @@ async function pollHallo2(endpoint_id: string, job_id: string, timeoutMs = 600_0
 }
 
 const VideoStep = () => {
-  const [script, setScript] = useState(
-    "Welcome to VidForge. Today we explore how AI is changing storytelling forever."
-  );
-  const [imagePrompt, setImagePrompt] = useState("Cinematic close-up portrait of a narrator, soft lighting, 4k");
-  const [musicPrompt, setMusicPrompt] = useState("Cinematic ambient background music, soft and atmospheric");
-  const [voice, setVoice] = useState("af_heart");
+  const {
+    selectedTitle, scriptSections,
+    imagePrompt, setImagePrompt,
+    musicPrompt, setMusicPrompt,
+    voice, setVoice,
+    videoUrl, setVideoUrl,
+  } = useProject();
 
-  const [stage, setStage] = useState<Stage>("idle");
+  const scriptFromContext = useMemo(
+    () => scriptSections.map((s) => s.text).join("\n\n"),
+    [scriptSections]
+  );
+  const [scriptOverride, setScriptOverride] = useState<string | null>(null);
+  const script = scriptOverride ?? scriptFromContext ?? "";
+
+  const [stage, setStage] = useState<Stage>(videoUrl ? "done" : "idle");
   const [statusMsg, setStatusMsg] = useState("");
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const generate = async () => {
@@ -146,7 +154,7 @@ const VideoStep = () => {
           <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Script</label>
           <Textarea
             value={script}
-            onChange={(e) => setScript(e.target.value)}
+            onChange={(e) => setScriptOverride(e.target.value)}
             rows={4}
             disabled={busy}
             placeholder="Enter the narration text…"

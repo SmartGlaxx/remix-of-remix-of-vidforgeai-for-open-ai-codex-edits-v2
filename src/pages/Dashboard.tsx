@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowRight, Menu, Settings, HelpCircle,
+  ArrowRight, ArrowLeft, Menu, Settings, HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -45,6 +45,14 @@ const Dashboard = () => {
       setCompletedSteps((prev) => [...new Set([...prev, activeStep])]);
       setDirection(1);
       setActiveStep(pipelineSteps[idx + 1].id);
+    }
+  };
+
+  const handleBack = () => {
+    const idx = pipelineSteps.findIndex((s) => s.id === activeStep);
+    if (idx > 0) {
+      setDirection(-1);
+      setActiveStep(pipelineSteps[idx - 1].id);
     }
   };
 
@@ -108,22 +116,34 @@ const Dashboard = () => {
               </motion.div>
             </AnimatePresence>
 
-            {activeStep !== "video" && (
+            {(() => {
+              const idx = pipelineSteps.findIndex((s) => s.id === activeStep);
+              const isLast = idx === pipelineSteps.length - 1;
+              return (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
                 className="flex items-center justify-between mt-8 pt-6 border-t border-border"
               >
-                <span className="text-xs text-muted-foreground">
-                  Step {pipelineSteps.findIndex((s) => s.id === activeStep) + 1} of {pipelineSteps.length}
-                </span>
-                <Button onClick={handleContinue} className="glow-sm h-10 px-6">
-                  Continue to {pipelineSteps[pipelineSteps.findIndex((s) => s.id === activeStep) + 1]?.label}
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button
+                  variant="ghost"
+                  onClick={handleBack}
+                  disabled={idx === 0}
+                  className="h-10 px-4 text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
                 </Button>
+                {!isLast && (
+                  <Button onClick={handleContinue} className="glow-sm h-10 px-6">
+                    Continue to {pipelineSteps[idx + 1]?.label}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
               </motion.div>
-            )}
+              );
+            })()}
           </div>
         </div>
       </main>
