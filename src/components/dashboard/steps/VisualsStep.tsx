@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Image, Sparkles, RefreshCw, ZoomIn, Trash2, Loader2, AlertCircle, Scissors,
 } from "lucide-react";
@@ -114,12 +114,6 @@ const VisualsStep = () => {
 
   const scenesToShow = visualScenes.length ? visualScenes : scenePlan;
   const completed = scenesToShow.filter((scene) => scene.status === "done" && scene.imageUrl).length;
-
-  useEffect(() => {
-    if (!visualScenes.length && visualCount !== visualRange.recommended) {
-      setVisualCount(visualRange.recommended);
-    }
-  }, [visualRange.recommended, visualScenes.length, visualCount, setVisualCount]);
 
   const updateScene = (scenes: VisualScene[], index: number, patch: Partial<VisualScene>) => {
     scenes[index] = { ...scenes[index], ...patch };
