@@ -1,32 +1,83 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Play, Sparkles, ChevronRight, TrendingUp, Eye, ThumbsUp,
-  Globe, Flame, Target, BarChart3,
+  Sparkles, Eye, ThumbsUp, Globe, Flame, Target, BarChart3, Loader2, AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
-const suggestedTitles = [
-  { title: "The Secret Drone Army Hunting Cartel Bosses", score: 94, views: "2.4M", ctr: "14.2%" },
-  { title: "The Biggest Prison Break You Never Heard Of", score: 88, views: "1.8M", ctr: "11.7%" },
-  { title: "Inside the World's Most Dangerous Smuggling Route", score: 91, views: "3.1M", ctr: "12.9%" },
-  { title: "Why Nobody Can Stop This $50B Underground Empire", score: 86, views: "1.2M", ctr: "10.4%" },
-];
+type TitleCandidate = {
+  title: string;
+  score: number;
+  views: string;
+  ctr: string;
+  language: string;
+  reason?: string;
+};
+
+type SeoInsights = {
+  competition: "Low" | "Medium" | "High";
+  search_volume: string;
+  trending: string;
+  primary_keyword?: string;
+  notes?: string;
+};
+
+const trendingColor = (t: string) =>
+  t?.startsWith("↑") ? "text-emerald-400" : t?.startsWith("↓") ? "text-destructive" : "text-primary";
+
+const competitionColor = (c: string) =>
+  c === "Low" ? "text-emerald-400" : c === "High" ? "text-destructive" : "text-yellow-400";
 
 const TitleStep = () => {
+  const [topic, setTopic] = useState("");
+  const [customTitle, setCustomTitle] = useState("");
+  const [titles, setTitles] = useState<TitleCandidate[]>([]);
+  const [seo, setSeo] = useState<SeoInsights | null>(null);
   const [selectedTitle, setSelectedTitle] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const analyze = async (seed?: string) => {
+    const value = (seed ?? topic).trim();
+    if (value.length < 3) {
+      toast({ title: "Topic too short", description: "Enter at least 3 characters." });
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSelectedTitle(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-title", {
+        body: { topic: value },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setTitles(Array.isArray(data?.titles) ? data.titles : []);
+      setSeo(data?.seo ?? null);
+    } catch (e) {
+      const msg = (e as Error).message;
+      setError(msg);
+      toast({ title: "Analysis failed", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sortedTitles = [...titles].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
   return (
     <div className="space-y-6">
-      {/* Channel Analyzer */}
+      {/* Topic seed */}
       <div className="glass-card p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-destructive/15 flex items-center justify-center border border-destructive/20">
-            <Play className="w-5 h-5 text-destructive" />
+          <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center border border-primary/20">
+            <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-display font-semibold text-foreground">Channel Analyzer</h3>
-            <p className="text-xs text-muted-foreground">Reverse-engineer any channel's winning formula</p>
+            <h3 className="font-display font-semibold text-foreground">Title Generator</h3>
+            <p className="text-xs text-muted-foreground">Enter a topic or rough idea — AI crafts viral title candidates</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -35,21 +86,42 @@ const TitleStep = () => {
         </div>
         <div className="flex gap-3">
           <input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !loading && analyze()}
+            disabled={loading}
             className="flex-1 bg-background/80 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30 transition-all"
-            placeholder="https://www.youtube.com/@channel"
+            placeholder="e.g. how the DEA uses drones to hunt cartels"
           />
-          <Button className="glow-sm px-5">
-            <Sparkles className="w-4 h-4 mr-2" /> Analyze
+          <Button className="glow-sm px-5" onClick={() => analyze()} disabled={loading}>
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+            {loading ? "Analyzing…" : "Analyze"}
           </Button>
         </div>
-        {/* Quick channel tags */}
+        {/* Quick topic tags */}
         <div className="flex gap-2 mt-3 flex-wrap">
-          {["@MrBeast", "@veritasium", "@JohnnyHarris", "@kurzgesagt"].map((ch) => (
-            <button key={ch} className="px-3 py-1 rounded-full text-[11px] bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border hover:border-primary/20 transition-all">
+          {[
+            "Hidden history of WWII spies",
+            "How Bitcoin actually works",
+            "Deep sea creatures we just discovered",
+            "The fall of Blockbuster",
+          ].map((ch) => (
+            <button
+              key={ch}
+              onClick={() => { setTopic(ch); analyze(ch); }}
+              disabled={loading}
+              className="px-3 py-1 rounded-full text-[11px] bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border hover:border-primary/20 transition-all disabled:opacity-50"
+            >
               {ch}
             </button>
           ))}
         </div>
+        {error && (
+          <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-3">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Manual title */}
@@ -60,94 +132,123 @@ const TitleStep = () => {
         </div>
         <div className="flex gap-3">
           <input
+            value={customTitle}
+            onChange={(e) => setCustomTitle(e.target.value)}
             className="flex-1 bg-background/80 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30 transition-all"
             placeholder="Enter a video title idea..."
           />
-          <Button variant="outline" className="border-border hover:border-primary/30">Use Title</Button>
+          <Button
+            variant="outline"
+            className="border-border hover:border-primary/30"
+            onClick={() => customTitle.trim() && analyze(customTitle)}
+            disabled={loading || !customTitle.trim()}
+          >
+            Analyze
+          </Button>
         </div>
       </div>
 
       {/* AI Generated Titles */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <Flame className="w-4 h-4 text-accent" />
-            <h3 className="font-display font-semibold text-foreground">AI Generated Titles</h3>
+      {(loading || sortedTitles.length > 0) && (
+        <div className="glass-card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <Flame className="w-4 h-4 text-accent" />
+              <h3 className="font-display font-semibold text-foreground">AI Generated Titles</h3>
+            </div>
+            {sortedTitles.length > 0 && (
+              <span className="text-[10px] text-muted-foreground">Sorted by Viral Score</span>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">Sorted by</span>
-            <select className="bg-secondary/60 border border-border rounded-lg px-2 py-1 text-[11px] text-foreground">
-              <option>Viral Score</option>
-              <option>CTR Potential</option>
-              <option>View Estimate</option>
-            </select>
-          </div>
-        </div>
-        <div className="space-y-2">
-          {suggestedTitles.map((item, i) => (
-            <motion.button
-              key={i}
-              onClick={() => setSelectedTitle(i)}
-              whileHover={{ scale: 1.005 }}
-              whileTap={{ scale: 0.995 }}
-              className={`w-full text-left p-4 rounded-xl border transition-all group ${
-                selectedTitle === i
-                  ? "border-primary/50 bg-primary/8 shadow-lg shadow-primary/5"
-                  : "border-border hover:border-primary/25 hover:bg-primary/3"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm text-foreground font-medium block mb-2">{item.title}</span>
-                  <div className="flex items-center gap-4 text-[11px]">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Eye className="w-3 h-3" /> {item.views} est.
-                    </span>
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <ThumbsUp className="w-3 h-3" /> {item.ctr} CTR
-                    </span>
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <Globe className="w-3 h-3" /> English
-                    </span>
+          {loading && sortedTitles.length === 0 ? (
+            <div className="space-y-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-20 rounded-xl border border-border bg-secondary/30 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sortedTitles.map((item, i) => (
+                <motion.button
+                  key={`${item.title}-${i}`}
+                  onClick={() => setSelectedTitle(i)}
+                  whileHover={{ scale: 1.005 }}
+                  whileTap={{ scale: 0.995 }}
+                  className={`w-full text-left p-4 rounded-xl border transition-all group ${
+                    selectedTitle === i
+                      ? "border-primary/50 bg-primary/8 shadow-lg shadow-primary/5"
+                      : "border-border hover:border-primary/25 hover:bg-primary/3"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-foreground font-medium block mb-2">{item.title}</span>
+                      <div className="flex items-center gap-4 text-[11px] flex-wrap">
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Eye className="w-3 h-3" /> {item.views} est.
+                        </span>
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <ThumbsUp className="w-3 h-3" /> {item.ctr} CTR
+                        </span>
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Globe className="w-3 h-3" /> {item.language || "English"}
+                        </span>
+                      </div>
+                      {item.reason && (
+                        <p className="text-[11px] text-muted-foreground/80 mt-2 italic">{item.reason}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-display font-bold ${
+                        item.score >= 90
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                          : item.score >= 80
+                          ? "bg-primary/15 text-primary border border-primary/20"
+                          : "bg-muted text-muted-foreground border border-border"
+                      }`}>
+                        {item.score}
+                      </div>
+                      <span className="text-[9px] text-muted-foreground">Score</span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-display font-bold ${
-                    item.score >= 90
-                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                      : item.score >= 85
-                      ? "bg-primary/15 text-primary border border-primary/20"
-                      : "bg-muted text-muted-foreground border border-border"
-                  }`}>
-                    {item.score}
-                  </div>
-                  <span className="text-[9px] text-muted-foreground">Score</span>
-                </div>
-              </div>
-            </motion.button>
-          ))}
+                </motion.button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* SEO Insights */}
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-4 h-4 text-primary" />
-          <h3 className="font-display font-semibold text-foreground text-sm">SEO Insights</h3>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Competition", value: "Medium", color: "text-yellow-400" },
-            { label: "Search Vol.", value: "18.2K/mo", color: "text-primary" },
-            { label: "Trending", value: "↑ Rising", color: "text-emerald-400" },
-          ].map((ins) => (
-            <div key={ins.label} className="bg-secondary/40 rounded-lg p-3 text-center">
-              <span className="block text-[10px] text-muted-foreground mb-1">{ins.label}</span>
-              <span className={`text-sm font-display font-semibold ${ins.color}`}>{ins.value}</span>
+      {seo && (
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            <h3 className="font-display font-semibold text-foreground text-sm">SEO Insights</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-secondary/40 rounded-lg p-3 text-center">
+              <span className="block text-[10px] text-muted-foreground mb-1">Competition</span>
+              <span className={`text-sm font-display font-semibold ${competitionColor(seo.competition)}`}>{seo.competition}</span>
             </div>
-          ))}
+            <div className="bg-secondary/40 rounded-lg p-3 text-center">
+              <span className="block text-[10px] text-muted-foreground mb-1">Search Vol.</span>
+              <span className="text-sm font-display font-semibold text-primary">{seo.search_volume}</span>
+            </div>
+            <div className="bg-secondary/40 rounded-lg p-3 text-center">
+              <span className="block text-[10px] text-muted-foreground mb-1">Trending</span>
+              <span className={`text-sm font-display font-semibold ${trendingColor(seo.trending)}`}>{seo.trending}</span>
+            </div>
+          </div>
+          {(seo.primary_keyword || seo.notes) && (
+            <div className="mt-4 pt-4 border-t border-border space-y-2 text-xs text-muted-foreground">
+              {seo.primary_keyword && (
+                <p><span className="text-foreground font-medium">Primary keyword:</span> {seo.primary_keyword}</p>
+              )}
+              {seo.notes && <p>{seo.notes}</p>}
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
