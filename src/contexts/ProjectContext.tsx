@@ -1,6 +1,16 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 
 export type ScriptSection = { section: string; text: string };
+
+export type VisualScene = {
+  id: string;
+  section: string;
+  text: string;
+  prompt: string;
+  imageUrl?: string;
+  status: "pending" | "generating" | "done" | "error";
+  error?: string;
+};
 
 export type TitleCandidate = {
   title: string;
@@ -36,6 +46,19 @@ type ProjectState = {
   setScriptSections: (s: ScriptSection[]) => void;
   scriptMeta: { words: number; minutes: number; retention: number } | null;
   setScriptMeta: (m: { words: number; minutes: number; retention: number } | null) => void;
+  // Visuals step
+  visualScenes: VisualScene[];
+  setVisualScenes: (s: VisualScene[]) => void;
+  visualCount: number;
+  setVisualCount: (n: number) => void;
+  visualStyle: string;
+  setVisualStyle: (s: string) => void;
+  visualAspectRatio: string;
+  setVisualAspectRatio: (s: string) => void;
+  visualQuality: string;
+  setVisualQuality: (s: string) => void;
+  visualMotion: string;
+  setVisualMotion: (s: string) => void;
   // Video step
   imagePrompt: string;
   setImagePrompt: (s: string) => void;
@@ -48,24 +71,52 @@ type ProjectState = {
 };
 
 const Ctx = createContext<ProjectState | null>(null);
+const STORAGE_KEY = "vidforge_project_state_v1";
+
+const readSavedProject = (): Partial<ProjectState> => {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") as Partial<ProjectState>;
+  } catch {
+    return {};
+  }
+};
 
 export const ProjectProvider = ({ children }: { children: ReactNode }) => {
-  const [topic, setTopic] = useState("");
-  const [customTitle, setCustomTitle] = useState("");
-  const [titles, setTitles] = useState<TitleCandidate[]>([]);
-  const [seo, setSeo] = useState<SeoInsights | null>(null);
-  const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
-  const [scriptSections, setScriptSections] = useState<ScriptSection[]>([]);
-  const [scriptMeta, setScriptMeta] = useState<ProjectState["scriptMeta"]>(null);
-  const [imagePrompt, setImagePrompt] = useState("Cinematic close-up portrait of a narrator, soft lighting, 4k");
-  const [musicPrompt, setMusicPrompt] = useState("Cinematic ambient background music, soft and atmospheric");
-  const [voice, setVoice] = useState("af_heart");
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const saved = useMemo(readSavedProject, []);
+  const [topic, setTopic] = useState(saved.topic ?? "");
+  const [customTitle, setCustomTitle] = useState(saved.customTitle ?? "");
+  const [titles, setTitles] = useState<TitleCandidate[]>(saved.titles ?? []);
+  const [seo, setSeo] = useState<SeoInsights | null>(saved.seo ?? null);
+  const [selectedTitle, setSelectedTitle] = useState<string | null>(saved.selectedTitle ?? null);
+  const [scriptSections, setScriptSections] = useState<ScriptSection[]>(saved.scriptSections ?? []);
+  const [scriptMeta, setScriptMeta] = useState<ProjectState["scriptMeta"]>(saved.scriptMeta ?? null);
+  const [visualScenes, setVisualScenes] = useState<VisualScene[]>(saved.visualScenes ?? []);
+  const [visualCount, setVisualCount] = useState(saved.visualCount ?? 80);
+  const [visualStyle, setVisualStyle] = useState(saved.visualStyle ?? "Cinematic");
+  const [visualAspectRatio, setVisualAspectRatio] = useState(saved.visualAspectRatio ?? "16:9");
+  const [visualQuality, setVisualQuality] = useState(saved.visualQuality ?? "HD");
+  const [visualMotion, setVisualMotion] = useState(saved.visualMotion ?? "Static");
+  const [imagePrompt, setImagePrompt] = useState(saved.imagePrompt ?? "Cinematic close-up portrait of a narrator, soft lighting, 4k");
+  const [musicPrompt, setMusicPrompt] = useState(saved.musicPrompt ?? "Cinematic ambient background music, soft and atmospheric");
+  const [voice, setVoice] = useState(saved.voice ?? "af_heart");
+  const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
+      visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
+      imagePrompt, musicPrompt, voice, videoUrl,
+    }));
+  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, imagePrompt, musicPrompt, voice, videoUrl]);
+
   return (
     <Ctx.Provider value={{
       topic, setTopic, customTitle, setCustomTitle, titles, setTitles, seo, setSeo,
       selectedTitle, setSelectedTitle,
       scriptSections, setScriptSections, scriptMeta, setScriptMeta,
+      visualScenes, setVisualScenes, visualCount, setVisualCount, visualStyle, setVisualStyle,
+      visualAspectRatio, setVisualAspectRatio, visualQuality, setVisualQuality, visualMotion, setVisualMotion,
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,
       videoUrl, setVideoUrl,
     }}>
