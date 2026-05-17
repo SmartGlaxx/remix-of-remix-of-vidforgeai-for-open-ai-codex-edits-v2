@@ -8,23 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject } from "@/contexts/ProjectContext";
 
-type TitleCandidate = {
-  title: string;
-  score: number;
-  views: string;
-  ctr: string;
-  language: string;
-  reason?: string;
-};
-
-type SeoInsights = {
-  competition: "Low" | "Medium" | "High";
-  search_volume: string;
-  trending: string;
-  primary_keyword?: string;
-  notes?: string;
-};
-
 const trendingColor = (t: string) =>
   t?.startsWith("↑") ? "text-emerald-400" : t?.startsWith("↓") ? "text-destructive" : "text-primary";
 
@@ -32,12 +15,11 @@ const competitionColor = (c: string) =>
   c === "Low" ? "text-emerald-400" : c === "High" ? "text-destructive" : "text-yellow-400";
 
 const TitleStep = () => {
-  const { selectedTitle, setSelectedTitle } = useProject();
-  const [topic, setTopic] = useState("");
-  const [customTitle, setCustomTitle] = useState("");
-  const [titles, setTitles] = useState<TitleCandidate[]>([]);
-  const [seo, setSeo] = useState<SeoInsights | null>(null);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const {
+    selectedTitle, setSelectedTitle,
+    topic, setTopic, customTitle, setCustomTitle,
+    titles, setTitles, seo, setSeo,
+  } = useProject();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -57,7 +39,7 @@ const TitleStep = () => {
     }
   };
 
-  useEffect(() => { loadSuggestions(); }, []);
+  useEffect(() => { if (suggestions.length === 0) loadSuggestions(); }, []);
 
   const analyze = async (seed?: string) => {
     const value = (seed ?? topic).trim();
@@ -67,15 +49,20 @@ const TitleStep = () => {
     }
     setLoading(true);
     setError(null);
-    setSelectedIdx(null);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-title", {
         body: { topic: value },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
-      setTitles(Array.isArray(data?.titles) ? data.titles : []);
+      const list = Array.isArray(data?.titles) ? data.titles : [];
+      setTitles(list);
       setSeo(data?.seo ?? null);
+      // Auto-select highest-scored title so it persists into Script step
+      if (list.length > 0) {
+        const top = [...list].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+        setSelectedTitle(top.title);
+      }
     } catch (e) {
       const msg = (e as Error).message;
       setError(msg);
@@ -201,11 +188,11 @@ const TitleStep = () => {
               {sortedTitles.map((item, i) => (
                 <motion.button
                   key={`${item.title}-${i}`}
-                  onClick={() => { setSelectedIdx(i); setSelectedTitle(item.title); }}
+                  onClick={() => setSelectedTitle(item.title)}
                   whileHover={{ scale: 1.005 }}
                   whileTap={{ scale: 0.995 }}
                   className={`w-full text-left p-4 rounded-xl border transition-all group ${
-                    selectedIdx === i || selectedTitle === item.title
+                    selectedTitle === item.title
                       ? "border-primary/50 bg-primary/8 shadow-lg shadow-primary/5"
                       : "border-border hover:border-primary/25 hover:bg-primary/3"
                   }`}
