@@ -54,7 +54,28 @@ Deno.serve(async (req) => {
       return json({ error: "No audio URL returned from TTS service" }, 502);
     }
 
-    return json({ audio_url: audioUrl, characters: text.length, voice, format: response_format });
+    // Proxy the audio through our edge function to avoid third-party hosts
+    // (e.g. ipfs.filebase.io) being blocked by browser AV/security extensions.
+    let proxiedUrl = audioUrl;
+    try {
+      const audioResp = await fetch(audioUrl);
+      if (audioResp.ok) {
+        const buf = new Uint8Array(await audioResp.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+        const b64 = btoa(bin);
+        const mime = response_format === "wav" ? "audio/wav"
+          : response_format === "flac" ? "audio/flac"
+          : "audio/mpeg";
+        proxiedUrl = `data:${mime};base64,${b64}`;
+      } else {
+        console.warn("Audio proxy fetch failed:", audioResp.status);
+      }
+    } catch (e) {
+      console.warn("Audio proxy error, falling back to original URL:", e);
+    }
+
+    return json({ audio_url: proxiedUrl, source_url: audioUrl, characters: text.length, voice, format: response_format });
   } catch (err) {
     console.error("generate-speech error:", err);
     return json({ error: String((err as Error)?.message ?? err) }, 500);
