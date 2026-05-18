@@ -140,6 +140,19 @@ const VisualsStep = () => {
       imageUrl = extractImageUrl(completed);
     }
     if (!imageUrl) throw new Error("No image URL returned");
+
+    // Re-host on Lovable Cloud Storage so the image is served from a trusted
+    // *.supabase.co domain (avoids AV blocks on ipfs.filebase.io). The original
+    // URL still works for downstream RunPod video compilation if needed.
+    try {
+      const { data: rehosted } = await supabase.functions.invoke("rehost-image", {
+        body: { url: imageUrl },
+      });
+      if (rehosted?.image_url) imageUrl = rehosted.image_url;
+    } catch (e) {
+      console.warn("rehost-image failed, using original URL:", e);
+    }
+
     updateScene(scenes, index, { status: "done", imageUrl, prompt: data?.prompt || scenes[index].prompt });
   };
 
