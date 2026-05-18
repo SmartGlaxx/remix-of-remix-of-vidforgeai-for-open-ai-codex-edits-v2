@@ -395,10 +395,12 @@ const VoiceoverStep = () => {
             const hasCached = !!sampleCache[voice.id];
 
             return (
-              <button
+              <div
                 key={voice.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleVoiceSelect(voice.id)}
-                className={`p-3 rounded-xl border text-left transition-all group relative ${
+                className={`p-3 rounded-xl border text-left transition-all group relative cursor-pointer ${
                   selectedVoice === voice.id
                     ? "border-primary/40 bg-primary/8 shadow-lg shadow-primary/5"
                     : "border-border hover:border-primary/20 hover:bg-secondary/30"
@@ -460,7 +462,7 @@ const VoiceoverStep = () => {
                     </span>
                   )}
                 </div>
-              </button>
+              </div>
             );
           })}
           {filteredVoices.length === 0 && (
