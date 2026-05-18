@@ -1,6 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
+const ZIMAGE_ENDPOINT_ID = Deno.env.get("RUNPOD_ZIMAGE_ENDPOINT_ID") || "a6cjdpnprs4r1c";
 const MIN_VISUALS = 24;
 const LOWER_END_MINUTES = 8;
 const HIGHER_END_MINUTES = 30;
@@ -10,8 +11,7 @@ Deno.serve(async (req) => {
 
   try {
     const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
-    const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
-    if (!RUNPOD_API_KEY || !GATEWAY_ID) {
+    if (!RUNPOD_API_KEY) {
       return json({ error: "Image generation backend is not configured" }, 500);
     }
 
@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
       "No text, no captions, no logos, no watermarks. High composition quality, realistic lighting, clear subject."
     ].join(" ");
 
-    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
+    // Call Zimage endpoint directly (bypasses gateway orchestration which queues too long for images)
+    const r = await fetch(`${RUNPOD_BASE}/${ZIMAGE_ENDPOINT_ID}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -42,13 +43,10 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         input: {
-          route: "workflow/generate-image",
-          params: {
-            prompt: finalPrompt,
-            aspect_ratio: aspectRatio,
-            quality: quality.toLowerCase(),
-            seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
-          },
+          prompt: finalPrompt,
+          aspect_ratio: aspectRatio,
+          quality: quality.toLowerCase(),
+          seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
         },
       }),
     });
@@ -59,7 +57,7 @@ Deno.serve(async (req) => {
 
     return json({
       job_id: data?.id,
-      endpoint_id: GATEWAY_ID,
+      endpoint_id: ZIMAGE_ENDPOINT_ID,
       status: data?.status || "IN_QUEUE",
       prompt: finalPrompt,
     });
