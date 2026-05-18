@@ -1,4 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
 
@@ -54,28 +55,33 @@ Deno.serve(async (req) => {
       return json({ error: "No audio URL returned from TTS service" }, 502);
     }
 
-    // Proxy the audio through our edge function to avoid third-party hosts
-    // (e.g. ipfs.filebase.io) being blocked by browser AV/security extensions.
-    let proxiedUrl = audioUrl;
+    // Re-host the audio in Lovable Cloud Storage so the URL comes from a
+    // trusted *.supabase.co domain (avoids AV blocks on ipfs.filebase.io
+    // while keeping fast streaming + seek support, unlike base64).
+    let finalUrl = audioUrl;
     try {
       const audioResp = await fetch(audioUrl);
-      if (audioResp.ok) {
-        const buf = new Uint8Array(await audioResp.arrayBuffer());
-        let bin = "";
-        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-        const b64 = btoa(bin);
-        const mime = response_format === "wav" ? "audio/wav"
-          : response_format === "flac" ? "audio/flac"
-          : "audio/mpeg";
-        proxiedUrl = `data:${mime};base64,${b64}`;
-      } else {
-        console.warn("Audio proxy fetch failed:", audioResp.status);
-      }
+      if (!audioResp.ok) throw new Error(`fetch ${audioResp.status}`);
+      const bytes = new Uint8Array(await audioResp.arrayBuffer());
+      const ext = response_format === "wav" ? "wav" : response_format === "flac" ? "flac" : "mp3";
+      const mime = ext === "wav" ? "audio/wav" : ext === "flac" ? "audio/flac" : "audio/mpeg";
+      const key = `${crypto.randomUUID()}.${ext}`;
+
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { error: upErr } = await admin.storage
+        .from("tts-audio")
+        .upload(key, bytes, { contentType: mime, upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = admin.storage.from("tts-audio").getPublicUrl(key);
+      if (pub?.publicUrl) finalUrl = pub.publicUrl;
     } catch (e) {
-      console.warn("Audio proxy error, falling back to original URL:", e);
+      console.warn("Re-host failed, returning original URL:", e);
     }
 
-    return json({ audio_url: proxiedUrl, source_url: audioUrl, characters: text.length, voice, format: response_format });
+    return json({ audio_url: finalUrl, source_url: audioUrl, characters: text.length, voice, format: response_format });
   } catch (err) {
     console.error("generate-speech error:", err);
     return json({ error: String((err as Error)?.message ?? err) }, 500);
