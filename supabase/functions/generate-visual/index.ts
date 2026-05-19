@@ -1,10 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
-// Per RunPod deployment spec: image generation MUST flow through the unified
-// API gateway (route `voxai/generate-image`), which orchestrates the z-image
-// endpoint and returns a public IPFS URL. We submit async via `/run` so the
-// edge function returns immediately; the client polls the gateway job.
+// Per RunPod deployment spec: image generation flows through the unified API
+// gateway using the `workflow/generate-image` route (this app's namespace;
+// `voxai/*` is reserved for the sibling app). The gateway orchestrates the
+// z-image endpoint and returns a public IPFS URL. We submit async via `/run`
+// so the edge function returns immediately; the client polls the gateway job.
 const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
 
 Deno.serve(async (req) => {
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         input: {
-          route: "voxai/generate-image",
+          route: "workflow/generate-image",
           params: {
             prompt: finalPrompt,
             aspect_ratio: aspectRatio,
