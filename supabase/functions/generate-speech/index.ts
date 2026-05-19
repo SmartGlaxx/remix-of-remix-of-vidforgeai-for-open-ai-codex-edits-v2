@@ -2,14 +2,14 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
+const KOKORO_ENDPOINT_ID = Deno.env.get("KOKORO_ENDPOINT_ID") || "erpnk7ibq46vsv";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
-    const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
-    if (!RUNPOD_API_KEY || !GATEWAY_ID) {
+    if (!RUNPOD_API_KEY) {
       return errJson("Voice service isn't configured yet. Please contact support.");
     }
 
@@ -23,17 +23,15 @@ Deno.serve(async (req) => {
       return errJson("That script is too long. Please keep it under 10,000 characters.");
     }
 
-    const startResp = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/runsync`, {
+    // Call Kokoro endpoint directly (gateway has been unreliable / cold-queueing).
+    const startResp = await fetch(`${RUNPOD_BASE}/${KOKORO_ENDPOINT_ID}/runsync`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${RUNPOD_API_KEY}`,
       },
       body: JSON.stringify({
-        input: {
-          route: "workflow/generate-tts",
-          params: { text, voice, speed, response_format },
-        },
+        input: { text, voice, speed, response_format },
       }),
     });
 
@@ -51,7 +49,7 @@ Deno.serve(async (req) => {
       const deadline = Date.now() + 130_000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2500));
-        const sr = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/status/${jobId}`, {
+        const sr = await fetch(`${RUNPOD_BASE}/${KOKORO_ENDPOINT_ID}/status/${jobId}`, {
           headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
         });
         const sd: any = await sr.json().catch(() => ({}));
@@ -71,22 +69,29 @@ Deno.serve(async (req) => {
       console.error("Gateway returned error:", inner.error);
       return errJson(friendlyError(inner, "Voice generation failed. Please try again."));
     }
-    const audioUrl = inner?.output?.url ?? inner?.url ?? inner?.audio_url;
-    if (!audioUrl) {
-      console.error("No audio_url in response:", JSON.stringify(data).slice(0, 1000));
+    // Kokoro returns audio_base64 directly; gateway sometimes wraps as a URL.
+    const audioUrl: string | undefined = inner?.output?.url ?? inner?.url ?? inner?.audio_url;
+    const audioB64: string | undefined =
+      inner?.audio_base64 ?? inner?.output?.audio_base64 ?? inner?.audio ?? inner?.output?.audio;
+    if (!audioUrl && !audioB64) {
+      console.error("No audio in response:", JSON.stringify(data).slice(0, 1000));
       return errJson("The voice service returned no audio. Please try a shorter script or another voice.");
     }
 
-    // Re-host the audio in Lovable Cloud Storage so the URL comes from a
-    // trusted *.supabase.co domain (avoids AV blocks on ipfs.filebase.io
-    // while keeping fast streaming + seek support, unlike base64).
-    let finalUrl = audioUrl;
+    const ext = response_format === "wav" ? "wav" : response_format === "flac" ? "flac" : "mp3";
+    const mime = ext === "wav" ? "audio/wav" : ext === "flac" ? "audio/flac" : "audio/mpeg";
+    let finalUrl = audioUrl ?? "";
     try {
-      const audioResp = await fetch(audioUrl);
-      if (!audioResp.ok) throw new Error(`fetch ${audioResp.status}`);
-      const bytes = new Uint8Array(await audioResp.arrayBuffer());
-      const ext = response_format === "wav" ? "wav" : response_format === "flac" ? "flac" : "mp3";
-      const mime = ext === "wav" ? "audio/wav" : ext === "flac" ? "audio/flac" : "audio/mpeg";
+      let bytes: Uint8Array;
+      if (audioB64) {
+        const bin = atob(audioB64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      } else {
+        const audioResp = await fetch(audioUrl!);
+        if (!audioResp.ok) throw new Error(`fetch ${audioResp.status}`);
+        bytes = new Uint8Array(await audioResp.arrayBuffer());
+      }
       const key = `${crypto.randomUUID()}.${ext}`;
 
       const admin = createClient(
@@ -100,10 +105,11 @@ Deno.serve(async (req) => {
       const { data: pub } = admin.storage.from("tts-audio").getPublicUrl(key);
       if (pub?.publicUrl) finalUrl = pub.publicUrl;
     } catch (e) {
-      console.warn("Re-host failed, returning original URL:", e);
+      console.warn("Re-host failed:", e);
+      if (!finalUrl) return errJson("Voice generation succeeded but audio couldn't be saved. Please try again.");
     }
 
-    return json({ audio_url: finalUrl, source_url: audioUrl, characters: text.length, voice, format: response_format });
+    return json({ audio_url: finalUrl, source_url: audioUrl ?? null, characters: text.length, voice, format: response_format });
   } catch (err) {
     console.error("generate-speech error:", err);
     return errJson("Something went wrong while generating the voiceover. Please try again.");
