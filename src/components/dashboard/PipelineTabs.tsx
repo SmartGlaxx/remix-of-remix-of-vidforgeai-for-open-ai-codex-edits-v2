@@ -72,11 +72,7 @@ const PipelineTabs = ({ activeStep, onStepChange, completedSteps }: PipelineTabs
                       <step.icon className="w-3.5 h-3.5" />
                     )}
                   </div>
-                  <div className="relative z-10 hidden md:block text-left min-w-0">
-                    <span className="block text-xs font-semibold truncate">{step.label}</span>
-                    <span className={`block text-[9px] truncate ${isActive ? "text-primary/60" : "text-muted-foreground/60"}`}>{step.desc}</span>
-                  </div>
-                  <span className="relative z-10 md:hidden text-xs">{step.label}</span>
+                  <span className="relative z-10 text-xs font-semibold truncate">{step.label}</span>
                 </motion.div>
 
                 {/* Active indicator line */}
