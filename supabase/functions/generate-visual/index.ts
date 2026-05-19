@@ -1,19 +1,17 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
-// Per RunPod deployment spec: image generation flows through the unified API
-// gateway using the `workflow/generate-image` route (this app's namespace;
-// `voxai/*` is reserved for the sibling app). The gateway orchestrates the
-// z-image endpoint and returns a public IPFS URL. We submit async via `/run`
-// so the edge function returns immediately; the client polls the gateway job.
-const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
+// The unified gateway has been unreliable (no available workers), so we call
+// the Z-Image endpoint directly. The client still polls via runpod-gateway
+// status action which works against any endpoint_id.
+const ZIMAGE_ENDPOINT_ID = Deno.env.get("ZIMAGE_ENDPOINT_ID") || "a6cjdpnprs4r1c";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
-    if (!RUNPOD_API_KEY || !GATEWAY_ID) {
+    if (!RUNPOD_API_KEY) {
       return json({ error: "Image generation backend is not configured" }, 500);
     }
 
@@ -36,8 +34,8 @@ Deno.serve(async (req) => {
       "ABSOLUTELY NO TEXT of any kind in the image: no words, letters, numbers, captions, subtitles, signs, labels, typography, written language, glyphs, or characters anywhere in the frame. No logos, no watermarks, no channel branding. If signs, books, screens, or papers appear, they must be completely blank. High composition quality, realistic lighting, clear subject."
     ].join(" ");
 
-    // Submit through the gateway using this app's workflow/* namespace.
-    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
+    // Submit directly to the Z-Image endpoint (bypassing the gateway).
+    const r = await fetch(`${RUNPOD_BASE}/${ZIMAGE_ENDPOINT_ID}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -45,13 +43,10 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         input: {
-          route: "workflow/generate-image",
-          params: {
-            prompt: finalPrompt,
-            aspect_ratio: aspectRatio,
-            quality: quality.toLowerCase(),
-            seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
-          },
+          prompt: finalPrompt,
+          aspect_ratio: aspectRatio,
+          quality: quality.toLowerCase(),
+          seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
         },
       }),
     });
@@ -62,7 +57,7 @@ Deno.serve(async (req) => {
 
     return json({
       job_id: data?.id,
-      endpoint_id: GATEWAY_ID,
+      endpoint_id: ZIMAGE_ENDPOINT_ID,
       status: data?.status || "IN_QUEUE",
       prompt: finalPrompt,
     });
