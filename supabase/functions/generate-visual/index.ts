@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       "No text, no captions, no logos, no watermarks. High composition quality, realistic lighting, clear subject."
     ].join(" ");
 
-    // Submit through the gateway per developer spec (route: voxai/generate-image).
+    // Submit through the gateway using this app's workflow/* namespace.
     const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
       method: "POST",
       headers: {
