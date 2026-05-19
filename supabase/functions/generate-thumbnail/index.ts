@@ -1,14 +1,15 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
-const ZIMAGE_ENDPOINT_ID = Deno.env.get("RUNPOD_ZIMAGE_ENDPOINT_ID") || "a6cjdpnprs4r1c";
+// Route through the unified gateway (voxai/generate-image) per RunPod spec.
+const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
-    if (!RUNPOD_API_KEY) return json({ error: "Image generation backend is not configured" }, 500);
+    if (!RUNPOD_API_KEY || !GATEWAY_ID) return json({ error: "Image generation backend is not configured" }, 500);
 
     const body = await req.json().catch(() => ({}));
     const description = String(body.description ?? "").trim();
@@ -35,15 +36,18 @@ Deno.serve(async (req) => {
       "No logos, no watermarks, no channel branding. Hyper-detailed, photoreal where appropriate, sharp focus, eye-catching at small sizes.",
     ].filter(Boolean).join(" ");
 
-    const r = await fetch(`${RUNPOD_BASE}/${ZIMAGE_ENDPOINT_ID}/run`, {
+    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${RUNPOD_API_KEY}` },
       body: JSON.stringify({
         input: {
-          prompt: finalPrompt,
-          aspect_ratio: "16:9",
-          quality: "hd",
-          seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
+          route: "voxai/generate-image",
+          params: {
+            prompt: finalPrompt,
+            aspect_ratio: "16:9",
+            quality: "hd",
+            seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
+          },
         },
       }),
     });
@@ -54,7 +58,7 @@ Deno.serve(async (req) => {
 
     return json({
       job_id: data?.id,
-      endpoint_id: ZIMAGE_ENDPOINT_ID,
+      endpoint_id: GATEWAY_ID,
       status: data?.status || "IN_QUEUE",
       prompt: finalPrompt,
     });
