@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       return json({ error: "Text too long (max 10,000 characters)" }, 400);
     }
 
-    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/runsync`, {
+    const startResp = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/runsync`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -37,22 +37,43 @@ Deno.serve(async (req) => {
       }),
     });
 
-    const data = await r.json();
-    if (!r.ok) {
-      console.error("Gateway HTTP error:", r.status, data);
-      return json({ error: "TTS service error", details: data }, 502);
+    let data: any = await startResp.json().catch(() => ({}));
+    if (!startResp.ok) {
+      console.error("Gateway HTTP error:", startResp.status, data);
+      return json({ error: friendlyError(data, "We couldn't reach the voice service. Please try again in a moment.") }, 502);
     }
 
-    // RunPod runsync wraps response in { output: ... } OR returns inline
+    // If runsync didn't finish in time, RunPod returns { id, status: "IN_QUEUE" | "IN_PROGRESS" }.
+    // Poll the gateway endpoint until it completes.
+    if (data?.id && (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS")) {
+      const jobId = data.id;
+      const deadline = Date.now() + 180_000; // 3 min
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const sr = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/status/${jobId}`, {
+          headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
+        });
+        const sd: any = await sr.json().catch(() => ({}));
+        if (sd?.status === "COMPLETED") { data = sd; break; }
+        if (sd?.status === "FAILED" || sd?.status === "CANCELLED" || sd?.status === "TIMED_OUT") {
+          return json({ error: friendlyError(sd, "Voice generation didn't complete. Please try again.") }, 502);
+        }
+      }
+      if (data?.status !== "COMPLETED") {
+        return json({ error: "Voice generation is taking longer than expected. Please try again in a minute." }, 504);
+      }
+    }
+
+    // RunPod wraps response in { output: ... } OR returns inline
     const inner = data?.output ?? data;
     if (inner?.error) {
       console.error("Gateway returned error:", inner.error);
-      return json({ error: inner.error }, 502);
+      return json({ error: friendlyError(inner, "Voice generation failed. Please try again.") }, 502);
     }
-    const audioUrl = inner?.output?.url ?? inner?.url;
+    const audioUrl = inner?.output?.url ?? inner?.url ?? inner?.audio_url;
     if (!audioUrl) {
       console.error("No audio_url in response:", JSON.stringify(data).slice(0, 500));
-      return json({ error: "No audio URL returned from TTS service" }, 502);
+      return json({ error: "The voice service returned no audio. Please try a shorter script or another voice." }, 502);
     }
 
     // Re-host the audio in Lovable Cloud Storage so the URL comes from a
@@ -84,7 +105,7 @@ Deno.serve(async (req) => {
     return json({ audio_url: finalUrl, source_url: audioUrl, characters: text.length, voice, format: response_format });
   } catch (err) {
     console.error("generate-speech error:", err);
-    return json({ error: String((err as Error)?.message ?? err) }, 500);
+    return json({ error: "Something went wrong while generating the voiceover. Please try again." }, 500);
   }
 });
 
@@ -93,4 +114,12 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function friendlyError(payload: any, fallback: string): string {
+  const raw = (payload?.error || payload?.message || "").toString();
+  if (!raw) return fallback;
+  // Strip noisy "status code 2xx" / stack traces
+  if (/status code|HTTP \d+|Traceback|RunPod/i.test(raw)) return fallback;
+  return raw.length > 200 ? fallback : raw;
 }
