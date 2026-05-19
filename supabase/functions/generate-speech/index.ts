@@ -10,17 +10,17 @@ Deno.serve(async (req) => {
     const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
     const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
     if (!RUNPOD_API_KEY || !GATEWAY_ID) {
-      return json({ error: "RunPod gateway not configured" }, 500);
+      return errJson("Voice service isn't configured yet. Please contact support.");
     }
 
     const { text, voice = "af_bella", speed = 1.0, response_format = "mp3" } =
       await req.json();
 
     if (!text || typeof text !== "string" || !text.trim()) {
-      return json({ error: "Text is required" }, 400);
+      return errJson("Please enter some text to turn into a voiceover.");
     }
     if (text.length > 10000) {
-      return json({ error: "Text too long (max 10,000 characters)" }, 400);
+      return errJson("That script is too long. Please keep it under 10,000 characters.");
     }
 
     const startResp = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/runsync`, {
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     let data: any = await startResp.json().catch(() => ({}));
     if (!startResp.ok) {
       console.error("Gateway HTTP error:", startResp.status, data);
-      return json({ error: friendlyError(data, "We couldn't reach the voice service. Please try again in a moment.") }, 502);
+      return errJson(friendlyError(data, "We couldn't reach the voice service. Please try again in a moment."));
     }
 
     // If runsync didn't finish in time, RunPod returns { id, status: "IN_QUEUE" | "IN_PROGRESS" }.
@@ -56,11 +56,11 @@ Deno.serve(async (req) => {
         const sd: any = await sr.json().catch(() => ({}));
         if (sd?.status === "COMPLETED") { data = sd; break; }
         if (sd?.status === "FAILED" || sd?.status === "CANCELLED" || sd?.status === "TIMED_OUT") {
-          return json({ error: friendlyError(sd, "Voice generation didn't complete. Please try again.") }, 502);
+          return errJson(friendlyError(sd, "Voice generation didn't complete. Please try again."));
         }
       }
       if (data?.status !== "COMPLETED") {
-        return json({ error: "Voice generation is taking longer than expected. Please try again in a minute." }, 504);
+        return errJson("Voice generation is taking longer than expected. Please try again in a minute.");
       }
     }
 
@@ -68,12 +68,12 @@ Deno.serve(async (req) => {
     const inner = data?.output ?? data;
     if (inner?.error) {
       console.error("Gateway returned error:", inner.error);
-      return json({ error: friendlyError(inner, "Voice generation failed. Please try again.") }, 502);
+      return errJson(friendlyError(inner, "Voice generation failed. Please try again."));
     }
     const audioUrl = inner?.output?.url ?? inner?.url ?? inner?.audio_url;
     if (!audioUrl) {
-      console.error("No audio_url in response:", JSON.stringify(data).slice(0, 500));
-      return json({ error: "The voice service returned no audio. Please try a shorter script or another voice." }, 502);
+      console.error("No audio_url in response:", JSON.stringify(data).slice(0, 1000));
+      return errJson("The voice service returned no audio. Please try a shorter script or another voice.");
     }
 
     // Re-host the audio in Lovable Cloud Storage so the URL comes from a
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     return json({ audio_url: finalUrl, source_url: audioUrl, characters: text.length, voice, format: response_format });
   } catch (err) {
     console.error("generate-speech error:", err);
-    return json({ error: "Something went wrong while generating the voiceover. Please try again." }, 500);
+    return errJson("Something went wrong while generating the voiceover. Please try again.");
   }
 });
 
