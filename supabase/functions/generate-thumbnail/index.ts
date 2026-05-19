@@ -1,15 +1,15 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
-// Route through the unified gateway using this app's `workflow/*` namespace.
-const GATEWAY_ID = Deno.env.get("RUNPOD_GATEWAY_ENDPOINT_ID");
+// Call Z-Image directly (gateway has been queueing without workers).
+const ZIMAGE_ENDPOINT_ID = Deno.env.get("ZIMAGE_ENDPOINT_ID") || "a6cjdpnprs4r1c";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
-    if (!RUNPOD_API_KEY || !GATEWAY_ID) return json({ error: "Image generation backend is not configured" }, 500);
+    if (!RUNPOD_API_KEY) return json({ error: "Image generation backend is not configured" }, 500);
 
     const body = await req.json().catch(() => ({}));
     const description = String(body.description ?? "").trim();
@@ -54,18 +54,15 @@ Deno.serve(async (req) => {
       "No logos, no watermarks, no channel branding. Ultra-detailed 8K quality, photoreal where appropriate, razor-sharp focus, professional color grading, masterpiece composition, eye-catching at small sizes.",
     ].filter(Boolean).join(" ");
 
-    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
+    const r = await fetch(`${RUNPOD_BASE}/${ZIMAGE_ENDPOINT_ID}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${RUNPOD_API_KEY}` },
       body: JSON.stringify({
         input: {
-          route: "workflow/generate-image",
-          params: {
-            prompt: finalPrompt,
-            aspect_ratio: "16:9",
-            quality: "ultra",
-            seed,
-          },
+          prompt: finalPrompt,
+          aspect_ratio: "16:9",
+          quality: "ultra",
+          seed,
         },
       }),
     });
@@ -76,7 +73,7 @@ Deno.serve(async (req) => {
 
     return json({
       job_id: data?.id,
-      endpoint_id: GATEWAY_ID,
+      endpoint_id: ZIMAGE_ENDPOINT_ID,
       status: data?.status || "IN_QUEUE",
       prompt: finalPrompt,
     });
