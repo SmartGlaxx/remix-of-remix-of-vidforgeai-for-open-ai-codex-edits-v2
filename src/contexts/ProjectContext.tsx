@@ -68,6 +68,7 @@ type ProjectState = {
   setVoice: (s: string) => void;
   videoUrl: string | null;
   setVideoUrl: (s: string | null) => void;
+  resetProject: () => void;
 };
 
 const Ctx = createContext<ProjectState | null>(null);
@@ -102,6 +103,27 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
   const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
 
+  const resetProject = () => {
+    setTopic("");
+    setCustomTitle("");
+    setTitles([]);
+    setSeo(null);
+    setSelectedTitle(null);
+    setScriptSections([]);
+    setScriptMeta(null);
+    setVisualScenes([]);
+    setVisualCount(80);
+    setVisualStyle("Cinematic");
+    setVisualAspectRatio("16:9");
+    setVisualQuality("HD");
+    setVisualMotion("Static");
+    setImagePrompt("Cinematic close-up portrait of a narrator, soft lighting, 4k");
+    setMusicPrompt("Cinematic ambient background music, soft and atmospheric");
+    setVoice("af_heart");
+    setVideoUrl(null);
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
+  };
+
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
@@ -118,7 +140,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       visualScenes, setVisualScenes, visualCount, setVisualCount, visualStyle, setVisualStyle,
       visualAspectRatio, setVisualAspectRatio, visualQuality, setVisualQuality, visualMotion, setVisualMotion,
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,
-      videoUrl, setVideoUrl,
+      videoUrl, setVideoUrl, resetProject,
     }}>
       {children}
     </Ctx.Provider>

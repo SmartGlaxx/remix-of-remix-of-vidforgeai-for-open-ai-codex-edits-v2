@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap, Film, Search, Palette, BarChart3, Plus,
   Clock, Crown, ChevronDown, Folder, Star, TrendingUp,
-  User, LogOut,
+  User, LogOut, PanelLeftClose, PanelLeft,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -23,9 +23,11 @@ const recentProjects = [
 
 interface SidebarProps {
   activePage?: string;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
-const Sidebar = ({ activePage = "create" }: SidebarProps) => {
+const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: SidebarProps) => {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const navigate = useNavigate();
 
@@ -35,40 +37,67 @@ const Sidebar = ({ activePage = "create" }: SidebarProps) => {
   };
 
   return (
-    <aside className="hidden lg:flex w-72 flex-col border-r border-border bg-card/30 backdrop-blur-sm">
-      {/* Logo */}
-      <div className="p-5 border-b border-border">
-        <Link to="/" className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+    <motion.aside
+      initial={false}
+      animate={{ width: collapsed ? 68 : 288 }}
+      transition={{ type: "spring", stiffness: 260, damping: 32 }}
+      className="hidden lg:flex flex-col border-r border-border bg-card/30 backdrop-blur-sm relative overflow-hidden"
+    >
+      {/* Logo + toggle */}
+      <div className="p-4 border-b border-border flex items-center justify-between gap-2">
+        <Link to="/" className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 shrink-0 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
             <Zap className="w-5 h-5 text-primary-foreground" />
           </div>
-          <div>
-            <span className="font-display text-lg font-bold text-foreground">
-              VidForge<span className="text-primary">AI</span>
-            </span>
-            <span className="block text-[10px] text-muted-foreground -mt-0.5 tracking-wider uppercase">Studio Pro</span>
-          </div>
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.15 }}
+                className="min-w-0"
+              >
+                <span className="font-display text-lg font-bold text-foreground whitespace-nowrap">
+                  VidForge<span className="text-primary">AI</span>
+                </span>
+                <span className="block text-[10px] text-muted-foreground -mt-0.5 tracking-wider uppercase">Studio Pro</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </Link>
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all"
+          >
+            {collapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Main Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Workspace</div>
+        {!collapsed && (
+          <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Workspace</div>
+        )}
         {mainNavItems.map((item, i) => {
           const isActive = i === getActiveIndex();
           return (
             <button
               key={item.label}
               onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all group ${
+              title={collapsed ? item.label : undefined}
+              className={`w-full flex items-center gap-3 ${collapsed ? "justify-center px-2" : "px-3"} py-2.5 rounded-lg text-sm transition-all group ${
                 isActive
                   ? "bg-primary/10 text-primary border border-primary/20 shadow-sm shadow-primary/5"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
               }`}
             >
-              <item.icon className={`w-4 h-4 ${isActive ? "text-primary" : "group-hover:text-primary transition-colors"}`} />
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge && (
+              <item.icon className={`w-4 h-4 shrink-0 ${isActive ? "text-primary" : "group-hover:text-primary transition-colors"}`} />
+              {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
+              {!collapsed && item.badge && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                   item.badge.includes("new")
                     ? "bg-accent/20 text-accent"
@@ -82,7 +111,7 @@ const Sidebar = ({ activePage = "create" }: SidebarProps) => {
         })}
 
         {/* Recent Projects */}
-        <div className="pt-4">
+        {!collapsed && <div className="pt-4">
           <button
             onClick={() => setProjectsOpen(!projectsOpen)}
             className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
@@ -124,10 +153,10 @@ const Sidebar = ({ activePage = "create" }: SidebarProps) => {
               ))}
             </motion.div>
           )}
-        </div>
+        </div>}
 
         {/* Quick Stats */}
-        <div className="pt-4">
+        {!collapsed && <div className="pt-4">
           <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Quick Stats</div>
           <div className="grid grid-cols-2 gap-2 px-1">
             {[
@@ -148,13 +177,12 @@ const Sidebar = ({ activePage = "create" }: SidebarProps) => {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
       </nav>
 
       {/* Bottom Section */}
       <div className="p-3 space-y-3 border-t border-border">
-        {/* Pro Plan Badge */}
-        <div className="glass-card p-3 bg-gradient-to-br from-accent/10 to-primary/5">
+        {!collapsed && <div className="glass-card p-3 bg-gradient-to-br from-accent/10 to-primary/5">
           <div className="flex items-center gap-2 mb-2">
             <Crown className="w-4 h-4 text-accent" />
             <span className="text-xs font-display font-semibold text-foreground">Pro Plan</span>
@@ -167,26 +195,26 @@ const Sidebar = ({ activePage = "create" }: SidebarProps) => {
             <div className="h-full w-[86%] bg-gradient-to-r from-primary via-accent to-primary rounded-full" />
           </div>
           <p className="text-[9px] text-muted-foreground mt-1.5">Resets in 12 days</p>
-        </div>
+        </div>}
 
         {/* Profile */}
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary/50 transition-all cursor-pointer group">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-display font-bold text-xs">
+        <div className={`flex items-center gap-3 ${collapsed ? "justify-center px-1" : "px-3"} py-2.5 rounded-lg hover:bg-secondary/50 transition-all cursor-pointer group`}>
+          <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-display font-bold text-xs">
             <User className="w-4 h-4" />
           </div>
-          <div className="flex-1 min-w-0">
+          {!collapsed && <div className="flex-1 min-w-0">
             <span className="block text-xs font-medium text-foreground truncate">My Profile</span>
             <span className="block text-[10px] text-muted-foreground">Manage account</span>
-          </div>
+          </div>}
         </div>
 
         {/* Sign Out */}
-        <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all">
-          <LogOut className="w-4 h-4" />
-          Sign Out
+        <button title={collapsed ? "Sign Out" : undefined} className={`w-full flex items-center gap-3 ${collapsed ? "justify-center px-2" : "px-3"} py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all`}>
+          <LogOut className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Sign Out</span>}
         </button>
       </div>
-    </aside>
+    </motion.aside>
   );
 };
 
