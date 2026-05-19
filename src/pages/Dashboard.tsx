@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowRight, ArrowLeft, Menu, Settings, HelpCircle,
+  ArrowRight, ArrowLeft, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +15,13 @@ import ThumbnailStep from "@/components/dashboard/steps/ThumbnailStep";
 import SoundtrackStep from "@/components/dashboard/steps/SoundtrackStep";
 import VideoStep from "@/components/dashboard/steps/VideoStep";
 import { ProjectProvider } from "@/contexts/ProjectContext";
+import { useProject } from "@/contexts/ProjectContext";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 const stepComponents: Record<string, React.FC> = {
   title: TitleStep,
@@ -26,10 +33,45 @@ const stepComponents: Record<string, React.FC> = {
   video: VideoStep,
 };
 
+const ResetButton = () => {
+  const { resetProject } = useProject();
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-2 border-border/60 hover:border-destructive/40 hover:text-destructive">
+          <RotateCcw className="w-3.5 h-3.5" />
+          Reset Project
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Start a clean slate?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This clears every step — titles, script, voiceover, visuals, thumbnail,
+            soundtrack and final video — used or not. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              resetProject();
+              toast.success("Project reset. Fresh start ready.");
+            }}
+          >
+            Reset everything
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
 const Dashboard = () => {
   const [activeStep, setActiveStep] = useState("title");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [direction, setDirection] = useState(1);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const ActiveStepComponent = stepComponents[activeStep];
 
   const handleStepChange = (newStep: string) => {
@@ -65,32 +107,13 @@ const Dashboard = () => {
   return (
     <ProjectProvider>
     <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activePage="create" />
+      <Sidebar activePage="create" collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(v => !v)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="border-b border-border px-5 py-3.5 bg-card/30 backdrop-blur-sm flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button className="lg:hidden w-9 h-9 rounded-lg bg-secondary flex items-center justify-center">
-              <Menu className="w-4 h-4 text-muted-foreground" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-display text-base font-bold text-foreground">New Project</h1>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-primary/15 text-primary border border-primary/20">Draft</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">Create your next viral video • Auto-saved 2s ago</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="w-8 h-8 rounded-lg bg-secondary/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-              <HelpCircle className="w-4 h-4" />
-            </button>
-            <button className="w-8 h-8 rounded-lg bg-secondary/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-              <Settings className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
+        {/* Top toolbar */}
+        <div className="border-b border-border/60 px-4 py-2 flex items-center justify-end gap-2 bg-card/20 backdrop-blur-sm">
+          <ResetButton />
+        </div>
 
         {/* Pipeline */}
         <PipelineTabs
