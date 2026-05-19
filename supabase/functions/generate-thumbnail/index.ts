@@ -23,17 +23,35 @@ Deno.serve(async (req) => {
     const title = String(body.title ?? "").trim().slice(0, 200);
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
 
+    // Per-variant uniqueness directives — guarantee no two thumbnails look the same.
+    const variationHints = [
+      "Hero close-up framing, subject fills the frame, low-angle dramatic perspective, golden-hour rim light.",
+      "Wide cinematic establishing shot, subject off-center using rule-of-thirds, deep background layers, blue-hour color grade.",
+      "Dutch-angle dynamic composition, motion-blurred background, neon accent lighting, high-contrast teal-and-orange palette.",
+      "Over-the-shoulder POV framing, shallow depth of field with strong bokeh, warm tungsten key light, moody shadows.",
+      "Top-down overhead composition, symmetrical layout, hard directional sunlight, saturated complementary color palette.",
+      "Side-profile silhouette against a glowing backdrop, lens flare, magenta-and-cyan gradient lighting.",
+      "Macro detail shot of the most iconic element, hyper-real textures, studio softbox lighting, crisp specular highlights.",
+      "Split-composition diptych feel, contrasting light/dark halves, volumetric god rays, cinematic anamorphic flares.",
+    ];
+    const variationHint = variationHints[index % variationHints.length];
+    const randomNonce = crypto.getRandomValues(new Uint32Array(1))[0];
+    const seed = Number.isFinite(Number(body.seed))
+      ? Number(body.seed)
+      : (randomNonce ^ ((Date.now() & 0xffffffff) >>> 0) ^ (index * 2654435761)) >>> 0;
+
     const finalPrompt = [
       `YouTube thumbnail, 16:9, ultra-high click-through rate.`,
       `Style: ${styleName}.`,
       styleDirective || "Bold composition, strong focal subject, vibrant contrast, dramatic lighting.",
       title ? `Video title: ${title}.` : "",
       `Scene: ${description}.`,
+      `Variant ${index + 1} direction: ${variationHint}`,
       textOverlay
         ? `Render the short text overlay "${textOverlay}" in massive, bold, legible sans-serif typography with a heavy outline and high contrast against the background.`
         : "No visible text or captions on the image.",
       referenceUrl ? `Visual reference inspiration: ${referenceUrl}.` : "",
-      "No logos, no watermarks, no channel branding. Hyper-detailed, photoreal where appropriate, sharp focus, eye-catching at small sizes.",
+      "No logos, no watermarks, no channel branding. Ultra-detailed 8K quality, photoreal where appropriate, razor-sharp focus, professional color grading, masterpiece composition, eye-catching at small sizes.",
     ].filter(Boolean).join(" ");
 
     const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
@@ -45,8 +63,8 @@ Deno.serve(async (req) => {
           params: {
             prompt: finalPrompt,
             aspect_ratio: "16:9",
-            quality: "hd",
-            seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
+            quality: "ultra",
+            seed,
           },
         },
       }),
