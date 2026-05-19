@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       prompt,
       `Aspect ratio ${aspectRatio}. ${quality} detail.`,
       motion === "Static" ? "Static image, no camera movement, no animation." : `Motion direction: ${motion}.`,
-      "No text, no captions, no logos, no watermarks. High composition quality, realistic lighting, clear subject."
+      "ABSOLUTELY NO TEXT of any kind in the image: no words, letters, numbers, captions, subtitles, signs, labels, typography, written language, glyphs, or characters anywhere in the frame. No logos, no watermarks, no channel branding. If signs, books, screens, or papers appear, they must be completely blank. High composition quality, realistic lighting, clear subject."
     ].join(" ");
 
     // Submit through the gateway using this app's workflow/* namespace.
