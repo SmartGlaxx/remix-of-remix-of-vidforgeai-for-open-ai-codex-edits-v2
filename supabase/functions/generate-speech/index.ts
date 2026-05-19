@@ -47,7 +47,8 @@ Deno.serve(async (req) => {
     // Poll the gateway endpoint until it completes.
     if (data?.id && (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS")) {
       const jobId = data.id;
-      const deadline = Date.now() + 180_000; // 3 min
+      // Supabase edge functions cap around 150s; leave headroom to return friendly error.
+      const deadline = Date.now() + 130_000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2500));
         const sr = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/status/${jobId}`, {
