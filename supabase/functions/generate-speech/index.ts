@@ -116,6 +116,12 @@ function json(data: unknown, status = 200) {
   });
 }
 
+// Always return HTTP 200 with { error } so supabase.functions.invoke
+// surfaces our friendly message instead of "non-2xx status code".
+function errJson(message: string) {
+  return json({ error: message }, 200);
+}
+
 function friendlyError(payload: any, fallback: string): string {
   const raw = (payload?.error || payload?.message || "").toString();
   if (!raw) return fallback;
