@@ -26,17 +26,12 @@ Deno.serve(async (req) => {
     const finalPrompt = [
       `YouTube thumbnail, 16:9, ultra-high click-through rate.`,
       `Style: ${styleName}.`,
-      // Only include style directives when there IS a user-requested text overlay,
-      // since many style directives mention typography/text. Otherwise use a
-      // text-free fallback to honor the strict "no text" rule.
-      textOverlay
-        ? (styleDirective || "Bold composition, strong focal subject, vibrant contrast, dramatic lighting.")
-        : "Bold composition, strong focal subject, vibrant contrast, dramatic lighting, cinematic framing.",
+      styleDirective || "Bold composition, strong focal subject, vibrant contrast, dramatic lighting.",
       title ? `Video title: ${title}.` : "",
       `Scene: ${description}.`,
       textOverlay
-        ? `Render ONLY this exact short text overlay verbatim: "${textOverlay}" in massive, bold, legible sans-serif typography with a heavy outline and high contrast. Do not add any other words, letters, captions, or written content anywhere else in the image.`
-        : "ABSOLUTELY NO TEXT of any kind in the image: no words, letters, numbers, captions, subtitles, signs, labels, typography, written language, glyphs, or characters anywhere in the frame. If signs, books, screens, or papers appear, they must be completely blank.",
+        ? `Render the short text overlay "${textOverlay}" in massive, bold, legible sans-serif typography with a heavy outline and high contrast against the background.`
+        : "No visible text or captions on the image.",
       referenceUrl ? `Visual reference inspiration: ${referenceUrl}.` : "",
       "No logos, no watermarks, no channel branding. Hyper-detailed, photoreal where appropriate, sharp focus, eye-catching at small sizes.",
     ].filter(Boolean).join(" ");
