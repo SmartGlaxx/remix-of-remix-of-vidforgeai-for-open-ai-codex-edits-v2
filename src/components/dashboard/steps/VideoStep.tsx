@@ -33,6 +33,30 @@ async function callGateway(payload: Record<string, unknown>) {
   return data;
 }
 
+async function pollGateway(endpoint_id: string, job_id: string, timeoutMs = 1_500_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const data = await callGateway({ action: "status", endpoint_id, job_id });
+    const status = data?.status;
+    if (status === "COMPLETED") return data.output ?? data;
+    if (status === "FAILED" || status === "CANCELLED") {
+      throw new Error(data?.error || `Job ${status}`);
+    }
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  throw new Error("Job timed out");
+}
+
+// Submit a route to the gateway; if it returns a job_id, poll until completion
+// and unwrap the gateway handler's result.
+async function runRoute(payload: Record<string, unknown>) {
+  const data = await callGateway(payload);
+  if (data?.job_id && data?.endpoint_id) {
+    return await pollGateway(data.endpoint_id, data.job_id);
+  }
+  return data;
+}
+
 async function pollHallo2(endpoint_id: string, job_id: string, timeoutMs = 600_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -72,7 +96,7 @@ const VideoStep = () => {
 
     try {
       // 1) Full pipeline (TTS + image + music + video + submit lipsync)
-      const full = await callGateway({
+      const full = await runRoute({
         route: "workflow/full-video",
         params: {
           text: script,
@@ -112,7 +136,7 @@ const VideoStep = () => {
       // 3) Stitch video + voice + music into a single MP4
       setStage("stitching");
       setStatusMsg(STAGE_LABEL.stitching);
-      const stitched = await callGateway({
+      const stitched = await runRoute({
         route: "workflow/stitch",
         params: {
           video_url: finalVideo,
