@@ -46,7 +46,16 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
     const data = await r.json();
     const content: string = data?.choices?.[0]?.message?.content ?? "{}";
     let parsed: unknown;
-    try { parsed = JSON.parse(content); } catch { return json({ error: "AI returned invalid JSON" }, 502); }
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      try {
+        parsed = extractJson(content);
+      } catch (e) {
+        console.error("Invalid JSON from AI:", content);
+        return json({ error: "AI returned invalid JSON" }, 502);
+      }
+    }
     return json(parsed);
   } catch (e) {
     return json({ error: String((e as Error).message) }, 500);
@@ -55,4 +64,18 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+function extractJson(raw: string): unknown {
+  let s = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = s.search(/[\{\[]/);
+  const open = s[start];
+  const close = open === "[" ? "]" : "}";
+  const end = s.lastIndexOf(close);
+  if (start === -1 || end === -1) throw new Error("No JSON found");
+  s = s.substring(start, end + 1);
+  try { return JSON.parse(s); } catch {
+    s = s.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\x00-\x1F\x7F]/g, " ");
+    return JSON.parse(s);
+  }
 }
