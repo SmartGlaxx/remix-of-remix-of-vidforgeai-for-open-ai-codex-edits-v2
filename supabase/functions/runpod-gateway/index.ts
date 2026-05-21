@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
       return json({ error: "route is required" }, 400);
     }
 
-    // Call gateway runsync
-    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/runsync`, {
+    // Submit async job to gateway (/run) so long workflows don't hit the 90s runsync limit.
+    const r = await fetch(`${RUNPOD_BASE}/${GATEWAY_ID}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -38,7 +38,13 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ input: { route, params } }),
     });
     const data = await r.json();
-    return json(data, r.status);
+    if (!r.ok) return json(data, r.status);
+    return json({
+      status: data.status ?? "IN_QUEUE",
+      job_id: data.id,
+      endpoint_id: GATEWAY_ID,
+      raw: data,
+    }, 200);
   } catch (e) {
     console.error("runpod-gateway error:", e);
     return json({ error: String(e?.message ?? e) }, 500);
