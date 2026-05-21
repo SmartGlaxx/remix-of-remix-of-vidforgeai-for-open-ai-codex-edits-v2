@@ -22,6 +22,14 @@ Deno.serve(async (req) => {
     const referenceUrl = String(body.reference_url ?? "").trim().slice(0, 400);
     const title = String(body.title ?? "").trim().slice(0, 200);
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
+    const aspectRatio = String(body.aspect_ratio ?? "16:9").trim() || "16:9";
+    const videoStyle = String(body.video_style ?? "").trim().slice(0, 80);
+    // Optional caller-supplied unique scene direction (from AI diversifier).
+    const sceneOverride = String(body.scene_direction ?? "").trim().slice(0, 600);
+
+    const dims = aspectRatio === "9:16" ? { width: 768, height: 1344 }
+      : aspectRatio === "1:1" ? { width: 1024, height: 1024 }
+      : { width: 1344, height: 768 };
 
     // Per-variant uniqueness directives — guarantee no two thumbnails look the same.
     const variationHints = [
@@ -35,6 +43,7 @@ Deno.serve(async (req) => {
       "Split-composition diptych feel, contrasting light/dark halves, volumetric god rays, cinematic anamorphic flares.",
     ];
     const variationHint = variationHints[index % variationHints.length];
+    const sceneDirection = sceneOverride || variationHint;
     const randomNonce = crypto.getRandomValues(new Uint32Array(1))[0];
     const seed = Number.isFinite(Number(body.seed))
       ? Number(body.seed)
@@ -44,9 +53,10 @@ Deno.serve(async (req) => {
       `YouTube thumbnail, 16:9, ultra-high click-through rate.`,
       `Style: ${styleName}.`,
       styleDirective || "Bold composition, strong focal subject, vibrant contrast, dramatic lighting.",
+      videoStyle ? `Visual style continuity from the video: ${videoStyle}.` : "",
       title ? `Video title: ${title}.` : "",
       `Scene: ${description}.`,
-      `Variant ${index + 1} direction: ${variationHint}`,
+      `Variant ${index + 1} direction: ${sceneDirection}`,
       textOverlay
         ? `Render the short text overlay "${textOverlay}" in massive, bold, legible sans-serif typography with a heavy outline and high contrast against the background.`
         : "No visible text or captions on the image.",
@@ -60,8 +70,10 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         input: {
           prompt: finalPrompt,
-          aspect_ratio: "16:9",
+          aspect_ratio: aspectRatio,
           quality: "ultra",
+          width: dims.width,
+          height: dims.height,
           seed,
         },
       }),

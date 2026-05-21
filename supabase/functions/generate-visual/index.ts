@@ -26,6 +26,12 @@ Deno.serve(async (req) => {
     const motion = safeText(body.motion, "Static");
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
 
+    // Map aspect ratio → explicit hi-res dimensions so Z-Image stops
+    // returning 512×512 thumbnails. These are the user-requested defaults.
+    const dims = aspectRatio === "9:16" ? { width: 768, height: 1344 }
+      : aspectRatio === "1:1" ? { width: 1024, height: 1024 }
+      : { width: 1344, height: 768 }; // default 16:9
+
     const finalPrompt = [
       `${style} documentary visual for a long-form YouTube video.`,
       prompt,
@@ -46,6 +52,8 @@ Deno.serve(async (req) => {
           prompt: finalPrompt,
           aspect_ratio: aspectRatio,
           quality: quality.toLowerCase(),
+          width: dims.width,
+          height: dims.height,
           seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
         },
       }),
