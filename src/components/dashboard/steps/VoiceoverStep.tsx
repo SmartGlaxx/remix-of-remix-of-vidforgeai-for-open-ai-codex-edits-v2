@@ -9,6 +9,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useProject } from "@/contexts/ProjectContext";
 
+// Invoke generate-speech; if the backend returns { status: "processing", job_id, endpoint_id },
+// keep polling via the same function (it finalizes + rehosts on completion).
+async function invokeSpeechWithPolling(
+  initialBody: Record<string, unknown>,
+  { maxAttempts = 30, intervalMs = 5000 }: { maxAttempts?: number; intervalMs?: number } = {},
+): Promise<any> {
+  const { data, error } = await supabase.functions.invoke("generate-speech", { body: initialBody });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+
+  let current = data;
+  let attempts = 0;
+  while (current?.status === "processing" && current?.job_id) {
+    if (attempts++ >= maxAttempts) {
+      throw new Error("Voice generation is taking longer than expected. Please try again.");
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+    const { data: pollData, error: pollErr } = await supabase.functions.invoke("generate-speech", {
+      body: { job_id: current.job_id, endpoint_id: current.endpoint_id, response_format: initialBody.response_format },
+    });
+    if (pollErr) throw pollErr;
+    if (pollData?.error) throw new Error(pollData.error);
+    current = pollData;
+  }
+  return current;
+}
+
 const sampleTexts: Record<string, string> = {
   af_alloy: "The future belongs to those who believe in the beauty of their dreams.",
   af_aoede: "Every sunrise brings a new melody to the world, waiting to be heard.",
