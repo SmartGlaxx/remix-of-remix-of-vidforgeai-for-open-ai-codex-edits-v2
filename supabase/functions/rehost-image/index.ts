@@ -7,8 +7,24 @@ Deno.serve(async (req) => {
     const { url } = await req.json();
     if (!url || typeof url !== "string") return json({ error: "url required" }, 400);
 
-    const resp = await fetch(url);
-    if (!resp.ok) return json({ error: `fetch failed: ${resp.status}`, source_url: url }, 502);
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 2000;
+    let resp: Response | null = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        resp = await fetch(url);
+        if (resp.ok) break;
+        console.warn(`Attempt ${attempt} failed for ${url} with status: ${resp.status}`);
+      } catch (err) {
+        console.warn(`Attempt ${attempt} threw error for ${url}:`, err);
+      }
+      if (attempt < MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      }
+    }
+    if (!resp || !resp.ok) {
+      return json({ image_url: url, source_url: url, rehosted: false });
+    }
     const bytes = new Uint8Array(await resp.arrayBuffer());
     const ct = resp.headers.get("content-type") || "image/png";
     const ext = ct.includes("jpeg") || ct.includes("jpg") ? "jpg"
