@@ -38,7 +38,6 @@ Deno.serve(async (req) => {
       }
       data = sd.data;
     } else {
-      // Fresh submission path.
       if (!text || typeof text !== "string" || !text.trim()) {
         return errJson("Please enter some text to turn into a voiceover.");
       }
@@ -47,31 +46,48 @@ Deno.serve(async (req) => {
       }
 
       // Always use /run (async) so we never block on cold starts.
-      const startResp = await fetch(`${RUNPOD_BASE}/${endpointId}/run`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${RUNPOD_API_KEY}`,
-        },
-        body: JSON.stringify({ input: { text, voice, speed, response_format } }),
-      });
+      // Retry on transient "FastAPI server not ready" failures (worker still loading model).
+      const MAX_SUBMIT_ATTEMPTS = 3; // initial + 2 retries
+      let lastFailure: any = null;
+      let completed = false;
+      for (let attempt = 1; attempt <= MAX_SUBMIT_ATTEMPTS; attempt++) {
+        const startResp = await fetch(`${RUNPOD_BASE}/${endpointId}/run`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${RUNPOD_API_KEY}`,
+          },
+          body: JSON.stringify({ input: { text, voice, speed, response_format } }),
+        });
 
-      const startData: any = await startResp.json().catch(() => ({}));
-      if (!startResp.ok || !startData?.id) {
-        console.error("RunPod submit error:", startResp.status, startData);
-        return errJson(friendlyError(startData, "We couldn't reach the voice service. Please try again in a moment."));
-      }
+        const startData: any = await startResp.json().catch(() => ({}));
+        if (!startResp.ok || !startData?.id) {
+          console.error("RunPod submit error:", startResp.status, startData);
+          return errJson(friendlyError(startData, "We couldn't reach the voice service. Please try again in a moment."));
+        }
 
-      jobId = startData.id;
-      // Poll with a 120s deadline; if not done, hand off to client.
-      const sd = await pollJob(endpointId, jobId!, RUNPOD_API_KEY, 120_000);
-      if (sd.status === "processing") {
-        return json({ status: "processing", job_id: jobId, endpoint_id: endpointId });
+        jobId = startData.id;
+        // Poll with a 120s deadline; if not done, hand off to client.
+        const sd = await pollJob(endpointId, jobId!, RUNPOD_API_KEY, 120_000);
+        if (sd.status === "processing") {
+          return json({ status: "processing", job_id: jobId, endpoint_id: endpointId });
+        }
+        if (sd.status === "failed") {
+          lastFailure = sd.data;
+          if (isServerNotReady(sd.data) && attempt < MAX_SUBMIT_ATTEMPTS) {
+            console.warn(`Kokoro worker not ready (attempt ${attempt}/${MAX_SUBMIT_ATTEMPTS}), resubmitting...`);
+            await new Promise((r) => setTimeout(r, 3000));
+            continue;
+          }
+          return errJson(friendlyError(sd.data, "Voice generation didn't complete. Please try again."));
+        }
+        data = sd.data;
+        completed = true;
+        break;
       }
-      if (sd.status === "failed") {
-        return errJson(friendlyError(sd.data, "Voice generation didn't complete. Please try again."));
+      if (!completed) {
+        return errJson(friendlyError(lastFailure, "Voice generation didn't complete. Please try again."));
       }
-      data = sd.data;
     }
 
     // RunPod wraps response in { output: ... } OR returns inline
@@ -167,4 +183,9 @@ function friendlyError(payload: any, fallback: string): string {
   // Strip noisy "status code 2xx" / stack traces
   if (/status code|HTTP \d+|Traceback|RunPod/i.test(raw)) return fallback;
   return raw.length > 200 ? fallback : raw;
+}
+
+function isServerNotReady(payload: any): boolean {
+  const raw = JSON.stringify(payload ?? "").toLowerCase();
+  return raw.includes("fastapi server not ready") || raw.includes("server not ready");
 }
