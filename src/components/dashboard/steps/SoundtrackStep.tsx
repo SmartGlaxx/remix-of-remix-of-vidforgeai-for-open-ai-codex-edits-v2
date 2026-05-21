@@ -143,7 +143,8 @@ const SoundtrackStep = () => {
     }
     setError(null);
     setIsGenerating(true);
-    const list = segments.map((s, i) => ({ id: `pending-${i}`, segment: s.label, status: "generating" as const }));
+    const list: import("@/contexts/ProjectContext").SoundtrackTrack[] =
+      segments.map((s, i) => ({ id: `pending-${i}`, segment: s.label, status: "generating" }));
     setTracks(list);
     let failures = 0;
     for (let i = 0; i < segments.length; i++) {
