@@ -104,7 +104,10 @@ const VisualsStep = () => {
         id: `scene-${i + 1}`,
         section,
         text: sceneText,
-        prompt: trimText(`${selectedTitle ? `Video title: ${selectedTitle}. ` : ""}Create a visual for this narration beat: ${sceneText}`, 720),
+        // Do NOT inject the video title or any titular wording — the model
+        // will try to render those letters into the image (gibberish text).
+        // Describe the scene visually only.
+        prompt: trimText(`A purely visual scene depicting: ${sceneText}`, 720),
         imageUrl: visualScenes[i]?.imageUrl,
         status: (visualScenes[i]?.imageUrl ? "done" : "pending") as VisualScene["status"],
         error: undefined,
