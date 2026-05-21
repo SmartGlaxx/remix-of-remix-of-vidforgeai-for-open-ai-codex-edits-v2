@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Music, Sparkles, Loader2, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Music, Sparkles, Loader2, AlertCircle, Plus, Trash2, Library, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -82,6 +82,23 @@ const SoundtrackStep = () => {
   const [error, setError] = useState<string | null>(null);
   const tracks = soundtrackTracks;
   const setTracks = setSoundtrackTracks;
+  const [library, setLibrary] = useState<{ name: string; url: string }[]>([]);
+
+  const loadLibrary = async () => {
+    const { data, error } = await supabase.storage.from("soundtracks").list("", {
+      limit: 60, sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error || !data) return;
+    const items = data
+      .filter((f) => f.name && !f.name.endsWith("/"))
+      .map((f) => {
+        const { data: pub } = supabase.storage.from("soundtracks").getPublicUrl(f.name);
+        return { name: f.name, url: pub.publicUrl };
+      });
+    setLibrary(items);
+  };
+
+  useEffect(() => { loadLibrary(); }, []);
 
   const scriptSummary = useMemo(() => {
     const joined = scriptSections.map((s) => `${s.section}: ${s.text}`).join(" ");
@@ -164,6 +181,7 @@ const SoundtrackStep = () => {
     } else {
       toast({ title: "Soundtrack ready", description: `${segments.length} segment${segments.length === 1 ? "" : "s"} generated.` });
     }
+    loadLibrary();
   };
 
   const removeTrack = (id: string) => {
@@ -321,6 +339,29 @@ const SoundtrackStep = () => {
                 {t.status === "done" && t.url && (
                   <audio controls src={t.url} className="w-full h-10" />
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {library.length > 0 && (
+        <div className="glass-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Library className="w-4 h-4 text-primary" />
+              <h3 className="font-display font-semibold text-foreground">Saved Soundtracks Library</h3>
+            </div>
+            <button onClick={loadLibrary} className="text-[10px] text-primary inline-flex items-center gap-1 hover:underline">
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mb-3">Every generated track is saved here for reuse across sessions.</p>
+          <div className="space-y-2">
+            {library.map((item) => (
+              <div key={item.name} className="bg-secondary/30 rounded-xl p-3 border border-border/50">
+                <p className="text-[10px] text-muted-foreground truncate mb-1.5">{item.name}</p>
+                <audio controls src={item.url} className="w-full h-10" />
               </div>
             ))}
           </div>
