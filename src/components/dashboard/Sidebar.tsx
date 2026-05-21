@@ -6,6 +6,7 @@ import {
   User, LogOut, PanelLeftClose, PanelLeft,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const mainNavItems = [
   { icon: Plus, label: "New Project", badge: null, path: "/dashboard" },
@@ -30,6 +31,11 @@ interface SidebarProps {
 const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: SidebarProps) => {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth", { replace: true });
+  };
 
   const getActiveIndex = () => {
     if (activePage === "niches") return 2;
@@ -203,13 +209,13 @@ const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: Sidebar
             <User className="w-4 h-4" />
           </div>
           {!collapsed && <div className="flex-1 min-w-0">
-            <span className="block text-xs font-medium text-foreground truncate">My Profile</span>
-            <span className="block text-[10px] text-muted-foreground">Manage account</span>
+            <span className="block text-xs font-medium text-foreground truncate">{user?.email ?? "My Profile"}</span>
+            <span className="block text-[10px] text-muted-foreground">Signed in</span>
           </div>}
         </div>
 
         {/* Sign Out */}
-        <button title={collapsed ? "Sign Out" : undefined} className={`w-full flex items-center gap-3 ${collapsed ? "justify-center px-2" : "px-3"} py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all`}>
+        <button onClick={handleSignOut} title={collapsed ? "Sign Out" : undefined} className={`w-full flex items-center gap-3 ${collapsed ? "justify-center px-2" : "px-3"} py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all`}>
           <LogOut className="w-4 h-4 shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </button>
