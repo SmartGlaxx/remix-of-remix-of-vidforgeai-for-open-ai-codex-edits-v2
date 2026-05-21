@@ -49,20 +49,34 @@ Deno.serve(async (req) => {
       ? Number(body.seed)
       : (randomNonce ^ ((Date.now() & 0xffffffff) >>> 0) ^ (index * 2654435761)) >>> 0;
 
+    // IMPORTANT: We never ask the model to render letters/titles. Title and
+    // overlay text are composited client-side as a clean vector overlay so
+    // they're always legible (no gibberish glyphs).
+    const cleanDescription = sanitizePrompt(description);
+    const cleanDirection = sanitizePrompt(sceneDirection);
+    const cleanStyleDirective = sanitizePrompt(styleDirective);
+
     const finalPrompt = [
-      `YouTube thumbnail, 16:9, ultra-high click-through rate.`,
+      "YouTube thumbnail background plate (clean image only, NO text will be rendered by the model — text is added separately).",
+      "Pure visual composition, ultra-detailed, 8K, razor-sharp focus, cinematic lighting, crisp specular highlights, professional color grading.",
       `Style: ${styleName}.`,
-      styleDirective || "Bold composition, strong focal subject, vibrant contrast, dramatic lighting.",
+      cleanStyleDirective || "Bold composition, strong focal subject, vibrant contrast, dramatic lighting.",
       videoStyle ? `Visual style continuity from the video: ${videoStyle}.` : "",
-      title ? `Video title: ${title}.` : "",
-      `Scene: ${description}.`,
-      `Variant ${index + 1} direction: ${sceneDirection}`,
-      textOverlay
-        ? `Render the short text overlay "${textOverlay}" in massive, bold, legible sans-serif typography with a heavy outline and high contrast against the background.`
-        : "No visible text or captions on the image.",
+      `Scene: ${cleanDescription}.`,
+      `Variant ${index + 1}: ${cleanDirection}`,
       referenceUrl ? `Visual reference inspiration: ${referenceUrl}.` : "",
-      "No logos, no watermarks, no channel branding. Ultra-detailed 8K quality, photoreal where appropriate, razor-sharp focus, professional color grading, masterpiece composition, eye-catching at small sizes.",
+      "Masterpiece composition, eye-catching at small sizes, leave clean negative space in the upper third for a separate text overlay.",
     ].filter(Boolean).join(" ");
+
+    const negativePrompt = [
+      "text", "letters", "words", "numbers", "captions", "subtitles", "typography",
+      "written language", "glyphs", "characters", "alphabet", "fonts",
+      "signs", "signage", "labels", "watermarks", "logos", "brand marks",
+      "channel names", "UI overlays", "subtitle bar",
+      "book pages with readable text", "screens with readable text", "newspaper text",
+      "blurry", "low-res", "low resolution", "jpeg artifacts", "banding",
+      "compression artifacts", "soft focus", "noisy", "pixelated", "deformed",
+    ].join(", ");
 
     const r = await fetch(`${RUNPOD_BASE}/${ZIMAGE_ENDPOINT_ID}/run`, {
       method: "POST",
@@ -70,10 +84,13 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         input: {
           prompt: finalPrompt,
+          negative_prompt: negativePrompt,
           aspect_ratio: aspectRatio,
           quality: "ultra",
           width: dims.width,
           height: dims.height,
+          num_inference_steps: 40,
+          guidance_scale: 6.5,
           seed,
         },
       }),
@@ -88,12 +105,23 @@ Deno.serve(async (req) => {
       endpoint_id: ZIMAGE_ENDPOINT_ID,
       status: data?.status || "IN_QUEUE",
       prompt: finalPrompt,
+      text_overlay: textOverlay,
+      title,
     });
   } catch (e) {
     console.error("generate-thumbnail error:", e);
     return json({ error: String((e as Error).message ?? e) }, 500);
   }
 });
+
+function sanitizePrompt(raw: string): string {
+  let s = raw || "";
+  s = s.replace(/\b(video\s+title|title|overlay|caption|headline|subtitle|label|text)\s*:\s*[^.]*\.?/gi, "");
+  s = s.replace(/["“”„‟"'‘’`][^"“”„‟"'‘’`]{1,120}["“”„‟"'‘’`]/g, "");
+  s = s.replace(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,})\b/g, "");
+  s = s.replace(/\b(text|letters?|words?|captions?|subtitles?|titles?|headlines?|typography|logos?|watermarks?)\b/gi, "");
+  return s.replace(/\s{2,}/g, " ").replace(/\s+([.,;:!?])/g, "$1").trim();
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {

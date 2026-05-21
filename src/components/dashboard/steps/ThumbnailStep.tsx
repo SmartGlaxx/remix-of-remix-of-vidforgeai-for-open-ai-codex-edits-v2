@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject } from "@/contexts/ProjectContext";
+import ThumbnailOverlayEditor from "@/components/dashboard/ThumbnailOverlayEditor";
 
 type ThumbStyle = { name: string; desc: string; directive: string };
 
@@ -410,6 +411,24 @@ const ThumbnailStep = () => {
           </div>
         ))}
       </div>
+      {/* Text overlay editors — rendered below the grid so each completed variant gets a crisp client-side composer */}
+      {variants.some((v) => v.status === "done" && v.imageUrl) && (
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          {variants.map((v, i) =>
+            v.status === "done" && v.imageUrl ? (
+              <div key={`overlay-${v.id}`} className="rounded-xl border border-border overflow-hidden">
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-foreground bg-secondary/40">Variant {i + 1} — text overlay</div>
+                <ThumbnailOverlayEditor
+                  imageUrl={v.imageUrl}
+                  defaultTitle={selectedTitle}
+                  defaultOverlay={textOverlay}
+                  index={i}
+                />
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
     </div>
 
     {library.length > 0 && (
