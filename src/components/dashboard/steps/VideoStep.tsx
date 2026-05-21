@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Download, Wand2, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject } from "@/contexts/ProjectContext";
@@ -12,6 +13,7 @@ type Stage =
   | "generating"
   | "lipsync"
   | "stitching"
+  | "rehosting"
   | "done"
   | "error";
 
@@ -20,8 +22,21 @@ const STAGE_LABEL: Record<Stage, string> = {
   generating: "Generating voice, image, video & music…",
   lipsync: "Lip-syncing character…",
   stitching: "Merging audio + video…",
+  rehosting: "Preparing safe download…",
   done: "Done",
   error: "Error",
+};
+
+// Approximate target % each stage should asymptote toward. The bar
+// interpolates smoothly toward the target so it always moves while we wait.
+const STAGE_TARGET: Record<Stage, number> = {
+  idle: 0,
+  generating: 55,
+  lipsync: 80,
+  stitching: 92,
+  rehosting: 98,
+  done: 100,
+  error: 0,
 };
 
 async function callGateway(payload: Record<string, unknown>) {
@@ -87,10 +102,32 @@ const VideoStep = () => {
   const [stage, setStage] = useState<Stage>(videoUrl ? "done" : "idle");
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState(videoUrl ? 100 : 0);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+
+  // Smoothly ease the progress bar toward the current stage's target.
+  useEffect(() => {
+    if (stage === "idle" || stage === "error") return;
+    if (stage === "done") {
+      setProgress(100);
+      return;
+    }
+    const target = STAGE_TARGET[stage];
+    const id = window.setInterval(() => {
+      setProgress((p) => {
+        if (p >= target) return p;
+        // ease toward target, slower as we approach it
+        return p + Math.max(0.3, (target - p) * 0.06);
+      });
+    }, 400);
+    return () => window.clearInterval(id);
+  }, [stage]);
 
   const generate = async () => {
     setErrorMsg(null);
     setVideoUrl(null);
+    setProgress(0);
     setStage("generating");
     setStatusMsg(STAGE_LABEL.generating);
 
@@ -145,11 +182,32 @@ const VideoStep = () => {
           music_volume: 0.3,
         },
       });
-      const finalUrl = stitched?.output?.url || stitched?.url;
-      if (!finalUrl) throw new Error("Stitch returned no URL");
+      const stitchedUrl = stitched?.output?.url || stitched?.url;
+      if (!stitchedUrl) throw new Error("Stitch returned no URL");
+
+      // 4) Rehost the stitched MP4 onto our storage so the browser
+      // doesn't load it from a third-party CDN that antivirus tools
+      // (e.g. Quick Heal) routinely block.
+      setStage("rehosting");
+      setStatusMsg(STAGE_LABEL.rehosting);
+      let finalUrl = stitchedUrl;
+      try {
+        const { data: rehost, error: rehostErr } = await supabase.functions.invoke(
+          "rehost-video",
+          { body: { url: stitchedUrl, label: selectedTitle || "vidforge" } },
+        );
+        if (rehostErr) throw new Error(rehostErr.message);
+        if (rehost?.url) finalUrl = rehost.url as string;
+        if (rehost?.rehosted === false) {
+          console.warn("rehost-video fell back to source URL");
+        }
+      } catch (e) {
+        console.warn("rehost-video failed, using stitch URL:", e);
+      }
 
       setVideoUrl(finalUrl);
       setStage("done");
+      setProgress(100);
       setStatusMsg(STAGE_LABEL.done);
       toast({ title: "Video ready", description: "Your generated video is ready to play." });
     } catch (e) {
@@ -164,7 +222,11 @@ const VideoStep = () => {
     }
   };
 
-  const busy = stage === "generating" || stage === "lipsync" || stage === "stitching";
+  const busy =
+    stage === "generating" ||
+    stage === "lipsync" ||
+    stage === "stitching" ||
+    stage === "rehosting";
 
   return (
     <div className="space-y-6">
@@ -226,6 +288,16 @@ const VideoStep = () => {
             </>
           )}
         </Button>
+
+        {(busy || stage === "done") && (
+          <div className="space-y-1.5">
+            <Progress value={progress} className="h-2" />
+            <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span>{STAGE_LABEL[stage]}</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3">
