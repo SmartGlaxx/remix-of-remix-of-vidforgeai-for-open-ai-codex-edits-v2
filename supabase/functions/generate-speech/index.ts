@@ -13,54 +13,65 @@ Deno.serve(async (req) => {
       return errJson("Voice service isn't configured yet. Please contact support.");
     }
 
-    const { text, voice = "af_bella", speed = 1.0, response_format = "mp3" } =
-      await req.json();
+    const body = await req.json().catch(() => ({}));
+    const {
+      text,
+      voice = "af_bella",
+      speed = 1.0,
+      response_format = "mp3",
+      job_id: existingJobId,
+      endpoint_id: existingEndpointId,
+    } = body ?? {};
 
-    if (!text || typeof text !== "string" || !text.trim()) {
-      return errJson("Please enter some text to turn into a voiceover.");
-    }
-    if (text.length > 10000) {
-      return errJson("That script is too long. Please keep it under 10,000 characters.");
-    }
+    const endpointId = existingEndpointId || KOKORO_ENDPOINT_ID;
+    let jobId: string | undefined = existingJobId;
+    let data: any = null;
 
-    // Call Kokoro endpoint directly (gateway has been unreliable / cold-queueing).
-    const startResp = await fetch(`${RUNPOD_BASE}/${KOKORO_ENDPOINT_ID}/runsync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${RUNPOD_API_KEY}`,
-      },
-      body: JSON.stringify({
-        input: { text, voice, speed, response_format },
-      }),
-    });
-
-    let data: any = await startResp.json().catch(() => ({}));
-    if (!startResp.ok) {
-      console.error("Gateway HTTP error:", startResp.status, data);
-      return errJson(friendlyError(data, "We couldn't reach the voice service. Please try again in a moment."));
-    }
-
-    // If runsync didn't finish in time, RunPod returns { id, status: "IN_QUEUE" | "IN_PROGRESS" }.
-    // Poll the gateway endpoint until it completes.
-    if (data?.id && (data.status === "IN_QUEUE" || data.status === "IN_PROGRESS")) {
-      const jobId = data.id;
-      // Supabase edge functions cap around 150s; leave headroom to return friendly error.
-      const deadline = Date.now() + 130_000;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 2500));
-        const sr = await fetch(`${RUNPOD_BASE}/${KOKORO_ENDPOINT_ID}/status/${jobId}`, {
-          headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
-        });
-        const sd: any = await sr.json().catch(() => ({}));
-        if (sd?.status === "COMPLETED") { data = sd; break; }
-        if (sd?.status === "FAILED" || sd?.status === "CANCELLED" || sd?.status === "TIMED_OUT") {
-          return errJson(friendlyError(sd, "Voice generation didn't complete. Please try again."));
-        }
+    // Resume path: client is polling an in-flight job.
+    if (jobId) {
+      const sd = await pollJob(endpointId, jobId, RUNPOD_API_KEY, 120_000);
+      if (sd.status === "processing") {
+        return json({ status: "processing", job_id: jobId, endpoint_id: endpointId });
       }
-      if (data?.status !== "COMPLETED") {
-        return errJson("Voice generation is taking longer than expected. Please try again in a minute.");
+      if (sd.status === "failed") {
+        return errJson(friendlyError(sd.data, "Voice generation didn't complete. Please try again."));
       }
+      data = sd.data;
+    } else {
+      // Fresh submission path.
+      if (!text || typeof text !== "string" || !text.trim()) {
+        return errJson("Please enter some text to turn into a voiceover.");
+      }
+      if (text.length > 10000) {
+        return errJson("That script is too long. Please keep it under 10,000 characters.");
+      }
+
+      // Always use /run (async) so we never block on cold starts.
+      const startResp = await fetch(`${RUNPOD_BASE}/${endpointId}/run`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${RUNPOD_API_KEY}`,
+        },
+        body: JSON.stringify({ input: { text, voice, speed, response_format } }),
+      });
+
+      const startData: any = await startResp.json().catch(() => ({}));
+      if (!startResp.ok || !startData?.id) {
+        console.error("RunPod submit error:", startResp.status, startData);
+        return errJson(friendlyError(startData, "We couldn't reach the voice service. Please try again in a moment."));
+      }
+
+      jobId = startData.id;
+      // Poll with a 120s deadline; if not done, hand off to client.
+      const sd = await pollJob(endpointId, jobId!, RUNPOD_API_KEY, 120_000);
+      if (sd.status === "processing") {
+        return json({ status: "processing", job_id: jobId, endpoint_id: endpointId });
+      }
+      if (sd.status === "failed") {
+        return errJson(friendlyError(sd.data, "Voice generation didn't complete. Please try again."));
+      }
+      data = sd.data;
     }
 
     // RunPod wraps response in { output: ... } OR returns inline
@@ -109,12 +120,33 @@ Deno.serve(async (req) => {
       if (!finalUrl) return errJson("Voice generation succeeded but audio couldn't be saved. Please try again.");
     }
 
-    return json({ audio_url: finalUrl, source_url: audioUrl ?? null, characters: text.length, voice, format: response_format });
+    return json({ status: "completed", audio_url: finalUrl, source_url: audioUrl ?? null, characters: (text?.length ?? 0), voice, format: response_format });
   } catch (err) {
     console.error("generate-speech error:", err);
     return errJson("Something went wrong while generating the voiceover. Please try again.");
   }
 });
+
+async function pollJob(
+  endpointId: string,
+  jobId: string,
+  apiKey: string,
+  budgetMs: number,
+): Promise<{ status: "completed" | "failed" | "processing"; data?: any }> {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    const sr = await fetch(`${RUNPOD_BASE}/${endpointId}/status/${jobId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const sd: any = await sr.json().catch(() => ({}));
+    if (sd?.status === "COMPLETED") return { status: "completed", data: sd };
+    if (sd?.status === "FAILED" || sd?.status === "CANCELLED" || sd?.status === "TIMED_OUT") {
+      return { status: "failed", data: sd };
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  return { status: "processing" };
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
