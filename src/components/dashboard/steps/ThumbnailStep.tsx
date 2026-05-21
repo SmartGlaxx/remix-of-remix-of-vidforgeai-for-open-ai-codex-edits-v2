@@ -275,6 +275,41 @@ const ThumbnailStep = () => {
       </div>
 
       <div className="space-y-3 mb-5">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+              <Wand2 className="w-3.5 h-3.5 text-primary" />
+              AI suggestions for "{selectedTitle || "—"}"
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={suggestIdeas} disabled={isSuggesting || !selectedTitle}>
+              {isSuggesting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+              {suggestions.length ? "Refresh" : "Suggest"}
+            </Button>
+          </div>
+          {suggestions.length > 0 && (
+            <div className="space-y-1.5">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setDescription(s); setPickedSuggestion(i); if (suggestedOverlay) setTextOverlay(suggestedOverlay); }}
+                  className={`w-full text-left text-[11px] leading-relaxed rounded-lg p-2.5 border transition-all ${
+                    pickedSuggestion === i
+                      ? "border-primary/50 bg-primary/10 text-foreground"
+                      : "border-border bg-background/50 text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {pickedSuggestion === i ? <Check className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> : <span className="text-[10px] text-primary/70 font-semibold mt-0.5">{i + 1}.</span>}
+                    <span>{s}</span>
+                  </div>
+                </button>
+              ))}
+              {suggestedOverlay && (
+                <p className="text-[10px] text-muted-foreground pt-1">Suggested overlay: <span className="text-foreground font-semibold">{suggestedOverlay}</span></p>
+              )}
+            </div>
+          )}
+        </div>
         <div>
           <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Reference URL (optional)</label>
           <input
@@ -376,6 +411,28 @@ const ThumbnailStep = () => {
         ))}
       </div>
     </div>
+
+    {library.length > 0 && (
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Library className="w-4 h-4 text-primary" />
+            <h3 className="font-display font-semibold text-foreground">Saved Thumbnails Library</h3>
+          </div>
+          <button onClick={loadLibrary} className="text-[10px] text-primary inline-flex items-center gap-1 hover:underline">
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mb-3">Reuse any previously generated thumbnail — click to open in a new tab.</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {library.map((item) => (
+            <a key={item.name} href={item.url} target="_blank" rel="noreferrer" className="aspect-video bg-secondary/60 rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-colors">
+              <img src={item.url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
   );
 };
