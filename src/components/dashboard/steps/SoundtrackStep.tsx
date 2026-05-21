@@ -35,8 +35,6 @@ const defaultSegments: Segment[] = [
   { label: "Resolution", mood: "Reflective, fading out", intensity: 40, duration: 15 },
 ];
 
-type Track = { id: string; segment: string; status: "generating" | "done" | "error"; url?: string; error?: string };
-
 async function pollJob(endpointId: string, jobId: string, timeoutMs = 600_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -57,15 +55,33 @@ const extractAudioUrl = (payload: any): string | undefined => {
   return n?.url || n?.audio_url || n?.ipfs_url;
 };
 
+async function rehostAudio(sourceUrl: string, segmentLabel: string) {
+  try {
+    const { data, error } = await supabase.functions.invoke("rehost-audio", {
+      body: { url: sourceUrl, segment_label: segmentLabel },
+    });
+    if (error || !data?.url) return { url: sourceUrl, rehosted: false };
+    return {
+      url: data.url as string,
+      source_url: sourceUrl,
+      storage_path: data.storage_path as string | undefined,
+      rehosted: Boolean(data.rehosted),
+    };
+  } catch {
+    return { url: sourceUrl, rehosted: false };
+  }
+}
+
 const SoundtrackStep = () => {
-  const { selectedTitle, scriptSections } = useProject();
+  const { selectedTitle, scriptSections, soundtrackTracks, setSoundtrackTracks } = useProject();
   const [genreIdx, setGenreIdx] = useState(0);
   const [bpmIdx, setBpmIdx] = useState(0);
   const [mixIdx, setMixIdx] = useState(0);
   const [segments, setSegments] = useState<Segment[]>(defaultSegments);
-  const [tracks, setTracks] = useState<Track[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tracks = soundtrackTracks;
+  const setTracks = setSoundtrackTracks;
 
   const scriptSummary = useMemo(() => {
     const joined = scriptSections.map((s) => `${s.section}: ${s.text}`).join(" ");
@@ -92,7 +108,7 @@ const SoundtrackStep = () => {
     setSegments((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   };
 
-  const generateOne = async (seg: Segment, idx: number, list: Track[]) => {
+  const generateOne = async (seg: Segment, idx: number, list: typeof tracks) => {
     list[idx] = { id: `t-${Date.now()}-${idx}`, segment: seg.label, status: "generating" };
     setTracks([...list]);
     const prompt = buildPrompt(seg);
@@ -107,7 +123,16 @@ const SoundtrackStep = () => {
       url = extractAudioUrl(completed);
     }
     if (!url) throw new Error("No audio URL returned");
-    list[idx] = { ...list[idx], status: "done", url };
+    const rehost = await rehostAudio(url, seg.label);
+    list[idx] = {
+      ...list[idx],
+      status: "done",
+      url: rehost.url,
+      source_url: rehost.source_url ?? url,
+      storage_path: rehost.storage_path,
+      rehosted: rehost.rehosted,
+      created_at: Date.now(),
+    };
     setTracks([...list]);
   };
 
@@ -118,7 +143,8 @@ const SoundtrackStep = () => {
     }
     setError(null);
     setIsGenerating(true);
-    const list: Track[] = segments.map((s, i) => ({ id: `pending-${i}`, segment: s.label, status: "generating" }));
+    const list: import("@/contexts/ProjectContext").SoundtrackTrack[] =
+      segments.map((s, i) => ({ id: `pending-${i}`, segment: s.label, status: "generating" }));
     setTracks(list);
     let failures = 0;
     for (let i = 0; i < segments.length; i++) {
@@ -138,6 +164,10 @@ const SoundtrackStep = () => {
     } else {
       toast({ title: "Soundtrack ready", description: `${segments.length} segment${segments.length === 1 ? "" : "s"} generated.` });
     }
+  };
+
+  const removeTrack = (id: string) => {
+    setTracks(tracks.filter((t) => t.id !== id));
   };
 
   return (
@@ -266,11 +296,27 @@ const SoundtrackStep = () => {
             {tracks.map((t) => (
               <div key={t.id} className="bg-secondary/30 rounded-xl p-3.5 border border-border/50">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-foreground">{t.segment}</span>
-                  {t.status === "generating" && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-                  {t.status === "error" && (
-                    <span className="text-[10px] text-destructive line-clamp-1">{t.error}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-foreground">{t.segment}</span>
+                    {t.rehosted && (
+                      <span className="text-[9px] uppercase tracking-wide text-primary/80 bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5">Saved</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {t.status === "generating" && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+                    {t.status === "error" && (
+                      <span className="text-[10px] text-destructive line-clamp-1">{t.error}</span>
+                    )}
+                    {t.status === "done" && (
+                      <button
+                        onClick={() => removeTrack(t.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="Remove track"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {t.status === "done" && t.url && (
                   <audio controls src={t.url} className="w-full h-10" />

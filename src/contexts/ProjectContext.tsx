@@ -29,6 +29,18 @@ export type SeoInsights = {
   notes?: string;
 };
 
+export type SoundtrackTrack = {
+  id: string;
+  segment: string;
+  status: "generating" | "done" | "error";
+  url?: string;
+  source_url?: string;
+  storage_path?: string;
+  rehosted?: boolean;
+  error?: string;
+  created_at?: number;
+};
+
 type ProjectState = {
   // Title step
   topic: string;
@@ -68,6 +80,8 @@ type ProjectState = {
   setVoice: (s: string) => void;
   videoUrl: string | null;
   setVideoUrl: (s: string | null) => void;
+  soundtrackTracks: SoundtrackTrack[];
+  setSoundtrackTracks: (t: SoundtrackTrack[]) => void;
   resetProject: () => void;
 };
 
@@ -102,6 +116,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [musicPrompt, setMusicPrompt] = useState(saved.musicPrompt ?? "Cinematic ambient background music, soft and atmospheric");
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
   const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
+  const [soundtrackTracks, setSoundtrackTracks] = useState<SoundtrackTrack[]>(saved.soundtrackTracks ?? []);
 
   const resetProject = () => {
     setTopic("");
@@ -121,6 +136,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setMusicPrompt("Cinematic ambient background music, soft and atmospheric");
     setVoice("af_heart");
     setVideoUrl(null);
+    setSoundtrackTracks([]);
     try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
   };
 
@@ -128,9 +144,9 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
       visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
-      imagePrompt, musicPrompt, voice, videoUrl,
+      imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
     }));
-  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, imagePrompt, musicPrompt, voice, videoUrl]);
+  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks]);
 
   return (
     <Ctx.Provider value={{
@@ -140,7 +156,9 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       visualScenes, setVisualScenes, visualCount, setVisualCount, visualStyle, setVisualStyle,
       visualAspectRatio, setVisualAspectRatio, visualQuality, setVisualQuality, visualMotion, setVisualMotion,
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,
-      videoUrl, setVideoUrl, resetProject,
+      videoUrl, setVideoUrl,
+      soundtrackTracks, setSoundtrackTracks,
+      resetProject,
     }}>
       {children}
     </Ctx.Provider>
