@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Palette, Sparkles, Eye, Loader2, RefreshCw, ZoomIn, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Palette, Sparkles, Eye, Loader2, RefreshCw, ZoomIn, AlertCircle, Wand2, Library, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -73,7 +73,7 @@ async function pollJob(endpointId: string, jobId: string, timeoutMs = 600_000) {
 type Variant = { id: string; status: "pending" | "generating" | "done" | "error"; imageUrl?: string; error?: string };
 
 const ThumbnailStep = () => {
-  const { selectedTitle } = useProject();
+  const { selectedTitle, visualStyle, visualAspectRatio } = useProject();
   const [styleIdx, setStyleIdx] = useState(0);
   const [referenceUrl, setReferenceUrl] = useState("");
   const [description, setDescription] = useState(
@@ -84,8 +84,54 @@ const ThumbnailStep = () => {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // AI-suggested descriptions / overlay
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestedOverlay, setSuggestedOverlay] = useState<string>("");
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [pickedSuggestion, setPickedSuggestion] = useState<number | null>(null);
+  // Saved thumbnail library
+  const [library, setLibrary] = useState<{ name: string; url: string; created_at?: string }[]>([]);
 
-  const generateOne = async (list: Variant[], index: number) => {
+  const loadLibrary = async () => {
+    const { data, error } = await supabase.storage.from("thumbnails").list("", {
+      limit: 60, sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error || !data) return;
+    const items = data
+      .filter((f) => f.name && !f.name.endsWith("/"))
+      .map((f) => {
+        const { data: pub } = supabase.storage.from("thumbnails").getPublicUrl(f.name);
+        return { name: f.name, url: pub.publicUrl, created_at: (f as any).created_at };
+      });
+    setLibrary(items);
+  };
+
+  useEffect(() => { loadLibrary(); }, []);
+
+  const suggestIdeas = async () => {
+    if (!selectedTitle) {
+      toast({ title: "Pick a title first", description: "Select a title in Step 1 to get AI suggestions.", variant: "destructive" });
+      return;
+    }
+    setIsSuggesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-thumbnail-ideas", {
+        body: { title: selectedTitle, style: thumbnailStyles[styleIdx].name, video_style: visualStyle },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setSuggestions(data?.descriptions ?? []);
+      setSuggestedOverlay(data?.text_overlay ?? "");
+      setPickedSuggestion(null);
+      toast({ title: "AI suggestions ready" });
+    } catch (e) {
+      toast({ title: "Suggestion failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const generateOne = async (list: Variant[], index: number, sceneDirection?: string) => {
     list[index] = { ...list[index], status: "generating", error: undefined };
     setVariants([...list]);
     const style = thumbnailStyles[styleIdx];
@@ -97,6 +143,9 @@ const ThumbnailStep = () => {
         text_overlay: textOverlay,
         reference_url: referenceUrl,
         title: selectedTitle || "",
+        aspect_ratio: visualAspectRatio || "16:9",
+        video_style: visualStyle || "",
+        scene_direction: sceneDirection,
         index,
       },
     });
@@ -109,10 +158,10 @@ const ThumbnailStep = () => {
     }
     if (!imageUrl) throw new Error("No image URL returned");
     try {
-      const { data: rehosted } = await supabase.functions.invoke("rehost-image", { body: { url: imageUrl } });
+      const { data: rehosted } = await supabase.functions.invoke("rehost-thumbnail", { body: { url: imageUrl } });
       if (rehosted?.image_url) imageUrl = rehosted.image_url;
     } catch (e) {
-      console.warn("rehost-image failed:", e);
+      console.warn("rehost-thumbnail failed:", e);
     }
     list[index] = { ...list[index], status: "done", imageUrl };
     setVariants([...list]);
@@ -127,12 +176,32 @@ const ThumbnailStep = () => {
     setVariants(list);
     setIsGenerating(true);
     setError(null);
+
+    // Ask AI to produce N maximally-different scene directions that consider
+    // description, overlay text, video title (and inherit video style).
+    let directions: string[] = [];
+    try {
+      const { data: div } = await supabase.functions.invoke("diversify-thumbnail-prompts", {
+        body: {
+          title: selectedTitle || "",
+          description,
+          text_overlay: textOverlay,
+          style: thumbnailStyles[styleIdx].name,
+          video_style: visualStyle,
+          count: variationCount,
+        },
+      });
+      directions = Array.isArray(div?.directions) ? div.directions : [];
+    } catch (e) {
+      console.warn("diversify-thumbnail-prompts failed, using built-in variations:", e);
+    }
+
     let cursor = 0;
     let failures = 0;
     const worker = async () => {
       while (cursor < list.length) {
         const idx = cursor++;
-        try { await generateOne(list, idx); }
+        try { await generateOne(list, idx, directions[idx]); }
         catch (e) {
           failures++;
           list[idx] = { ...list[idx], status: "error", error: (e as Error).message };
@@ -149,6 +218,7 @@ const ThumbnailStep = () => {
       } else {
         toast({ title: "Thumbnails ready", description: `${list.length} variations generated.` });
       }
+      loadLibrary();
     } finally {
       setIsGenerating(false);
     }
@@ -160,6 +230,7 @@ const ThumbnailStep = () => {
     try {
       await generateOne(list, index);
       toast({ title: "Variant regenerated" });
+      loadLibrary();
     } catch (e) {
       list[index] = { ...list[index], status: "error", error: (e as Error).message };
       setVariants([...list]);
@@ -204,6 +275,41 @@ const ThumbnailStep = () => {
       </div>
 
       <div className="space-y-3 mb-5">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+              <Wand2 className="w-3.5 h-3.5 text-primary" />
+              AI suggestions for "{selectedTitle || "—"}"
+            </div>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={suggestIdeas} disabled={isSuggesting || !selectedTitle}>
+              {isSuggesting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+              {suggestions.length ? "Refresh" : "Suggest"}
+            </Button>
+          </div>
+          {suggestions.length > 0 && (
+            <div className="space-y-1.5">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setDescription(s); setPickedSuggestion(i); if (suggestedOverlay) setTextOverlay(suggestedOverlay); }}
+                  className={`w-full text-left text-[11px] leading-relaxed rounded-lg p-2.5 border transition-all ${
+                    pickedSuggestion === i
+                      ? "border-primary/50 bg-primary/10 text-foreground"
+                      : "border-border bg-background/50 text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {pickedSuggestion === i ? <Check className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> : <span className="text-[10px] text-primary/70 font-semibold mt-0.5">{i + 1}.</span>}
+                    <span>{s}</span>
+                  </div>
+                </button>
+              ))}
+              {suggestedOverlay && (
+                <p className="text-[10px] text-muted-foreground pt-1">Suggested overlay: <span className="text-foreground font-semibold">{suggestedOverlay}</span></p>
+              )}
+            </div>
+          )}
+        </div>
         <div>
           <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Reference URL (optional)</label>
           <input
@@ -305,6 +411,28 @@ const ThumbnailStep = () => {
         ))}
       </div>
     </div>
+
+    {library.length > 0 && (
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Library className="w-4 h-4 text-primary" />
+            <h3 className="font-display font-semibold text-foreground">Saved Thumbnails Library</h3>
+          </div>
+          <button onClick={loadLibrary} className="text-[10px] text-primary inline-flex items-center gap-1 hover:underline">
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mb-3">Reuse any previously generated thumbnail — click to open in a new tab.</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {library.map((item) => (
+            <a key={item.name} href={item.url} target="_blank" rel="noreferrer" className="aspect-video bg-secondary/60 rounded-xl overflow-hidden border border-border hover:border-primary/40 transition-colors">
+              <img src={item.url} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
   );
 };
