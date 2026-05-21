@@ -274,19 +274,13 @@ const VoiceoverStep = () => {
       setLoadingSample(voiceId);
       try {
         const sampleText = sampleTexts[voiceId] || "Hello, this is a sample of my voice.";
-        const { data, error } = await supabase.functions.invoke("generate-speech", {
-          body: {
-            text: sampleText,
-            voice: voiceId,
-            speed: 1.0,
-            response_format: "mp3",
-            language: voice.lang,
-          },
+        const data = await invokeSpeechWithPolling({
+          text: sampleText,
+          voice: voiceId,
+          speed: 1.0,
+          response_format: "mp3",
+          language: voice.lang,
         });
-
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-
         const url = data.audio_url;
         setSampleCache((prev) => ({ ...prev, [voiceId]: url }));
 
@@ -323,17 +317,13 @@ const VoiceoverStep = () => {
     setIsGenerating(true);
     try {
       const voice = allVoices.find((v) => v.id === selectedVoice);
-      const { data, error } = await supabase.functions.invoke("generate-speech", {
-        body: {
-          text: text.trim(),
-          voice: selectedVoice,
-          speed,
-          response_format: "mp3",
-          language: voice?.lang || "en-us",
-        },
+      const data = await invokeSpeechWithPolling({
+        text: text.trim(),
+        voice: selectedVoice,
+        speed,
+        response_format: "mp3",
+        language: voice?.lang || "en-us",
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       setAudioUrl(data.audio_url);
       toast.success(`Generated ${data.characters} characters of speech`);
     } catch (err: any) {
