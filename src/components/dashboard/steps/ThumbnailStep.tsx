@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Palette, Sparkles, Eye, Loader2, RefreshCw, ZoomIn, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Palette, Sparkles, Eye, Loader2, RefreshCw, ZoomIn, AlertCircle, Wand2, Library, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -73,7 +73,7 @@ async function pollJob(endpointId: string, jobId: string, timeoutMs = 600_000) {
 type Variant = { id: string; status: "pending" | "generating" | "done" | "error"; imageUrl?: string; error?: string };
 
 const ThumbnailStep = () => {
-  const { selectedTitle } = useProject();
+  const { selectedTitle, visualStyle, visualAspectRatio } = useProject();
   const [styleIdx, setStyleIdx] = useState(0);
   const [referenceUrl, setReferenceUrl] = useState("");
   const [description, setDescription] = useState(
@@ -84,8 +84,54 @@ const ThumbnailStep = () => {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // AI-suggested descriptions / overlay
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestedOverlay, setSuggestedOverlay] = useState<string>("");
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [pickedSuggestion, setPickedSuggestion] = useState<number | null>(null);
+  // Saved thumbnail library
+  const [library, setLibrary] = useState<{ name: string; url: string; created_at?: string }[]>([]);
 
-  const generateOne = async (list: Variant[], index: number) => {
+  const loadLibrary = async () => {
+    const { data, error } = await supabase.storage.from("thumbnails").list("", {
+      limit: 60, sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error || !data) return;
+    const items = data
+      .filter((f) => f.name && !f.name.endsWith("/"))
+      .map((f) => {
+        const { data: pub } = supabase.storage.from("thumbnails").getPublicUrl(f.name);
+        return { name: f.name, url: pub.publicUrl, created_at: (f as any).created_at };
+      });
+    setLibrary(items);
+  };
+
+  useEffect(() => { loadLibrary(); }, []);
+
+  const suggestIdeas = async () => {
+    if (!selectedTitle) {
+      toast({ title: "Pick a title first", description: "Select a title in Step 1 to get AI suggestions.", variant: "destructive" });
+      return;
+    }
+    setIsSuggesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-thumbnail-ideas", {
+        body: { title: selectedTitle, style: thumbnailStyles[styleIdx].name, video_style: visualStyle },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setSuggestions(data?.descriptions ?? []);
+      setSuggestedOverlay(data?.text_overlay ?? "");
+      setPickedSuggestion(null);
+      toast({ title: "AI suggestions ready" });
+    } catch (e) {
+      toast({ title: "Suggestion failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const generateOne = async (list: Variant[], index: number, sceneDirection?: string) => {
     list[index] = { ...list[index], status: "generating", error: undefined };
     setVariants([...list]);
     const style = thumbnailStyles[styleIdx];
@@ -97,6 +143,9 @@ const ThumbnailStep = () => {
         text_overlay: textOverlay,
         reference_url: referenceUrl,
         title: selectedTitle || "",
+        aspect_ratio: visualAspectRatio || "16:9",
+        video_style: visualStyle || "",
+        scene_direction: sceneDirection,
         index,
       },
     });
@@ -109,10 +158,10 @@ const ThumbnailStep = () => {
     }
     if (!imageUrl) throw new Error("No image URL returned");
     try {
-      const { data: rehosted } = await supabase.functions.invoke("rehost-image", { body: { url: imageUrl } });
+      const { data: rehosted } = await supabase.functions.invoke("rehost-thumbnail", { body: { url: imageUrl } });
       if (rehosted?.image_url) imageUrl = rehosted.image_url;
     } catch (e) {
-      console.warn("rehost-image failed:", e);
+      console.warn("rehost-thumbnail failed:", e);
     }
     list[index] = { ...list[index], status: "done", imageUrl };
     setVariants([...list]);
@@ -127,12 +176,32 @@ const ThumbnailStep = () => {
     setVariants(list);
     setIsGenerating(true);
     setError(null);
+
+    // Ask AI to produce N maximally-different scene directions that consider
+    // description, overlay text, video title (and inherit video style).
+    let directions: string[] = [];
+    try {
+      const { data: div } = await supabase.functions.invoke("diversify-thumbnail-prompts", {
+        body: {
+          title: selectedTitle || "",
+          description,
+          text_overlay: textOverlay,
+          style: thumbnailStyles[styleIdx].name,
+          video_style: visualStyle,
+          count: variationCount,
+        },
+      });
+      directions = Array.isArray(div?.directions) ? div.directions : [];
+    } catch (e) {
+      console.warn("diversify-thumbnail-prompts failed, using built-in variations:", e);
+    }
+
     let cursor = 0;
     let failures = 0;
     const worker = async () => {
       while (cursor < list.length) {
         const idx = cursor++;
-        try { await generateOne(list, idx); }
+        try { await generateOne(list, idx, directions[idx]); }
         catch (e) {
           failures++;
           list[idx] = { ...list[idx], status: "error", error: (e as Error).message };
@@ -149,6 +218,7 @@ const ThumbnailStep = () => {
       } else {
         toast({ title: "Thumbnails ready", description: `${list.length} variations generated.` });
       }
+      loadLibrary();
     } finally {
       setIsGenerating(false);
     }
@@ -160,6 +230,7 @@ const ThumbnailStep = () => {
     try {
       await generateOne(list, index);
       toast({ title: "Variant regenerated" });
+      loadLibrary();
     } catch (e) {
       list[index] = { ...list[index], status: "error", error: (e as Error).message };
       setVariants([...list]);
