@@ -238,7 +238,7 @@ def workflow_full_video(params):
         "image_url": image_url,
         "height": params.get("height", 480),
         "width": params.get("width", 832),
-        "num_frames": params.get("num_frames", 97),
+        "num_frames": params.get("num_frames", 201),
         "num_inference_steps": params.get("video_steps", 8),
         "fps": params.get("fps", 24),
         "seed": params.get("seed"),
