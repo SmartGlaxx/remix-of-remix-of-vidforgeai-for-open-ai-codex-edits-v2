@@ -1,17 +1,13 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const RUNPOD_BASE = "https://api.runpod.ai/v2";
-// The unified gateway has been unreliable (no available workers), so we call
-// the Z-Image endpoint directly. The client still polls via runpod-gateway
-// status action which works against any endpoint_id.
-const ZIMAGE_ENDPOINT_ID = Deno.env.get("ZIMAGE_ENDPOINT_ID") || "a6cjdpnprs4r1c";
+const TOGETHER_API_KEY = Deno.env.get("TOGETHER_API_KEY") || "tgp_v1_BfPNWsyln0I2bD9bSbrMNhpFXmnKj93uzHwt_1jEJ5M";
+const TOGETHER_MODEL = "black-forest-labs/FLUX.2-dev";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const RUNPOD_API_KEY = Deno.env.get("RUNPOD_API_KEY");
-    if (!RUNPOD_API_KEY) {
+    if (!TOGETHER_API_KEY) {
       return json({ error: "Image generation backend is not configured" }, 500);
     }
 
@@ -26,16 +22,11 @@ Deno.serve(async (req) => {
     const motion = safeText(body.motion, "Static");
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
 
-    // Map aspect ratio → explicit hi-res dimensions so Z-Image stops
-    // returning 512×512 thumbnails. These are the user-requested defaults.
     const dims = aspectRatio === "9:16" ? { width: 768, height: 1344 }
       : aspectRatio === "1:1" ? { width: 1024, height: 1024 }
-      : { width: 1344, height: 768 }; // default 16:9
+      : { width: 1344, height: 768 };
 
-    // Hard-strip ANY textual / titular content from the incoming prompt so the
-    // diffusion model never tries to render letters (the #1 cause of gibberish).
     const cleanPrompt = sanitizePrompt(prompt);
-
     const preset = STYLE_PRESETS[style] ?? STYLE_PRESETS["Cinematic"];
 
     const finalPrompt = [
@@ -46,47 +37,38 @@ Deno.serve(async (req) => {
       "Absolutely no text, letters, words, numbers, captions, typography, signs, logos, or watermarks anywhere in the frame.",
     ].join(" ");
 
-    const negativePrompt = [
-      preset.negative_prompt,
-      // Always-on anti-text / anti-low-quality guardrails
-      "text, letters, words, numbers, captions, subtitles, typography, glyphs, alphabet, fonts",
-      "signs, signage, labels, watermarks, logos, brand marks, channel names, UI overlays, subtitle bar",
-      "book pages with readable text, screens with readable text, newspaper text",
-      "blurry, low-res, low resolution, jpeg artifacts, banding, compression artifacts, soft focus, noisy, pixelated, deformed",
-    ].join(", ");
+    const seed = body.seed ?? Math.floor(Date.now() / 1000) + index;
 
-    // Submit directly to the Z-Image endpoint (bypassing the gateway).
-    const r = await fetch(`${RUNPOD_BASE}/${ZIMAGE_ENDPOINT_ID}/run`, {
+    // call together ai flux.2-dev
+    const r = await fetch("https://api.together.xyz/v1/images/generations", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${RUNPOD_API_KEY}`,
+        Authorization: `Bearer ${TOGETHER_API_KEY}`,
       },
       body: JSON.stringify({
-        input: {
-          prompt: finalPrompt,
-          negative_prompt: negativePrompt,
-          aspect_ratio: aspectRatio,
-          quality: "ultra",
-          width: dims.width,
-          height: dims.height,
-          num_inference_steps: Math.max(preset.steps ?? 8, 8),
-          guidance_scale: preset.cfg_scale ?? 6.0,
-          cfg_scale: preset.cfg_scale ?? 6.0,
-          steps: preset.steps ?? 8,
-          seed: body.seed ?? Math.floor(Date.now() / 1000) + index,
-        },
+        model: TOGETHER_MODEL,
+        prompt: finalPrompt,
+        width: dims.width,
+        height: dims.height,
+        n: 1,
+        steps: preset.steps ?? 28,
+        seed,
       }),
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: data?.error || "RunPod image request failed", details: data }, r.status);
-    if (data?.error) return json({ error: data.error, details: data }, 502);
+    if (!r.ok || data?.error) {
+      return json({ error: data?.error?.message || "Image generation failed" }, 502);
+    }
+
+    const imageUrl = data?.data?.[0]?.url;
+    if (!imageUrl) return json({ error: "No image URL returned" }, 502);
 
     return json({
-      job_id: data?.id,
-      endpoint_id: ZIMAGE_ENDPOINT_ID,
-      status: data?.status || "IN_QUEUE",
+      image_url: imageUrl,
+      url: imageUrl,
+      status: "COMPLETED",
       prompt: finalPrompt,
     });
   } catch (e) {
@@ -100,58 +82,50 @@ function safeText(value: unknown, fallback: string) {
   return text.slice(0, 80) || fallback;
 }
 
-// Style-specific prompt presets engineered for Z-Image to beat Nano Banana 2.
-// Each preset injects industry-grade vocabulary that pushes the diffusion model
-// toward authentic texture / lighting / medium fidelity for that style.
 const STYLE_PRESETS: Record<string, { prompt: string; negative_prompt: string; cfg_scale: number; steps: number }> = {
   "Cinematic": {
     prompt: "Master shot film still, dramatic side-lit cinematic portrait, raw tactile skin texture, anamorphic lens flare, vintage 35mm Arri Alexa grain, volumetric atmosphere, split-toning, cinematic dark ambiance, deep shadows, micro-contrast, masterpiece composition.",
-    negative_prompt: "3d render, CGI, airbrushed skin, plastic texture, synthetic lighting, vector art, smooth, perfect skin, cartoon",
+    negative_prompt: "",
     cfg_scale: 5.0,
-    steps: 8,
+    steps: 28,
   },
   "Documentary": {
-    prompt: "Award-winning photojournalism, authentic candid moment, sharp subject focus, natural overcast daytime lighting, harsh environmental textures, shallow depth of field, subtle motion blur on edges, National Geographic aesthetic, high fidelity raw scan, lifelike expressions.",
-    negative_prompt: "studio lighting, glamorous, posed, makeup, studio backdrop, hyper-saturated, clean, commercial, pristine",
+    prompt: "Award-winning photojournalism, authentic candid moment, sharp subject focus, natural overcast daytime lighting, harsh environmental textures, shallow depth of field, National Geographic aesthetic, high fidelity raw scan, lifelike expressions.",
+    negative_prompt: "",
     cfg_scale: 4.5,
-    steps: 7,
+    steps: 28,
   },
   "Comic Book": {
     prompt: "Premium graphic novel splash page, heavy ink linework, stylized dramatic chiaroscuro shadows, authentic retro Ben-Day dot screen-tones, dynamic action composition, high-contrast ink wash, gritty noir comic aesthetic, masterfully drawn, crisp ink edges.",
-    negative_prompt: "3d render, photorealism, blurry texture, watercolor, messy sketch, digital airbrush, blended gradients, smooth",
+    negative_prompt: "",
     cfg_scale: 6.5,
-    steps: 9,
+    steps: 28,
   },
   "Anime": {
     prompt: "Theatrical anime cel animation frame, hand-painted gouache background scenery, crisp line art, beautiful light scattering, chromatic aberration, emotional lighting, cinematic anime masterpiece, intricate details, highly atmospheric, key animation quality.",
-    negative_prompt: "3d, CGI, photorealistic, low-quality fanart, messy lines, bad anatomy, blurry backdrop, rough sketch",
+    negative_prompt: "",
     cfg_scale: 6.0,
-    steps: 8,
+    steps: 28,
   },
   "Oil Painting": {
     prompt: "Fine art museum masterpiece, thick impasto oil painting, visible heavy palette knife textures, cracked dried oil glaze layers, classic Baroque chiaroscuro lighting, rich deep pigments, dramatic classical composition, textured canvas visible, high artistic fidelity.",
-    negative_prompt: "digital art, smooth render, photography, photograph, clean vector, 3d render, airbrush, glossy, flat colors",
+    negative_prompt: "",
     cfg_scale: 5.5,
-    steps: 9,
+    steps: 28,
   },
   "3D Render": {
     prompt: "Photorealistic 3D asset showcase, ultra-precise Octane render, global illumination, raytraced sub-surface scattering, microscopic material imperfections, high-fidelity subsurface displacement map, pristine industrial design, flawless geometric shadows, cinematic studio product render.",
-    negative_prompt: "2d drawing, painting, flat shading, low-poly, bad topology, blurry textures, amateur sketch, noise, film grain",
+    negative_prompt: "",
     cfg_scale: 6.0,
-    steps: 8,
+    steps: 28,
   },
 };
 
 function sanitizePrompt(raw: string): string {
   let s = raw;
-  // Drop "Video title: ..." / "Overlay: ..." / "Caption: ..." labels and the
-  // sentence that follows up to the next period.
   s = s.replace(/\b(video\s+title|title|overlay|caption|headline|subtitle|label|text)\s*:\s*[^.]*\.?/gi, "");
-  // Drop anything in quotes — diffusion models often try to render quoted text.
-  s = s.replace(/["“”„‟"'‘’`][^"“”„‟"'‘’`]{1,120}["“”„‟"'‘’`]/g, "");
-  // Drop ALL-CAPS runs of 2+ words (headline-style fragments).
+  s = s.replace(/["""„‟"'''`][^"""„‟"'''`]{1,120}["""„‟"'''`]/g, "");
   s = s.replace(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,})\b/g, "");
-  // Strip the words text/title/caption etc. wherever they appear standalone.
   s = s.replace(/\b(text|letters?|words?|captions?|subtitles?|titles?|headlines?|typography|logos?|watermarks?)\b/gi, "");
   return s.replace(/\s{2,}/g, " ").replace(/\s+([.,;:!?])/g, "$1").trim();
 }
