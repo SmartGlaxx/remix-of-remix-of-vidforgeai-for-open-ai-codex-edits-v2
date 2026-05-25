@@ -192,7 +192,8 @@ const VisualsStep = () => {
     };
 
     try {
-      await Promise.all(Array.from({ length: Math.min(3, scenes.length) }, worker));
+      // Serial generation — Together AI Flux.2 rate-limits aggressive parallel calls.
+      await Promise.all(Array.from({ length: Math.min(1, scenes.length) }, worker));
       if (failures) {
         const msg = `${failures} visual${failures === 1 ? "" : "s"} failed. You can retry individual scenes.`;
         setError(msg);
