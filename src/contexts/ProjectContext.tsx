@@ -83,6 +83,7 @@ type ProjectState = {
   soundtrackTracks: SoundtrackTrack[];
   setSoundtrackTracks: (t: SoundtrackTrack[]) => void;
   resetProject: () => void;
+  resetNonce: number;
 };
 
 const Ctx = createContext<ProjectState | null>(null);
@@ -117,6 +118,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
   const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
   const [soundtrackTracks, setSoundtrackTracks] = useState<SoundtrackTrack[]>(saved.soundtrackTracks ?? []);
+  const [resetNonce, setResetNonce] = useState(0);
 
   const resetProject = () => {
     setTopic("");
@@ -138,6 +140,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setVideoUrl(null);
     setSoundtrackTracks([]);
     try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
+    setResetNonce((n) => n + 1);
   };
 
   useEffect(() => {
@@ -159,6 +162,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       videoUrl, setVideoUrl,
       soundtrackTracks, setSoundtrackTracks,
       resetProject,
+      resetNonce,
     }}>
       {children}
     </Ctx.Provider>
