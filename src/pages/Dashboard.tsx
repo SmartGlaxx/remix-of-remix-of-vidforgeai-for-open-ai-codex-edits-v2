@@ -67,12 +67,24 @@ const ResetButton = () => {
   );
 };
 
-const Dashboard = () => {
+const DashboardInner = () => {
   const [activeStep, setActiveStep] = useState("title");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [direction, setDirection] = useState(1);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const ActiveStepComponent = stepComponents[activeStep];
+  const { resetNonce } = useProject();
+
+  // When the project is reset, also reset navigation state and force
+  // step components to remount so their local state (visuals, thumbnails,
+  // suggestions, etc.) is wiped clean.
+  useState(() => 0); // no-op to keep hook order
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffectOnReset(resetNonce, () => {
+    setActiveStep("title");
+    setCompletedSteps([]);
+    setDirection(1);
+  });
 
   const handleStepChange = (newStep: string) => {
     const oldIdx = pipelineSteps.findIndex((s) => s.id === activeStep);
@@ -105,7 +117,6 @@ const Dashboard = () => {
   };
 
   return (
-    <ProjectProvider>
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar activePage="create" collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(v => !v)} />
 
@@ -127,7 +138,7 @@ const Dashboard = () => {
           <div className="max-w-2xl mx-auto">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
-                key={activeStep}
+                key={`${activeStep}-${resetNonce}`}
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -171,8 +182,13 @@ const Dashboard = () => {
         </div>
       </main>
     </div>
-    </ProjectProvider>
   );
 };
+
+const Dashboard = () => (
+  <ProjectProvider>
+    <DashboardInner />
+  </ProjectProvider>
+);
 
 export default Dashboard;
