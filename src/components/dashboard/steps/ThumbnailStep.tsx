@@ -211,7 +211,7 @@ const ThumbnailStep = () => {
       }
     };
     try {
-      await Promise.all(Array.from({ length: Math.min(2, list.length) }, worker));
+      await Promise.all(Array.from({ length: Math.min(1, list.length) }, worker));
       if (failures) {
         const msg = `${failures} thumbnail${failures === 1 ? "" : "s"} failed. You can regenerate individual variants.`;
         setError(msg);
