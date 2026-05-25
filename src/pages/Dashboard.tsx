@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight, ArrowLeft, RotateCcw,
@@ -74,17 +74,13 @@ const DashboardInner = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const ActiveStepComponent = stepComponents[activeStep];
   const { resetNonce } = useProject();
-
-  // When the project is reset, also reset navigation state and force
-  // step components to remount so their local state (visuals, thumbnails,
-  // suggestions, etc.) is wiped clean.
-  useState(() => 0); // no-op to keep hook order
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffectOnReset(resetNonce, () => {
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
     setActiveStep("title");
     setCompletedSteps([]);
     setDirection(1);
-  });
+  }, [resetNonce]);
 
   const handleStepChange = (newStep: string) => {
     const oldIdx = pipelineSteps.findIndex((s) => s.id === activeStep);
