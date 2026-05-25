@@ -39,28 +39,43 @@ Deno.serve(async (req) => {
 
     const seed = body.seed ?? Math.floor(Date.now() / 1000) + index;
 
-    // call together ai flux.2-dev
-    const r = await fetch("https://api.together.xyz/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TOGETHER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: TOGETHER_MODEL,
-        prompt: finalPrompt,
-        width: dims.width,
-        height: dims.height,
-        n: 1,
-        steps: preset.steps ?? 28,
-        seed,
-      }),
-    });
+    // call together ai flux.2-dev with exponential backoff on 429s
+    const maxAttempts = 6;
+    let r: Response | null = null;
+    let data: any = {};
+    let lastErr = "Image generation failed";
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      r = await fetch("https://api.together.xyz/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${TOGETHER_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: TOGETHER_MODEL,
+          prompt: finalPrompt,
+          width: dims.width,
+          height: dims.height,
+          n: 1,
+          steps: preset.steps ?? 28,
+          seed,
+        }),
+      });
 
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || data?.error) {
-      return json({ error: data?.error?.message || "Image generation failed" }, 502);
+      data = await r.json().catch(() => ({}));
+      if (r.ok && !data?.error) break;
+
+      lastErr = data?.error?.message || data?.error || `HTTP ${r.status}`;
+      const isRate = r.status === 429 || /rate|too many/i.test(String(lastErr));
+      if (!isRate || attempt === maxAttempts - 1) {
+        return json({ error: lastErr }, 502);
+      }
+      const resetHeader = Number(r.headers.get("x-ratelimit-reset")) || 0;
+      const base = Math.max(resetHeader * 1000, 1500 * Math.pow(2, attempt));
+      const jitter = Math.floor(Math.random() * 750);
+      await new Promise((res) => setTimeout(res, base + jitter));
     }
+    if (!r || !r.ok) return json({ error: lastErr }, 502);
 
     const imageUrl = data?.data?.[0]?.url;
     if (!imageUrl) return json({ error: "No image URL returned" }, 502);
