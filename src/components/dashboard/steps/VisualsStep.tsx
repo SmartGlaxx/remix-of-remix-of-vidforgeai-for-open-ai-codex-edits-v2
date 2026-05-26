@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject, type VisualScene } from "@/contexts/ProjectContext";
 
-const MIN_VISUALS = 24;
+const MIN_VISUALS = 8;
 const LOWER_END_MINUTES = 8;
 const HIGHER_END_MINUTES = 30;
 
