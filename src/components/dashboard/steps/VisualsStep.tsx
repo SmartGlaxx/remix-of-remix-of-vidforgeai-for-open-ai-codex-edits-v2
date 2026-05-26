@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject, type VisualScene } from "@/contexts/ProjectContext";
 
-const MIN_VISUALS = 24;
+const MIN_VISUALS = 8;
 const LOWER_END_MINUTES = 8;
 const HIGHER_END_MINUTES = 30;
 
@@ -25,7 +25,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const getVisualRange = (minutes: number) => {
   const normalized = clamp(minutes || LOWER_END_MINUTES, LOWER_END_MINUTES, HIGHER_END_MINUTES);
-  const recommended = Math.max(MIN_VISUALS, Math.round(normalized * 7.5));
+  const recommended = Math.max(MIN_VISUALS, Math.round(normalized * 4));
   const allowance = Math.round(20 + ((normalized - LOWER_END_MINUTES) / (HIGHER_END_MINUTES - LOWER_END_MINUTES)) * 10);
   return {
     recommended,
