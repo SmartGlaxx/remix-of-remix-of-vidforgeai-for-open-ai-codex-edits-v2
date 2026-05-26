@@ -169,7 +169,7 @@ const languages = [
 ];
 
 const VoiceoverStep = () => {
-  const { scriptSections, voice: ctxVoice, setVoice: setCtxVoice } = useProject();
+  const { scriptSections, voice: ctxVoice, setVoice: setCtxVoice, setAudioDuration } = useProject();
   const scriptText = scriptSections.map((s) => s.text).join("\n\n").trim();
   const [selectedVoice, setSelectedVoice] = useState(ctxVoice || "af_bella");
   const [text, setText] = useState(scriptText);
@@ -214,7 +214,10 @@ const VoiceoverStep = () => {
     const audio = audioRef.current;
     if (!audio) return;
     const onTime = () => setCurrentTime(audio.currentTime);
-    const onDur = () => setDuration(audio.duration);
+    const onDur = () => {
+      setDuration(audio.duration);
+      if (isFinite(audio.duration)) setAudioDuration(audio.duration);
+    };
     const onEnd = () => setIsPlaying(false);
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onDur);
