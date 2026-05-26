@@ -8,9 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject, type VisualScene } from "@/contexts/ProjectContext";
 
-const MIN_VISUALS = 8;
-const LOWER_END_MINUTES = 8;
-const HIGHER_END_MINUTES = 30;
+const MIN_VISUALS = 4;
+const SECONDS_PER_VISUAL = 15;
 
 const stylePresets = [
   { name: "Cinematic", preview: "🎬" },
@@ -23,10 +22,10 @@ const stylePresets = [
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const getVisualRange = (minutes: number) => {
-  const normalized = clamp(minutes || LOWER_END_MINUTES, LOWER_END_MINUTES, HIGHER_END_MINUTES);
-  const recommended = Math.max(MIN_VISUALS, Math.round(normalized * 4));
-  const allowance = Math.round(20 + ((normalized - LOWER_END_MINUTES) / (HIGHER_END_MINUTES - LOWER_END_MINUTES)) * 10);
+const getVisualRange = (durationSeconds: number) => {
+  const safeSeconds = Math.max(SECONDS_PER_VISUAL, durationSeconds || 0);
+  const recommended = Math.max(MIN_VISUALS, Math.ceil(safeSeconds / SECONDS_PER_VISUAL));
+  const allowance = Math.max(2, Math.round(recommended * 0.25));
   return {
     recommended,
     min: Math.max(MIN_VISUALS, recommended - allowance),
@@ -71,6 +70,7 @@ const VisualsStep = () => {
     visualAspectRatio, setVisualAspectRatio,
     visualQuality, setVisualQuality,
     visualMotion, setVisualMotion,
+    audioDuration,
   } = useProject();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,8 +79,13 @@ const VisualsStep = () => {
     () => scriptSections.map((s) => `${s.section}\n${s.text}`).join("\n\n").trim(),
     [scriptSections],
   );
-  const estimatedMinutes = scriptMeta?.minutes || Math.max(LOWER_END_MINUTES, Math.round(getWords(scriptText).length / 140));
-  const visualRange = useMemo(() => getVisualRange(estimatedMinutes), [estimatedMinutes]);
+  const estimatedSeconds = useMemo(() => {
+    if (audioDuration && audioDuration > 0) return audioDuration;
+    const words = getWords(scriptText).length;
+    // Fallback: 150 words per minute
+    return (words / 150) * 60;
+  }, [audioDuration, scriptText]);
+  const visualRange = useMemo(() => getVisualRange(estimatedSeconds), [estimatedSeconds]);
   const selectedStyleIndex = Math.max(0, stylePresets.findIndex((s) => s.name === visualStyle));
 
   const scenePlan = useMemo(() => {
@@ -299,7 +304,10 @@ const VisualsStep = () => {
               onBlur={() => setVisualCount(clamp(Math.round(visualCount || visualRange.recommended), visualRange.min, visualRange.max))}
               className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground"
             />
-            <p className="text-[10px] text-muted-foreground mt-1">Recommended {visualRange.recommended}; range {visualRange.min}-{visualRange.max} ({estimatedMinutes} min script)</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Recommended {visualRange.recommended}; range {visualRange.min}-{visualRange.max}
+              {" "}({Math.round(estimatedSeconds)}s {audioDuration > 0 ? "audio" : "estimated"}, 15s per clip)
+            </p>
           </div>
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Motion</label>
