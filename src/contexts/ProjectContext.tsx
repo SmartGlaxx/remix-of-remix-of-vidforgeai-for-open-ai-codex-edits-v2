@@ -82,6 +82,8 @@ type ProjectState = {
   setVideoUrl: (s: string | null) => void;
   soundtrackTracks: SoundtrackTrack[];
   setSoundtrackTracks: (t: SoundtrackTrack[]) => void;
+  audioDuration: number;
+  setAudioDuration: (n: number) => void;
   resetProject: () => void;
   resetNonce: number;
 };
@@ -118,6 +120,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
   const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
   const [soundtrackTracks, setSoundtrackTracks] = useState<SoundtrackTrack[]>(saved.soundtrackTracks ?? []);
+  const [audioDuration, setAudioDuration] = useState<number>(saved.audioDuration ?? 0);
   const [resetNonce, setResetNonce] = useState(0);
 
   const resetProject = () => {
@@ -139,6 +142,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setVoice("af_heart");
     setVideoUrl(null);
     setSoundtrackTracks([]);
+    setAudioDuration(0);
     try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
     setResetNonce((n) => n + 1);
   };
@@ -148,8 +152,9 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
       visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
       imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
+      audioDuration,
     }));
-  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks]);
+  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration]);
 
   return (
     <Ctx.Provider value={{
@@ -161,6 +166,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,
       videoUrl, setVideoUrl,
       soundtrackTracks, setSoundtrackTracks,
+      audioDuration, setAudioDuration,
       resetProject,
       resetNonce,
     }}>
