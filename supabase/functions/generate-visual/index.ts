@@ -37,8 +37,6 @@ Deno.serve(async (req) => {
       "Absolutely no text, letters, words, numbers, captions, typography, signs, logos, or watermarks anywhere in the frame.",
     ].join(" ");
 
-    const seed = body.seed ?? Math.floor(Date.now() / 1000) + index;
-
     // call together ai flux.2-dev with exponential backoff on 429s
     const maxAttempts = 6;
     let r: Response | null = null;
@@ -58,7 +56,6 @@ Deno.serve(async (req) => {
           height: dims.height,
           n: 1,
           steps: preset.steps ?? 28,
-          seed,
         }),
       });
 
