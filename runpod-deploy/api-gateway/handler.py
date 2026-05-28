@@ -215,13 +215,17 @@ def workflow_full_video(params):
     results["voice"] = tts_result["output"]
     voice_url = tts_result["output"]["url"]
 
-    # generate image
-    image_prompt = params.get("image_prompt", f"Cinematic portrait for: {text[:100]}")
-    image_result = voxai_generate_image({"prompt": image_prompt})
-    if image_result.get("status") != "success":
-        return {"error": f"Image generation failed: {image_result.get('error', 'unknown')}"}
-    results["image"] = image_result["output"]
-    image_url = image_result["output"]["url"]
+    # use provided image or generate new one
+    image_url = params.get("image_url")
+    if image_url:
+        results["image"] = {"url": image_url, "source": "provided"}
+    else:
+        image_prompt = params.get("image_prompt", f"Cinematic portrait for: {text[:100]}")
+        image_result = voxai_generate_image({"prompt": image_prompt})
+        if image_result.get("status") != "success":
+            return {"error": f"Image generation failed: {image_result.get('error', 'unknown')}"}
+        results["image"] = image_result["output"]
+        image_url = image_result["output"]["url"]
 
     # generate music (async, runs in parallel with video)
     music_prompt = params.get("music_prompt", "Cinematic ambient background music, soft and atmospheric")
