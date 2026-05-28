@@ -90,6 +90,7 @@ const VideoStep = () => {
     musicPrompt, setMusicPrompt,
     voice, setVoice,
     videoUrl, setVideoUrl,
+    visualScenes,
   } = useProject();
 
   const scriptFromContext = useMemo(
@@ -132,6 +133,8 @@ const VideoStep = () => {
     setStatusMsg(STAGE_LABEL.generating);
 
     try {
+      const seedImageUrl = visualScenes.find((s) => s.imageUrl)?.imageUrl;
+
       // 1) Full pipeline (TTS + image + music + video + submit lipsync)
       const full = await runRoute({
         route: "workflow/full-video",
@@ -140,6 +143,7 @@ const VideoStep = () => {
           voice,
           image_prompt: imagePrompt,
           music_prompt: musicPrompt,
+          ...(seedImageUrl ? { image_url: seedImageUrl } : {}),
         },
       });
 
