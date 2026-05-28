@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image, Sparkles, RefreshCw, ZoomIn, Trash2, Loader2, AlertCircle, Scissors,
 } from "lucide-react";
@@ -87,6 +87,22 @@ const VisualsStep = () => {
   }, [audioDuration, scriptText]);
   const visualRange = useMemo(() => getVisualRange(estimatedSeconds), [estimatedSeconds]);
   const selectedStyleIndex = Math.max(0, stylePresets.findIndex((s) => s.name === visualStyle));
+
+  // Auto-sync visualCount to recommended whenever audio duration changes,
+  // or when the persisted count is outside the valid range (e.g. stale value
+  // from a previous word-count-based formula).
+  const lastSyncedDuration = useRef<number | null>(null);
+  useEffect(() => {
+    const durationKey = audioDuration > 0 ? audioDuration : null;
+    const outOfRange = visualCount < visualRange.min || visualCount > visualRange.max;
+    if (durationKey !== lastSyncedDuration.current || outOfRange) {
+      lastSyncedDuration.current = durationKey;
+      if (visualCount !== visualRange.recommended) {
+        setVisualCount(visualRange.recommended);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioDuration, visualRange.recommended, visualRange.min, visualRange.max]);
 
   const scenePlan = useMemo(() => {
     const words = getWords(scriptText);
