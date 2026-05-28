@@ -27,9 +27,13 @@ Deno.serve(async (req) => {
     let jobId: string | undefined = existingJobId;
     let data: any = null;
 
+    // Overall deadline guard: stay well under the 150s edge function idle timeout.
+    const fnDeadline = Date.now() + 130_000;
+    const remaining = () => Math.max(2_000, fnDeadline - Date.now());
+
     // Resume path: client is polling an in-flight job.
     if (jobId) {
-      const sd = await pollJob(endpointId, jobId, RUNPOD_API_KEY, 120_000);
+      const sd = await pollJob(endpointId, jobId, RUNPOD_API_KEY, Math.min(60_000, remaining()));
       if (sd.status === "processing") {
         return json({ status: "processing", job_id: jobId, endpoint_id: endpointId });
       }
@@ -67,14 +71,14 @@ Deno.serve(async (req) => {
         }
 
         jobId = startData.id;
-        // Poll with a 120s deadline; if not done, hand off to client.
-        const sd = await pollJob(endpointId, jobId!, RUNPOD_API_KEY, 120_000);
+        // Poll briefly; if not done, hand off to client to avoid 150s edge timeout.
+        const sd = await pollJob(endpointId, jobId!, RUNPOD_API_KEY, Math.min(60_000, remaining()));
         if (sd.status === "processing") {
           return json({ status: "processing", job_id: jobId, endpoint_id: endpointId });
         }
         if (sd.status === "failed") {
           lastFailure = sd.data;
-          if (isServerNotReady(sd.data) && attempt < MAX_SUBMIT_ATTEMPTS) {
+          if (isServerNotReady(sd.data) && attempt < MAX_SUBMIT_ATTEMPTS && remaining() > 20_000) {
             console.warn(`Kokoro worker not ready (attempt ${attempt}/${MAX_SUBMIT_ATTEMPTS}), resubmitting...`);
             await new Promise((r) => setTimeout(r, 3000));
             continue;
