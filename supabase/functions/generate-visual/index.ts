@@ -135,6 +135,12 @@ const STYLE_PRESETS: Record<string, { prompt: string; negative_prompt: string; c
 
 function sanitizePrompt(raw: string): string {
   let s = raw;
+  // strip section labels like "HOOK (0:00 - 0:30)" or "RISING ACTION (2:00 - 5:00)"
+  s = s.replace(/\b(HOOK|CONTEXT|RISING\s+ACTION|CLIMAX|RESOLUTION|INTRO|OUTRO|CONCLUSION)\s*\([^)]*\)/gi, "");
+  // strip standalone section labels
+  s = s.replace(/\b(HOOK|CONTEXT|RISING\s+ACTION|CLIMAX|RESOLUTION|INTRO|OUTRO|CONCLUSION)\b/gi, "");
+  // strip timestamps like (0:00 - 0:30)
+  s = s.replace(/\(\d+:\d+\s*-\s*\d+:\d+\)/g, "");
   s = s.replace(/\b(video\s+title|title|overlay|caption|headline|subtitle|label|text)\s*:\s*[^.]*\.?/gi, "");
   s = s.replace(/["""„‟"'''`][^"""„‟"'''`]{1,120}["""„‟"'''`]/g, "");
   s = s.replace(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,})\b/g, "");
