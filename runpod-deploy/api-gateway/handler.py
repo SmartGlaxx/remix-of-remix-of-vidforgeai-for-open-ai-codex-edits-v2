@@ -239,6 +239,7 @@ def workflow_full_video(params):
     # generate video (runs while music generates)
     video_params = {
         "prompt": params.get("video_prompt", f"Cinematic scene: {text[:100]}"),
+        "negative_prompt": "text, words, letters, subtitles, captions, watermark, logo, title, typography, writing, numbers, gibberish text, worst quality, blurry, distorted",
         "image_url": image_url,
         "height": params.get("height", 480),
         "width": params.get("width", 832),
