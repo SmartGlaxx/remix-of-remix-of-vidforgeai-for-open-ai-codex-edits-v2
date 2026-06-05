@@ -259,33 +259,27 @@ def workflow_full_video(params):
     video_output = video_result.get("output", video_result) if isinstance(video_result, dict) else video_result
     results["video"] = video_output
 
-    # generate a portrait for lip sync (separate from scene visual)
+    # lip sync only if image has a face, otherwise skip
     skip_lipsync = params.get("skip_lipsync", False)
-    if not skip_lipsync and voice_url:
+    if not skip_lipsync and voice_url and image_url:
         try:
-            portrait_prompt = f"Close-up portrait of a narrator speaking, clear face, looking at camera, studio lighting"
-            portrait_result = voxai_generate_image({"prompt": portrait_prompt})
-            portrait_url = portrait_result.get("output", {}).get("url", "")
-            if portrait_url:
-                lipsync_params = {
-                    "image_url": portrait_url,
-                    "audio_url": voice_url,
-                    "pose_weight": params.get("pose_weight", 1.0),
-                    "face_weight": params.get("face_weight", 1.0),
-                    "lip_weight": params.get("lip_weight", 1.0),
-                }
-                lipsync_job = call_endpoint_async("hallo2", lipsync_params)
-                results["lip_sync"] = {
-                    "job_id": lipsync_job,
-                    "poll_url": f"{RUNPOD_BASE}/{ENDPOINTS['hallo2']}/status/{lipsync_job}",
-                    "message": "Lip-sync job submitted with portrait. Poll the poll_url for results.",
-                }
-            else:
-                results["lip_sync"] = {"skipped": True, "reason": "portrait generation failed"}
+            lipsync_params = {
+                "image_url": image_url,
+                "audio_url": voice_url,
+                "pose_weight": params.get("pose_weight", 1.0),
+                "face_weight": params.get("face_weight", 1.0),
+                "lip_weight": params.get("lip_weight", 1.0),
+            }
+            lipsync_job = call_endpoint_async("hallo2", lipsync_params)
+            results["lip_sync"] = {
+                "job_id": lipsync_job,
+                "poll_url": f"{RUNPOD_BASE}/{ENDPOINTS['hallo2']}/status/{lipsync_job}",
+                "message": "Lip-sync job submitted. Poll the poll_url for results. Will fail gracefully if no face detected.",
+            }
         except Exception as e:
             results["lip_sync"] = {"skipped": True, "reason": str(e)}
     else:
-        results["lip_sync"] = {"skipped": True, "reason": "lip sync disabled or no voice"}
+        results["lip_sync"] = {"skipped": True, "reason": "lip sync disabled or missing inputs"}
 
     return {
         "status": "success",
