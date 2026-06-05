@@ -72,7 +72,7 @@ async function runRoute(payload: Record<string, unknown>) {
   return data;
 }
 
-async function pollHallo2(endpoint_id: string, job_id: string, timeoutMs = 120_000) {
+async function pollHallo2(endpoint_id: string, job_id: string, timeoutMs = 600_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const data = await callGateway({ action: "status", endpoint_id, job_id });
