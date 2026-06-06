@@ -96,37 +96,37 @@ function safeText(value: unknown, fallback: string) {
 
 const STYLE_PRESETS: Record<string, { prompt: string; negative_prompt: string; cfg_scale: number; steps: number }> = {
   "Cinematic": {
-    prompt: "Master shot film still, dramatic side-lit cinematic portrait, raw tactile skin texture, anamorphic lens flare, vintage 35mm Arri Alexa grain, volumetric atmosphere, split-toning, cinematic dark ambiance, deep shadows, micro-contrast, masterpiece composition.",
+    prompt: "High quality cinematic scene, vivid natural colors, balanced lighting, sharp focus, professional photography, wide dynamic range, detailed environment, realistic atmosphere, masterpiece composition.",
     negative_prompt: "",
     cfg_scale: 5.0,
     steps: 28,
   },
   "Documentary": {
-    prompt: "Award-winning photojournalism, authentic candid moment, sharp subject focus, natural overcast daytime lighting, harsh environmental textures, shallow depth of field, National Geographic aesthetic, high fidelity raw scan, lifelike expressions.",
+    prompt: "Authentic documentary photography, natural daylight, real world setting, candid moment, National Geographic quality, vivid colors, sharp detail, wide angle, realistic environment.",
     negative_prompt: "",
     cfg_scale: 4.5,
     steps: 28,
   },
   "Comic Book": {
-    prompt: "Premium graphic novel splash page, heavy ink linework, stylized dramatic chiaroscuro shadows, authentic retro Ben-Day dot screen-tones, dynamic action composition, high-contrast ink wash, gritty noir comic aesthetic, masterfully drawn, crisp ink edges.",
+    prompt: "Vivid comic book illustration, bold colors, clean ink linework, dynamic composition, action pose, bright contrasting palette, professional graphic novel quality.",
     negative_prompt: "",
     cfg_scale: 6.5,
     steps: 28,
   },
   "Anime": {
-    prompt: "Theatrical anime cel animation frame, hand-painted gouache background scenery, crisp line art, beautiful light scattering, chromatic aberration, emotional lighting, cinematic anime masterpiece, intricate details, highly atmospheric, key animation quality.",
+    prompt: "Beautiful anime illustration, vibrant colors, clean line art, detailed background scenery, expressive characters, bright atmospheric lighting, high quality anime art.",
     negative_prompt: "",
     cfg_scale: 6.0,
     steps: 28,
   },
   "Oil Painting": {
-    prompt: "Fine art museum masterpiece, thick impasto oil painting, visible heavy palette knife textures, cracked dried oil glaze layers, classic Baroque chiaroscuro lighting, rich deep pigments, dramatic classical composition, textured canvas visible, high artistic fidelity.",
+    prompt: "Classical oil painting, rich vivid pigments, visible brush strokes, warm natural lighting, beautiful composition, museum quality fine art, detailed and colorful.",
     negative_prompt: "",
     cfg_scale: 5.5,
     steps: 28,
   },
   "3D Render": {
-    prompt: "Photorealistic 3D asset showcase, ultra-precise Octane render, global illumination, raytraced sub-surface scattering, microscopic material imperfections, high-fidelity subsurface displacement map, pristine industrial design, flawless geometric shadows, cinematic studio product render.",
+    prompt: "Photorealistic 3D render, clean studio lighting, global illumination, sharp details, vibrant materials, professional product visualization, high fidelity.",
     negative_prompt: "",
     cfg_scale: 6.0,
     steps: 28,
