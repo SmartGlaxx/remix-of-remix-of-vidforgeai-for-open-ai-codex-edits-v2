@@ -96,13 +96,13 @@ function safeText(value: unknown, fallback: string) {
 
 const STYLE_PRESETS: Record<string, { prompt: string; negative_prompt: string; cfg_scale: number; steps: number }> = {
   "Cinematic": {
-    prompt: "High quality cinematic scene, vivid natural colors, balanced lighting, sharp focus, professional photography, wide dynamic range, detailed environment, realistic atmosphere, masterpiece composition.",
+    prompt: "High quality cinematic wide shot, focus on environment and setting, vivid natural colors, balanced lighting, sharp focus, professional photography, wide angle, detailed scenery and architecture, realistic atmosphere.",
     negative_prompt: "",
     cfg_scale: 5.0,
     steps: 28,
   },
   "Documentary": {
-    prompt: "Authentic documentary photography, natural daylight, real world setting, candid moment, National Geographic quality, vivid colors, sharp detail, wide angle, realistic environment.",
+    prompt: "Authentic documentary photography, focus on the subject matter and environment, natural daylight, real world setting, National Geographic quality, vivid colors, sharp detail, wide angle, show the actual topic described.",
     negative_prompt: "",
     cfg_scale: 4.5,
     steps: 28,
