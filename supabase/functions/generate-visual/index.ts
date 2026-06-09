@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
       `Aspect ratio ${aspectRatio}.`,
       motion === "Static" ? "Static image, no camera movement, no animation." : `Motion direction: ${motion}.`,
       "Absolutely no text, letters, words, numbers, captions, typography, signs, logos, or watermarks anywhere in the frame.",
-    ].join(" ");
+      style === "Cinematic" ? "STRICT: landscape only — absolutely no people, no human figures, no faces, no portraits." : "",
+    ].filter(Boolean).join(" ");
 
     // call together ai flux.2-dev with exponential backoff on 429s
     const maxAttempts = 6;
@@ -96,8 +97,8 @@ function safeText(value: unknown, fallback: string) {
 
 const STYLE_PRESETS: Record<string, { prompt: string; negative_prompt: string; cfg_scale: number; steps: number }> = {
   "Cinematic": {
-    prompt: "High quality cinematic wide shot, focus on environment and setting, vivid natural colors, balanced lighting, sharp focus, professional photography, wide angle, detailed scenery and architecture, realistic atmosphere.",
-    negative_prompt: "",
+    prompt: "Pure landscape photography only. Sweeping cinematic landscape, vast natural scenery, mountains, valleys, forests, oceans, skies, or open terrain. Wide establishing shot, no people, no characters, no human figures, no portraits, no faces. Vivid natural colors, golden hour or dramatic lighting, ultra sharp focus, professional landscape photography, ultra wide angle, epic vista, atmospheric depth.",
+    negative_prompt: "people, person, man, woman, child, human, figure, portrait, face, body, character, crowd, silhouette of person",
     cfg_scale: 5.0,
     steps: 28,
   },
