@@ -11,13 +11,29 @@ import { useProject, type VisualScene } from "@/contexts/ProjectContext";
 const MIN_VISUALS = 4;
 const SECONDS_PER_VISUAL = 15;
 
-const stylePresets = [
-  { name: "Cinematic", preview: "🎬" },
-  { name: "Documentary", preview: "📽️" },
-  { name: "Comic Book", preview: "💥" },
-  { name: "Anime", preview: "🌸" },
-  { name: "Oil Painting", preview: "🎨" },
-  { name: "3D Render", preview: "🧊" },
+const PRESET_STYLES = [
+  "Cinematic", "Documentary", "Comic Book", "Anime",
+  "Oil Painting", "3D Render", "Vintage Cyber-Pop", "Editorial Fashion",
+];
+const AMBIANCE_OPTIONS = ["Light & Vibrant", "Neutral & Realistic", "Dark & Somber"];
+const CAMERA_OPTIONS = [
+  "Dynamic First-Person (Action)",
+  "Cinematic Close-Up (Emotion)",
+  "Low-Angle Heroic (Power)",
+  "Epic Landscape (Scale)",
+  "Dutch Angle (Tension)",
+];
+const ENGINE_OPTIONS = [
+  "IMAX Hollywood Quality",
+  "Analog Film Nostalgia",
+  "CGI Hyper-Realism",
+  "National Geographic Raw",
+];
+const PALETTE_OPTIONS = [
+  "Cyberpunk Neon",
+  "Teal & Tangerine",
+  "Monochromatic Noir",
+  "Earthy Pastel",
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -68,8 +84,10 @@ const VisualsStep = () => {
     visualCount, setVisualCount,
     visualStyle, setVisualStyle,
     visualAspectRatio, setVisualAspectRatio,
-    visualQuality, setVisualQuality,
-    visualMotion, setVisualMotion,
+    visualAmbiance, setVisualAmbiance,
+    visualCamera, setVisualCamera,
+    visualEngine, setVisualEngine,
+    visualPalette, setVisualPalette,
     audioDuration,
   } = useProject();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -86,7 +104,7 @@ const VisualsStep = () => {
     return (words / 150) * 60;
   }, [audioDuration, scriptText]);
   const visualRange = useMemo(() => getVisualRange(estimatedSeconds), [estimatedSeconds]);
-  const selectedStyleIndex = Math.max(0, stylePresets.findIndex((s) => s.name === visualStyle));
+  // (selected style displayed in select element)
 
   // Auto-sync visualCount to recommended whenever audio duration changes,
   // or when the persisted count is outside the valid range (e.g. stale value
@@ -151,8 +169,10 @@ const VisualsStep = () => {
         prompt: scenes[index].prompt,
         style: visualStyle,
         aspect_ratio: visualAspectRatio,
-        quality: visualQuality,
-        motion: visualMotion,
+        ambiance: visualAmbiance,
+        camera: visualCamera,
+        engine: visualEngine,
+        palette: visualPalette,
         index,
       },
     });
