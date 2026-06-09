@@ -11,13 +11,29 @@ import { useProject, type VisualScene } from "@/contexts/ProjectContext";
 const MIN_VISUALS = 4;
 const SECONDS_PER_VISUAL = 15;
 
-const stylePresets = [
-  { name: "Cinematic", preview: "🎬" },
-  { name: "Documentary", preview: "📽️" },
-  { name: "Comic Book", preview: "💥" },
-  { name: "Anime", preview: "🌸" },
-  { name: "Oil Painting", preview: "🎨" },
-  { name: "3D Render", preview: "🧊" },
+const PRESET_STYLES = [
+  "Cinematic", "Documentary", "Comic Book", "Anime",
+  "Oil Painting", "3D Render", "Vintage Cyber-Pop", "Editorial Fashion",
+];
+const AMBIANCE_OPTIONS = ["Light & Vibrant", "Neutral & Realistic", "Dark & Somber"];
+const CAMERA_OPTIONS = [
+  "Dynamic First-Person (Action)",
+  "Cinematic Close-Up (Emotion)",
+  "Low-Angle Heroic (Power)",
+  "Epic Landscape (Scale)",
+  "Dutch Angle (Tension)",
+];
+const ENGINE_OPTIONS = [
+  "IMAX Hollywood Quality",
+  "Analog Film Nostalgia",
+  "CGI Hyper-Realism",
+  "National Geographic Raw",
+];
+const PALETTE_OPTIONS = [
+  "Cyberpunk Neon",
+  "Teal & Tangerine",
+  "Monochromatic Noir",
+  "Earthy Pastel",
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -68,8 +84,10 @@ const VisualsStep = () => {
     visualCount, setVisualCount,
     visualStyle, setVisualStyle,
     visualAspectRatio, setVisualAspectRatio,
-    visualQuality, setVisualQuality,
-    visualMotion, setVisualMotion,
+    visualAmbiance, setVisualAmbiance,
+    visualCamera, setVisualCamera,
+    visualEngine, setVisualEngine,
+    visualPalette, setVisualPalette,
     audioDuration,
   } = useProject();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -86,7 +104,7 @@ const VisualsStep = () => {
     return (words / 150) * 60;
   }, [audioDuration, scriptText]);
   const visualRange = useMemo(() => getVisualRange(estimatedSeconds), [estimatedSeconds]);
-  const selectedStyleIndex = Math.max(0, stylePresets.findIndex((s) => s.name === visualStyle));
+  // (selected style displayed in select element)
 
   // Auto-sync visualCount to recommended whenever audio duration changes,
   // or when the persisted count is outside the valid range (e.g. stale value
@@ -151,8 +169,10 @@ const VisualsStep = () => {
         prompt: scenes[index].prompt,
         style: visualStyle,
         aspect_ratio: visualAspectRatio,
-        quality: visualQuality,
-        motion: visualMotion,
+        ambiance: visualAmbiance,
+        camera: visualCamera,
+        engine: visualEngine,
+        palette: visualPalette,
         index,
       },
     });
@@ -274,25 +294,37 @@ const VisualsStep = () => {
           />
         </div>
 
-        <label className="text-xs text-muted-foreground mb-2 block font-medium">Style Preset</label>
-        <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
-          {stylePresets.map((style, i) => (
-            <button
-              key={style.name}
-              onClick={() => setVisualStyle(style.name)}
-              className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border min-w-[88px] transition-all ${
-                selectedStyleIndex === i
-                  ? "border-primary/40 bg-primary/8 shadow-md shadow-primary/5"
-                  : "border-border hover:border-primary/20"
-              }`}
-            >
-              <span className="text-2xl">{style.preview}</span>
-              <span className="text-[10px] font-medium text-foreground">{style.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+          <div>
+            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">1. Preset Image Type</label>
+            <select value={visualStyle} onChange={(e) => setVisualStyle(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
+              {PRESET_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">2. Ambiance & Lighting</label>
+            <select value={visualAmbiance} onChange={(e) => setVisualAmbiance(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
+              {AMBIANCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">3. Camera Angle & Framing</label>
+            <select value={visualCamera} onChange={(e) => setVisualCamera(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
+              {CAMERA_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">4. Technical Engine & Lens</label>
+            <select value={visualEngine} onChange={(e) => setVisualEngine(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
+              {ENGINE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">5. Color Grading & Palette</label>
+            <select value={visualPalette} onChange={(e) => setVisualPalette(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
+              {PALETTE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Aspect Ratio</label>
             <select value={visualAspectRatio} onChange={(e) => setVisualAspectRatio(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
@@ -301,15 +333,7 @@ const VisualsStep = () => {
               <option value="1:1">1:1 (Square)</option>
             </select>
           </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Quality</label>
-            <select value={visualQuality} onChange={(e) => setVisualQuality(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
-              <option>HD</option>
-              <option>Ultra HD</option>
-              <option>Standard</option>
-            </select>
-          </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Visual Count</label>
             <input
               type="number"
@@ -324,15 +348,6 @@ const VisualsStep = () => {
               Recommended {visualRange.recommended}; range {visualRange.min}-{visualRange.max}
               {" "}({Math.round(estimatedSeconds)}s {audioDuration > 0 ? "audio" : "estimated"}, 15s per clip)
             </p>
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Motion</label>
-            <select value={visualMotion} onChange={(e) => setVisualMotion(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
-              <option>Static</option>
-              <option>Ken Burns + Pan</option>
-              <option>Full Animation</option>
-            </select>
-            <p className="text-[10px] text-muted-foreground mt-1">Static is the default for image generation.</p>
           </div>
         </div>
 

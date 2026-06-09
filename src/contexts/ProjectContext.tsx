@@ -71,6 +71,14 @@ type ProjectState = {
   setVisualQuality: (s: string) => void;
   visualMotion: string;
   setVisualMotion: (s: string) => void;
+  visualAmbiance: string;
+  setVisualAmbiance: (s: string) => void;
+  visualCamera: string;
+  setVisualCamera: (s: string) => void;
+  visualEngine: string;
+  setVisualEngine: (s: string) => void;
+  visualPalette: string;
+  setVisualPalette: (s: string) => void;
   // Video step
   imagePrompt: string;
   setImagePrompt: (s: string) => void;
@@ -115,6 +123,10 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [visualAspectRatio, setVisualAspectRatio] = useState(saved.visualAspectRatio ?? "16:9");
   const [visualQuality, setVisualQuality] = useState(saved.visualQuality ?? "HD");
   const [visualMotion, setVisualMotion] = useState(saved.visualMotion ?? "Static");
+  const [visualAmbiance, setVisualAmbiance] = useState(saved.visualAmbiance ?? "Neutral & Realistic");
+  const [visualCamera, setVisualCamera] = useState(saved.visualCamera ?? "Epic Landscape (Scale)");
+  const [visualEngine, setVisualEngine] = useState(saved.visualEngine ?? "IMAX Hollywood Quality");
+  const [visualPalette, setVisualPalette] = useState(saved.visualPalette ?? "Teal & Tangerine");
   const [imagePrompt, setImagePrompt] = useState(saved.imagePrompt ?? "Cinematic close-up portrait of a narrator, soft lighting, 4k");
   const [musicPrompt, setMusicPrompt] = useState(saved.musicPrompt ?? "Cinematic ambient background music, soft and atmospheric");
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
@@ -137,6 +149,10 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setVisualAspectRatio("16:9");
     setVisualQuality("HD");
     setVisualMotion("Static");
+    setVisualAmbiance("Neutral & Realistic");
+    setVisualCamera("Epic Landscape (Scale)");
+    setVisualEngine("IMAX Hollywood Quality");
+    setVisualPalette("Teal & Tangerine");
     setImagePrompt("Cinematic close-up portrait of a narrator, soft lighting, 4k");
     setMusicPrompt("Cinematic ambient background music, soft and atmospheric");
     setVoice("af_heart");
@@ -151,10 +167,11 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
       visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
+      visualAmbiance, visualCamera, visualEngine, visualPalette,
       imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
       audioDuration,
     }));
-  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration]);
+  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration]);
 
   return (
     <Ctx.Provider value={{
@@ -163,6 +180,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       scriptSections, setScriptSections, scriptMeta, setScriptMeta,
       visualScenes, setVisualScenes, visualCount, setVisualCount, visualStyle, setVisualStyle,
       visualAspectRatio, setVisualAspectRatio, visualQuality, setVisualQuality, visualMotion, setVisualMotion,
+      visualAmbiance, setVisualAmbiance, visualCamera, setVisualCamera, visualEngine, setVisualEngine, visualPalette, setVisualPalette,
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,
       videoUrl, setVideoUrl,
       soundtrackTracks, setSoundtrackTracks,

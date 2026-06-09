@@ -20,6 +20,10 @@ Deno.serve(async (req) => {
     const aspectRatio = safeText(body.aspect_ratio, "16:9");
     const quality = safeText(body.quality, "HD");
     const motion = safeText(body.motion, "Static");
+    const ambiance = safeText(body.ambiance, "Neutral & Realistic");
+    const camera = safeText(body.camera, "Epic Landscape (Scale)");
+    const engine = safeText(body.engine, "IMAX Hollywood Quality");
+    const palette = safeText(body.palette, "Teal & Tangerine");
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
 
     const dims = aspectRatio === "9:16" ? { width: 768, height: 1344 }
@@ -27,16 +31,23 @@ Deno.serve(async (req) => {
       : { width: 1344, height: 768 };
 
     const cleanPrompt = sanitizePrompt(prompt);
-    const preset = STYLE_PRESETS[style] ?? STYLE_PRESETS["Cinematic"];
+    const stylePreset = PRESET_STYLE[style] ?? PRESET_STYLE["Cinematic"];
+    const ambiancePreset = AMBIANCE[ambiance] ?? AMBIANCE["Neutral & Realistic"];
+    const cameraPreset = CAMERA[camera] ?? CAMERA["Epic Landscape (Scale)"];
+    const enginePreset = ENGINE[engine] ?? ENGINE["IMAX Hollywood Quality"];
+    const palettePreset = PALETTE[palette] ?? PALETTE["Teal & Tangerine"];
 
+    // [User Prompt], [Style], [Ambiance], [Camera], [Engine], [Palette]
     const finalPrompt = [
-      preset.prompt,
       cleanPrompt,
-      `Aspect ratio ${aspectRatio}.`,
-      motion === "Static" ? "Static image, no camera movement, no animation." : `Motion direction: ${motion}.`,
-      "Absolutely no text, letters, words, numbers, captions, typography, signs, logos, or watermarks anywhere in the frame.",
-      style === "Cinematic" ? "STRICT: landscape only — absolutely no people, no human figures, no faces, no portraits." : "",
-    ].filter(Boolean).join(" ");
+      stylePreset,
+      ambiancePreset,
+      cameraPreset,
+      enginePreset,
+      palettePreset,
+    ].filter(Boolean).join(", ");
+
+    const negativePrompt = UNIVERSAL_NEGATIVE;
 
     // call together ai flux.2-dev with exponential backoff on 429s
     const maxAttempts = 6;
@@ -53,10 +64,11 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           model: TOGETHER_MODEL,
           prompt: finalPrompt,
+          negative_prompt: negativePrompt,
           width: dims.width,
           height: dims.height,
           n: 1,
-          steps: preset.steps ?? 28,
+          steps: 28,
         }),
       });
 
@@ -83,6 +95,7 @@ Deno.serve(async (req) => {
       url: imageUrl,
       status: "COMPLETED",
       prompt: finalPrompt,
+      negative_prompt: negativePrompt,
     });
   } catch (e) {
     console.error("generate-visual error:", e);
@@ -92,47 +105,49 @@ Deno.serve(async (req) => {
 
 function safeText(value: unknown, fallback: string) {
   const text = typeof value === "string" ? value.trim() : "";
-  return text.slice(0, 80) || fallback;
+  return text.slice(0, 120) || fallback;
 }
 
-const STYLE_PRESETS: Record<string, { prompt: string; negative_prompt: string; cfg_scale: number; steps: number }> = {
-  "Cinematic": {
-    prompt: "Pure landscape photography only. Sweeping cinematic landscape, vast natural scenery, mountains, valleys, forests, oceans, skies, or open terrain. Wide establishing shot, no people, no characters, no human figures, no portraits, no faces. Vivid natural colors, golden hour or dramatic lighting, ultra sharp focus, professional landscape photography, ultra wide angle, epic vista, atmospheric depth.",
-    negative_prompt: "people, person, man, woman, child, human, figure, portrait, face, body, character, crowd, silhouette of person",
-    cfg_scale: 5.0,
-    steps: 28,
-  },
-  "Documentary": {
-    prompt: "Authentic documentary photography, focus on the subject matter and environment, natural daylight, real world setting, National Geographic quality, vivid colors, sharp detail, wide angle, show the actual topic described.",
-    negative_prompt: "",
-    cfg_scale: 4.5,
-    steps: 28,
-  },
-  "Comic Book": {
-    prompt: "Vivid comic book illustration, bold colors, clean ink linework, dynamic composition, action pose, bright contrasting palette, professional graphic novel quality.",
-    negative_prompt: "",
-    cfg_scale: 6.5,
-    steps: 28,
-  },
-  "Anime": {
-    prompt: "Beautiful anime illustration, vibrant colors, clean line art, detailed background scenery, expressive characters, bright atmospheric lighting, high quality anime art.",
-    negative_prompt: "",
-    cfg_scale: 6.0,
-    steps: 28,
-  },
-  "Oil Painting": {
-    prompt: "Classical oil painting, rich vivid pigments, visible brush strokes, warm natural lighting, beautiful composition, museum quality fine art, detailed and colorful.",
-    negative_prompt: "",
-    cfg_scale: 5.5,
-    steps: 28,
-  },
-  "3D Render": {
-    prompt: "Photorealistic 3D render, clean studio lighting, global illumination, sharp details, vibrant materials, professional product visualization, high fidelity.",
-    negative_prompt: "",
-    cfg_scale: 6.0,
-    steps: 28,
-  },
+const PRESET_STYLE: Record<string, string> = {
+  "Cinematic": "Masterpiece, captured on 35mm anamorphic lens, shallow depth of field, natural highlights, intricate textures, volumetric atmosphere, cinematic storytelling composition, 8k resolution",
+  "Documentary": "Photojournalism style, candid moment, unedited raw photograph, street photography aesthetic, authentic textures, high contrast, documentary film grain",
+  "Comic Book": "Graphic novel illustration, dynamic action lines, cel-shaded, vibrant ink work, stylized digital art, high-impact composition, bold outlines, modern webtoon aesthetic",
+  "Anime": "Hand-drawn premium anime aesthetic, hyper-detailed backgrounds, emotional lighting, beautiful color gradient sky, fluid visual flow",
+  "Oil Painting": "Impressionist oil on canvas, heavy impasto texture, visible palette knife strokes, classical fine art, rich pigment layers, museum-tier masterpiece composition, artistic chiaroscuro",
+  "3D Render": "Ray-traced 3D graphic, Unreal Engine 5 render, Octane Render, hyper-detailed subsurface scattering, metallic and glass textures, futuristic digital art, flawless geometric depth",
+  "Vintage Cyber-Pop": "1980s retro-futurism, synthwave aesthetic, VHS glitch texture, analog film distortion, neon wireframes, highly stylized nostalgia",
+  "Editorial Fashion": "Vogue editorial cover style, high-fashion studio photography, avant-garde composition, perfect symmetry, razor-sharp focus on luxury fabric textures and skin details",
 };
+
+const AMBIANCE: Record<string, string> = {
+  "Light & Vibrant": "High-key lighting, soft morning sun, warm lens flare, optimistic tone, bright exposed highlights, radiant glow",
+  "Neutral & Realistic": "Balanced diffuse lighting, true-to-life color grading, realistic exposure, standard environmental reflections, natural color palette",
+  "Dark & Somber": "Low-key lighting, heavy dramatic shadows, neo-noir undertones, deep moody atmosphere, single-source illumination, mysterious tone",
+};
+
+const CAMERA: Record<string, string> = {
+  "Dynamic First-Person (Action)": "First-person point-of-view perspective, immersive action angle, low to the ground tracking shot, wide-angle distortion, high-octane composition",
+  "Cinematic Close-Up (Emotion)": "Extreme macro close-up, tight framing, intimate details, shallow depth of field, crisp focus on textures, emotional character depth",
+  "Low-Angle Heroic (Power)": "Low-angle worm's-eye view, dramatic upward perspective, powerful scale, heroic camera stance, looking up at the focal point",
+  "Epic Landscape (Scale)": "Extreme wide-angle establishing shot, bird's-eye view, high-altitude drone perspective, massive scale, vast horizon, rule of thirds layout",
+  "Dutch Angle (Tension)": "Tilted frame, dramatic Dutch angle, asymmetrical composition, high psychological tension, unexpected off-axis perspective",
+};
+
+const ENGINE: Record<string, string> = {
+  "IMAX Hollywood Quality": "Arri Alexa LF camera body, Panavision Primo lenses, ultra-crisp resolution, flawless edge-to-edge sharpness, high-end production budget look",
+  "Analog Film Nostalgia": "Shot on Kodachrome 64, 120mm medium format film, subtle grain, organic color bleeding, slight vintage chromatic aberration",
+  "CGI Hyper-Realism": "Redshift renderer, V-Ray illumination architecture, physically-based rendering (PBR), meticulously simulated physical materials, raytraced accuracy",
+  "National Geographic Raw": "Native uncompressed RAW file, zero post-processing artifacts, extreme environmental weather-sealing texture, natural atmospheric distortion",
+};
+
+const PALETTE: Record<string, string> = {
+  "Cyberpunk Neon": "Electric cyan, hot magenta, and deep violet colorway, intense color contrast, glowing neon accents, high saturation",
+  "Teal & Tangerine": "Hollywood teal and orange color grading, complementary color harmony, cinematic block-buster palette, rich skin tones",
+  "Monochromatic Noir": "High-contrast black and white, deep silvers, rich charcoal blacks, pure stark whites, elegant timeless tonal gradient",
+  "Earthy Pastel": "Muted sage greens, warm terracottas, soft beige, desaturated pastel tones, organic earth-inspired color harmony",
+};
+
+const UNIVERSAL_NEGATIVE = "text, typography, words, letters, alphabet, script, logo, watermark, signature, banner, UI, stamps, titles, blurred background elements, distorted anatomy, extra limbs, fused fingers, duplicate objects, static pose, deformed face, mirrored image";
 
 function sanitizePrompt(raw: string): string {
   let s = raw;
