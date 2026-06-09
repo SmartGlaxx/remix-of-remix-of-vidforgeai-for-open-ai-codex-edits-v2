@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
       `Aspect ratio ${aspectRatio}.`,
       motion === "Static" ? "Static image, no camera movement, no animation." : `Motion direction: ${motion}.`,
       "Absolutely no text, letters, words, numbers, captions, typography, signs, logos, or watermarks anywhere in the frame.",
-    ].join(" ");
+      style === "Cinematic" ? "STRICT: landscape only — absolutely no people, no human figures, no faces, no portraits." : "",
+    ].filter(Boolean).join(" ");
 
     // call together ai flux.2-dev with exponential backoff on 429s
     const maxAttempts = 6;
