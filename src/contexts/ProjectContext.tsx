@@ -10,6 +10,15 @@ export type VisualScene = {
   imageUrl?: string;
   status: "pending" | "generating" | "done" | "error";
   error?: string;
+  // Storyboard fields
+  conceptualPrompt?: string;
+  cameraAngle?: string;
+  // Per-frame overrides (fall back to global when undefined)
+  styleOverride?: string;
+  ambianceOverride?: string;
+  engineOverride?: string;
+  paletteOverride?: string;
+  aspectOverride?: string;
 };
 
 export type TitleCandidate = {
