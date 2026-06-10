@@ -37,6 +37,19 @@ const PALETTE_OPTIONS = [
 ];
 const ASPECT_OPTIONS = ["16:9", "9:16", "1:1"];
 
+const SelectMini = ({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) => (
+  <label className="block">
+    <span className="text-[9px] uppercase font-semibold text-muted-foreground">{label}</span>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full bg-background/70 border border-border rounded-md px-1.5 py-1 text-[10px] text-foreground mt-0.5"
+    >
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  </label>
+);
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const getVisualRange = (durationSeconds: number) => {
