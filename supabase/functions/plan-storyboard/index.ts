@@ -28,7 +28,12 @@ Deno.serve(async (req) => {
       segments.push(words.slice(s, Math.max(e, s + 6)).join(" "));
     }
 
-    const sys = `You are a Hollywood director storyboarding a video. For each script segment, produce a concrete VISUAL METAPHOR prompt (no people unless essential, no text/words to render) and pick ONE camera angle from this exact list: ${CAMERA_KEYS.join(" | ")}. Output STRICT JSON only: {"frames":[{"conceptualPrompt":"...","cameraAngle":"..."}]}. Exactly ${count} items, same order.`;
+    const sys = `You are a Hollywood director storyboarding a video.
+For EACH script segment, write a "conceptualPrompt" that is a CONCRETE IMAGE DESCRIPTION (what a viewer would literally see in a single still frame) — NOT a paraphrase of the narration.
+It must begin with a visual noun phrase like "A picture of…", "A wide shot of…", "Close-up of…", "An overhead view of…" and describe subject, setting, lighting, mood, and key visual details in 1–2 sentences.
+Rules: no on-screen text/letters/words; no people unless essential to meaning; avoid abstract concepts — translate them into concrete imagery (e.g. "freedom" → "a lone eagle soaring above misty mountains at sunrise").
+Also pick ONE cameraAngle from this exact list: ${CAMERA_KEYS.join(" | ")}.
+Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"..."}]}. Exactly ${count} items, in order.`;
     const user = segments.map((t, i) => `SEGMENT ${i + 1}: ${t}`).join("\n\n");
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
