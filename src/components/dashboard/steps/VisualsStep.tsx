@@ -229,6 +229,17 @@ const VisualsStep = () => {
       return;
     }
 
+    if (!approvedGenerate) {
+      setApprovedGenerate(true);
+      setBlinkSettings(true);
+      window.setTimeout(() => setBlinkSettings(false), 1800);
+      toast({
+        title: "Review settings on each frame",
+        description: "Click any blinking ⚙ button to confirm a frame's prompt & look, then press Generate All again.",
+      });
+      return;
+    }
+
     const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
     if (count !== visualCount) setVisualCount(count);
 
