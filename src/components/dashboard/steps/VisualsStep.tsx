@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image, Sparkles, RefreshCw, ZoomIn, Trash2, Loader2, AlertCircle, Scissors, Wand2,
+  Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2,
+  Settings2, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject, type VisualScene } from "@/contexts/ProjectContext";
