@@ -438,39 +438,69 @@ const VisualsStep = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {scenesToShow.slice(0, Math.max(visualCount, scenesToShow.length)).map((scene, i) => (
-            <div key={`${scene.id}-${i}`} className="rounded-xl border border-border bg-secondary/30 overflow-hidden group">
-              <div className="aspect-video bg-secondary/60 flex items-center justify-center relative overflow-hidden">
-                {scene.imageUrl ? (
-                  <img src={scene.imageUrl} alt={`Generated visual for scene ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
-                ) : scene.status === "generating" ? (
-                  <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                ) : (
-                  <Image className="w-6 h-6 text-muted-foreground/40" />
-                )}
-                <div className="absolute inset-0 bg-background/65 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  {scene.imageUrl && (
-                    <a href={scene.imageUrl} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center" aria-label="Open generated image">
-                      <ZoomIn className="w-4 h-4 text-primary" />
-                    </a>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {scenesToShow.slice(0, Math.max(visualCount, scenesToShow.length)).map((scene, i) => {
+            const styleVal = scene.styleOverride || visualStyle;
+            const ambianceVal = scene.ambianceOverride || visualAmbiance;
+            const engineVal = scene.engineOverride || visualEngine;
+            const paletteVal = scene.paletteOverride || visualPalette;
+            const aspectVal = scene.aspectOverride || visualAspectRatio;
+            const cameraVal = scene.cameraAngle || visualCamera;
+            return (
+              <div key={`${scene.id}-${i}`} className="rounded-xl border border-border bg-secondary/30 overflow-hidden">
+                <div className="aspect-video bg-secondary/60 flex items-center justify-center relative overflow-hidden group">
+                  {scene.imageUrl ? (
+                    <img src={scene.imageUrl} alt={`Visual ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                  ) : scene.status === "generating" ? (
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                  ) : (
+                    <Image className="w-6 h-6 text-muted-foreground/40" />
                   )}
-                  <button onClick={() => regenerateScene(i)} disabled={isGenerating} className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center disabled:opacity-50" aria-label="Regenerate scene">
-                    <RefreshCw className="w-4 h-4 text-primary" />
-                  </button>
-                  <button onClick={() => removeScene(i)} disabled={isGenerating} className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center disabled:opacity-50" aria-label="Remove scene">
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </button>
+                  <div className="absolute inset-0 bg-background/65 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    {scene.imageUrl && (
+                      <a href={scene.imageUrl} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                        <ZoomIn className="w-4 h-4 text-primary" />
+                      </a>
+                    )}
+                    <button onClick={() => regenerateScene(i)} disabled={isGenerating} className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center disabled:opacity-50">
+                      <RefreshCw className="w-4 h-4 text-primary" />
+                    </button>
+                    <button onClick={() => removeScene(i)} disabled={isGenerating} className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center disabled:opacity-50">
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </button>
+                  </div>
+                  <span className="absolute bottom-1.5 left-2 text-[9px] text-foreground bg-background/70 px-1.5 py-0.5 rounded">Frame {i + 1} · {scene.section}</span>
                 </div>
-                <span className="absolute bottom-1.5 left-2 text-[9px] text-foreground bg-background/70 px-1.5 py-0.5 rounded">Scene {i + 1}</span>
+                <div className="p-3 space-y-2">
+                  <div>
+                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Source Text</label>
+                    <p className="text-[11px] text-muted-foreground/90 line-clamp-2 mt-0.5">{scene.text}</p>
+                  </div>
+                  <div>
+                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Conceptual Metaphor</label>
+                    <Textarea
+                      value={scene.conceptualPrompt ?? scene.prompt ?? ""}
+                      onChange={(e) => patchScene(i, { conceptualPrompt: e.target.value, prompt: e.target.value })}
+                      rows={2}
+                      className="text-[11px] mt-0.5 resize-none bg-background/60"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <SelectMini label="Style" value={styleVal} options={PRESET_STYLES} onChange={(v) => patchScene(i, { styleOverride: v })} />
+                    <SelectMini label="Ambiance" value={ambianceVal} options={AMBIANCE_OPTIONS} onChange={(v) => patchScene(i, { ambianceOverride: v })} />
+                    <SelectMini label="Camera" value={cameraVal} options={CAMERA_OPTIONS} onChange={(v) => patchScene(i, { cameraAngle: v })} />
+                    <SelectMini label="Engine" value={engineVal} options={ENGINE_OPTIONS} onChange={(v) => patchScene(i, { engineOverride: v })} />
+                    <SelectMini label="Palette" value={paletteVal} options={PALETTE_OPTIONS} onChange={(v) => patchScene(i, { paletteOverride: v })} />
+                    <SelectMini label="Aspect" value={aspectVal} options={ASPECT_OPTIONS} onChange={(v) => patchScene(i, { aspectOverride: v })} />
+                  </div>
+                  <Button size="sm" variant="outline" className="w-full h-8 text-[11px]" onClick={() => regenerateScene(i)} disabled={isGenerating}>
+                    <Sparkles className="w-3 h-3 mr-1" /> Generate / Regenerate
+                  </Button>
+                  {scene.status === "error" && <p className="text-[10px] text-destructive truncate">{scene.error}</p>}
+                </div>
               </div>
-              <div className="p-3">
-                <p className="text-[10px] text-primary/80 font-semibold uppercase truncate mb-1">{scene.section}</p>
-                <p className="text-xs text-muted-foreground line-clamp-3">{scene.text}</p>
-                {scene.status === "error" && <p className="text-[10px] text-destructive mt-2 truncate">{scene.error}</p>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
