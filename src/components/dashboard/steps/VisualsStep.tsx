@@ -349,6 +349,23 @@ const VisualsStep = () => {
     setVisualScenes(base);
   };
 
+  // Auto-populate Conceptual Metaphors when the visuals page is opened and
+  // no scene yet has one. Runs once per mount when the script is ready.
+  useEffect(() => {
+    if (autoPlannedRef.current) return;
+    if (!scriptText || isPlanning) return;
+    const hasAny = (visualScenes.length ? visualScenes : []).some(
+      (s) => s.conceptualPrompt && s.conceptualPrompt.trim().length > 0,
+    );
+    if (hasAny) {
+      autoPlannedRef.current = true;
+      return;
+    }
+    autoPlannedRef.current = true;
+    void planStoryboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptText]);
+
   return (
     <div className="space-y-6">
       <div className="glass-card p-6">
