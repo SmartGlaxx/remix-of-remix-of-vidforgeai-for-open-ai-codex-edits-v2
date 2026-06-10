@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image, Sparkles, RefreshCw, ZoomIn, Trash2, Loader2, AlertCircle, Scissors, Wand2,
+  Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2,
+  Settings2, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject, type VisualScene } from "@/contexts/ProjectContext";
@@ -107,6 +109,10 @@ const VisualsStep = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalIndex, setModalIndex] = useState<number | null>(null);
+  const [blinkSettings, setBlinkSettings] = useState(false);
+  const [approvedGenerate, setApprovedGenerate] = useState(false);
+  const autoPlannedRef = useRef(false);
 
   const scriptText = useMemo(
     () => scriptSections.map((s) => `${s.section}\n${s.text}`).join("\n\n").trim(),
@@ -223,6 +229,17 @@ const VisualsStep = () => {
       return;
     }
 
+    if (!approvedGenerate) {
+      setApprovedGenerate(true);
+      setBlinkSettings(true);
+      window.setTimeout(() => setBlinkSettings(false), 1800);
+      toast({
+        title: "Review settings on each frame",
+        description: "Click any blinking ⚙ button to confirm a frame's prompt & look, then press Generate All again.",
+      });
+      return;
+    }
+
     const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
     if (count !== visualCount) setVisualCount(count);
 
@@ -331,6 +348,23 @@ const VisualsStep = () => {
     base[index] = { ...base[index], ...patch };
     setVisualScenes(base);
   };
+
+  // Auto-populate Conceptual Metaphors when the visuals page is opened and
+  // no scene yet has one. Runs once per mount when the script is ready.
+  useEffect(() => {
+    if (autoPlannedRef.current) return;
+    if (!scriptText || isPlanning) return;
+    const hasAny = (visualScenes.length ? visualScenes : []).some(
+      (s) => s.conceptualPrompt && s.conceptualPrompt.trim().length > 0,
+    );
+    if (hasAny) {
+      autoPlannedRef.current = true;
+      return;
+    }
+    autoPlannedRef.current = true;
+    void planStoryboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptText]);
 
   return (
     <div className="space-y-6">
@@ -451,54 +485,161 @@ const VisualsStep = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {scenesToShow.slice(0, Math.max(visualCount, scenesToShow.length)).map((scene, i) => {
+            const hasConcept = !!(scene.conceptualPrompt && scene.conceptualPrompt.trim());
+            const isLoadingConcept = !hasConcept && isPlanning;
+            return (
+              <div
+                key={`${scene.id}-${i}`}
+                className="group relative rounded-xl border border-border bg-secondary/30 overflow-hidden cursor-pointer transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+                onClick={() => setModalIndex(i)}
+              >
+                <div className="aspect-video bg-secondary/60 flex items-center justify-center relative overflow-hidden">
+                  {scene.imageUrl ? (
+                    <img src={scene.imageUrl} alt={`Visual ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                  ) : scene.status === "generating" ? (
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                      <span className="text-[9px] text-muted-foreground">Rendering…</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 text-muted-foreground/50">
+                      <Image className="w-8 h-8" />
+                      <span className="text-[9px]">No image yet</span>
+                    </div>
+                  )}
+
+                  {/* Hover overlay: settings + delete + helper text */}
+                  <div className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2 text-center">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setModalIndex(i); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/25 hover:bg-primary/40 border border-primary/40 text-primary text-[11px] font-semibold ${blinkSettings ? "blink-green" : ""}`}
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                      Set up visual
+                    </button>
+                    {scene.imageUrl && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); regenerateScene(i); }}
+                        disabled={isGenerating}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-background/70 hover:bg-background text-[10px] disabled:opacity-50"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Regenerate
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeScene(i); }}
+                      disabled={isGenerating}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-destructive/30 hover:bg-destructive/60 flex items-center justify-center disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3 h-3 text-destructive-foreground" />
+                    </button>
+                    <span className="absolute bottom-1 left-0 right-0 text-[9px] text-muted-foreground/90">
+                      Click to set up & preview
+                    </span>
+                  </div>
+
+                  <span className="absolute top-1.5 left-1.5 text-[9px] text-foreground bg-background/70 px-1.5 py-0.5 rounded">
+                    {i + 1}
+                  </span>
+                  {isLoadingConcept && (
+                    <span className="absolute bottom-1.5 left-1.5 text-[9px] text-primary bg-background/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> AI describing…
+                    </span>
+                  )}
+                  {scene.status === "error" && (
+                    <span className="absolute bottom-1.5 left-1.5 text-[9px] text-destructive bg-background/80 px-1.5 py-0.5 rounded">
+                      Failed — click to fix
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Frame setup modal (carousel) */}
+      <Dialog open={modalIndex !== null} onOpenChange={(o) => { if (!o) setModalIndex(null); }}>
+        <DialogContent className="max-w-5xl p-0 overflow-hidden bg-card">
+          {modalIndex !== null && scenesToShow[modalIndex] && (() => {
+            const i = modalIndex;
+            const scene = scenesToShow[i];
             const styleVal = scene.styleOverride || visualStyle;
             const ambianceVal = scene.ambianceOverride || visualAmbiance;
             const engineVal = scene.engineOverride || visualEngine;
             const paletteVal = scene.paletteOverride || visualPalette;
             const aspectVal = scene.aspectOverride || visualAspectRatio;
             const cameraVal = scene.cameraAngle || visualCamera;
+            const canPrev = i > 0;
+            const canNext = i < scenesToShow.length - 1;
             return (
-              <div key={`${scene.id}-${i}`} className="rounded-xl border border-border bg-secondary/30 overflow-hidden">
-                <div className="aspect-video bg-secondary/60 flex items-center justify-center relative overflow-hidden group">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-0 max-h-[85vh]">
+                {/* Left: image + carousel arrows */}
+                <div className="relative bg-secondary/60 flex items-center justify-center min-h-[300px]">
                   {scene.imageUrl ? (
-                    <img src={scene.imageUrl} alt={`Visual ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                    <img src={scene.imageUrl} alt={`Visual ${i + 1}`} className="w-full h-full object-contain max-h-[85vh]" />
                   ) : scene.status === "generating" ? (
-                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                      <span className="text-xs text-muted-foreground">Rendering this frame…</span>
+                    </div>
                   ) : (
-                    <Image className="w-6 h-6 text-muted-foreground/40" />
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground/60">
+                      <Image className="w-12 h-12" />
+                      <span className="text-xs">No image yet — adjust settings & press Generate</span>
+                    </div>
                   )}
-                  <div className="absolute inset-0 bg-background/65 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    {scene.imageUrl && (
-                      <a href={scene.imageUrl} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <ZoomIn className="w-4 h-4 text-primary" />
-                      </a>
-                    )}
-                    <button onClick={() => regenerateScene(i)} disabled={isGenerating} className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center disabled:opacity-50">
-                      <RefreshCw className="w-4 h-4 text-primary" />
-                    </button>
-                    <button onClick={() => removeScene(i)} disabled={isGenerating} className="w-8 h-8 rounded-lg bg-destructive/20 flex items-center justify-center disabled:opacity-50">
-                      <Trash2 className="w-4 h-4 text-destructive" />
+                  <button
+                    onClick={() => canPrev && setModalIndex(i - 1)}
+                    disabled={!canPrev}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-background/80 hover:bg-background flex items-center justify-center disabled:opacity-30"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => canNext && setModalIndex(i + 1)}
+                    disabled={!canNext}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-background/80 hover:bg-background flex items-center justify-center disabled:opacity-30"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <span className="absolute top-2 left-2 text-[11px] bg-background/80 px-2 py-1 rounded">
+                    Frame {i + 1} / {scenesToShow.length} · {scene.section}
+                  </span>
+                </div>
+
+                {/* Right: settings panel */}
+                <div className="p-5 overflow-y-auto space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-display font-semibold text-foreground">Frame Setup</h4>
+                    <button onClick={() => setModalIndex(null)} className="w-7 h-7 rounded-md hover:bg-secondary flex items-center justify-center">
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <span className="absolute bottom-1.5 left-2 text-[9px] text-foreground bg-background/70 px-1.5 py-0.5 rounded">Frame {i + 1} · {scene.section}</span>
-                </div>
-                <div className="p-3 space-y-2">
                   <div>
                     <label className="text-[9px] uppercase font-semibold text-muted-foreground">Source Text</label>
-                    <p className="text-[11px] text-muted-foreground/90 line-clamp-2 mt-0.5">{scene.text}</p>
+                    <p className="text-xs text-muted-foreground/90 mt-1 max-h-24 overflow-y-auto">{scene.text}</p>
                   </div>
                   <div>
-                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Conceptual Metaphor</label>
-                    <Textarea
-                      value={scene.conceptualPrompt ?? scene.prompt ?? ""}
-                      onChange={(e) => patchScene(i, { conceptualPrompt: e.target.value, prompt: e.target.value })}
-                      rows={2}
-                      className="text-[11px] mt-0.5 resize-none bg-background/60"
-                    />
+                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Conceptual Metaphor (AI image description)</label>
+                    {!scene.conceptualPrompt && isPlanning ? (
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground bg-background/60 border border-border rounded-md p-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                        Crafting a visual description from the script…
+                      </div>
+                    ) : (
+                      <Textarea
+                        value={scene.conceptualPrompt ?? scene.prompt ?? ""}
+                        onChange={(e) => patchScene(i, { conceptualPrompt: e.target.value, prompt: e.target.value })}
+                        rows={3}
+                        placeholder="e.g. A picture of the sun, blazing and hot, scorching cracked desert earth…"
+                        className="text-xs mt-1 resize-none bg-background/60"
+                      />
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-2 gap-2">
                     <SelectMini label="Style" value={styleVal} options={PRESET_STYLES} onChange={(v) => patchScene(i, { styleOverride: v })} />
                     <SelectMini label="Ambiance" value={ambianceVal} options={AMBIANCE_OPTIONS} onChange={(v) => patchScene(i, { ambianceOverride: v })} />
                     <SelectMini label="Camera" value={cameraVal} options={CAMERA_OPTIONS} onChange={(v) => patchScene(i, { cameraAngle: v })} />
@@ -506,16 +647,30 @@ const VisualsStep = () => {
                     <SelectMini label="Palette" value={paletteVal} options={PALETTE_OPTIONS} onChange={(v) => patchScene(i, { paletteOverride: v })} />
                     <SelectMini label="Aspect" value={aspectVal} options={ASPECT_OPTIONS} onChange={(v) => patchScene(i, { aspectOverride: v })} />
                   </div>
-                  <Button size="sm" variant="outline" className="w-full h-8 text-[11px]" onClick={() => regenerateScene(i)} disabled={isGenerating}>
-                    <Sparkles className="w-3 h-3 mr-1" /> Generate / Regenerate
+                  <Button className="w-full" onClick={() => regenerateScene(i)} disabled={isGenerating}>
+                    {scene.status === "generating" ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</>
+                    ) : (
+                      <><Sparkles className="w-4 h-4 mr-2" /> {scene.imageUrl ? "Regenerate this frame" : "Generate this frame"}</>
+                    )}
                   </Button>
-                  {scene.status === "error" && <p className="text-[10px] text-destructive truncate">{scene.error}</p>}
+                  {scene.status === "error" && (
+                    <p className="text-[11px] text-destructive">{scene.error}</p>
+                  )}
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-2 border-t border-border">
+                    <button onClick={() => canPrev && setModalIndex(i - 1)} disabled={!canPrev} className="flex items-center gap-1 hover:text-foreground disabled:opacity-40">
+                      <ChevronLeft className="w-3 h-3" /> Previous frame
+                    </button>
+                    <button onClick={() => canNext && setModalIndex(i + 1)} disabled={!canNext} className="flex items-center gap-1 hover:text-foreground disabled:opacity-40">
+                      Next frame <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
-          })}
-        </div>
-      </div>
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
