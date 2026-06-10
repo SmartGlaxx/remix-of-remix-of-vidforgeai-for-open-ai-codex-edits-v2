@@ -403,10 +403,19 @@ const VisualsStep = () => {
           </div>
         </div>
 
-        <Button className="w-full glow-sm h-11" onClick={generateVisuals} disabled={isGenerating || !scriptText}>
-          {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-          {isGenerating ? `Generating ${completed}/${scenesToShow.length || visualCount} Visuals…` : `Generate ${visualCount} Visuals`}
-        </Button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Button variant="outline" className="h-11" onClick={planStoryboard} disabled={isPlanning || isGenerating || !scriptText}>
+            {isPlanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+            {isPlanning ? "Planning Storyboard…" : "1. Plan Storyboard (AI)"}
+          </Button>
+          <Button className="glow-sm h-11" onClick={generateVisuals} disabled={isGenerating || !scriptText}>
+            {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+            {isGenerating ? `Generating ${completed}/${scenesToShow.length || visualCount}…` : `2. Generate All (${visualCount})`}
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-2">
+          Step 1 chunks the script and proposes a concept + camera angle per frame. Step 2 renders every card with its (optionally edited) settings.
+        </p>
 
         {error && (
           <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-3">
