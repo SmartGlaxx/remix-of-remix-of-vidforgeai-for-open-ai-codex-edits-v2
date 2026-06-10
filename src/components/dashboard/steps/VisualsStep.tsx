@@ -109,6 +109,10 @@ const VisualsStep = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlanning, setIsPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalIndex, setModalIndex] = useState<number | null>(null);
+  const [blinkSettings, setBlinkSettings] = useState(false);
+  const [approvedGenerate, setApprovedGenerate] = useState(false);
+  const autoPlannedRef = useRef(false);
 
   const scriptText = useMemo(
     () => scriptSections.map((s) => `${s.section}\n${s.text}`).join("\n\n").trim(),
