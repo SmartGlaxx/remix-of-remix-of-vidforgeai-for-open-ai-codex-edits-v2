@@ -92,6 +92,7 @@ const VisualsStep = () => {
     audioDuration,
   } = useProject();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPlanning, setIsPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const scriptText = useMemo(
@@ -268,6 +269,54 @@ const VisualsStep = () => {
   const removeScene = (index: number) => {
     setVisualScenes(scenesToShow.filter((_, i) => i !== index));
     setVisualCount(Math.max(visualRange.min, visualCount - 1));
+  };
+
+  const planStoryboard = async () => {
+    if (!scriptText) {
+      toast({ title: "No script", description: "Generate the script first.", variant: "destructive" });
+      return;
+    }
+    const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
+    setIsPlanning(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("plan-storyboard", {
+        body: { scriptText, count },
+      });
+      if (invokeError) throw new Error(invokeError.message);
+      if (data?.error) throw new Error(data.error);
+      const frames: { sourceText: string; conceptualPrompt: string; cameraAngle: string }[] = data?.frames || [];
+      const sectionWordEnds = scriptSections.reduce<{ section: string; end: number }[]>((acc, section) => {
+        const last = acc[acc.length - 1]?.end ?? 0;
+        acc.push({ section: section.section, end: last + getWords(section.text).length });
+        return acc;
+      }, []);
+      const totalWords = getWords(scriptText).length;
+      const scenes: VisualScene[] = frames.map((f, i) => {
+        const midpoint = Math.floor(((i + 0.5) / frames.length) * totalWords);
+        const section = sectionWordEnds.find((s) => midpoint <= s.end)?.section || `Scene ${i + 1}`;
+        return {
+          id: `scene-${i + 1}`,
+          section,
+          text: trimText(f.sourceText, 520),
+          prompt: trimText(f.conceptualPrompt, 720),
+          conceptualPrompt: f.conceptualPrompt,
+          cameraAngle: f.cameraAngle,
+          status: "pending",
+        };
+      });
+      setVisualScenes(scenes);
+      toast({ title: "Storyboard ready", description: `${scenes.length} frames planned. Review and tweak before generating.` });
+    } catch (e) {
+      toast({ title: "Storyboard failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setIsPlanning(false);
+    }
+  };
+
+  const patchScene = (index: number, patch: Partial<VisualScene>) => {
+    const base = (visualScenes.length ? visualScenes : scenePlan).map((s) => ({ ...s }));
+    base[index] = { ...base[index], ...patch };
+    setVisualScenes(base);
   };
 
   return (
