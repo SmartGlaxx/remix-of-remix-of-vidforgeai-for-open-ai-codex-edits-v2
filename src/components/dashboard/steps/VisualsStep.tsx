@@ -165,15 +165,17 @@ const VisualsStep = () => {
 
   const generateOne = async (scenes: VisualScene[], index: number) => {
     updateScene(scenes, index, { status: "generating", error: undefined });
+    const sc = scenes[index];
+    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || sc.prompt;
     const { data, error: invokeError } = await supabase.functions.invoke("generate-visual", {
       body: {
-        prompt: scenes[index].prompt,
-        style: visualStyle,
-        aspect_ratio: visualAspectRatio,
-        ambiance: visualAmbiance,
-        camera: visualCamera,
-        engine: visualEngine,
-        palette: visualPalette,
+        prompt: promptToSend,
+        style: sc.styleOverride || visualStyle,
+        aspect_ratio: sc.aspectOverride || visualAspectRatio,
+        ambiance: sc.ambianceOverride || visualAmbiance,
+        camera: sc.cameraAngle || visualCamera,
+        engine: sc.engineOverride || visualEngine,
+        palette: sc.paletteOverride || visualPalette,
         index,
       },
     });
