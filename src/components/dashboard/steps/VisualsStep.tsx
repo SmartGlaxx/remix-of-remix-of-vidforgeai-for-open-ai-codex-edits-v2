@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image, Sparkles, RefreshCw, ZoomIn, Trash2, Loader2, AlertCircle, Scissors,
+  Image, Sparkles, RefreshCw, ZoomIn, Trash2, Loader2, AlertCircle, Scissors, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +35,7 @@ const PALETTE_OPTIONS = [
   "Monochromatic Noir",
   "Earthy Pastel",
 ];
+const ASPECT_OPTIONS = ["16:9", "9:16", "1:1"];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
