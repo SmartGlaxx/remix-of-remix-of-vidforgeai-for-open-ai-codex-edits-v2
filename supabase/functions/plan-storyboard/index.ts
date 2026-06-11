@@ -28,11 +28,29 @@ Deno.serve(async (req) => {
       segments.push(words.slice(s, Math.max(e, s + 6)).join(" "));
     }
 
-    const sys = `You are a Hollywood director storyboarding a video.
-For EACH script segment, write a "conceptualPrompt" that is a CONCRETE IMAGE DESCRIPTION (what a viewer would literally see in a single still frame) — NOT a paraphrase of the narration.
-It must begin with a visual noun phrase like "A picture of…", "A wide shot of…", "Close-up of…", "An overhead view of…" and describe subject, setting, lighting, mood, and key visual details in 1–2 sentences.
-Rules: no on-screen text/letters/words; no people unless essential to meaning; avoid abstract concepts — translate them into concrete imagery (e.g. "freedom" → "a lone eagle soaring above misty mountains at sunrise").
+    const sys = `You are a visual director performing "Abstract-to-Concrete Semantic Translation" and "Visuospatial Paraphrasing" on narration segments.
+
+For EACH script segment, produce a "conceptualPrompt" by executing this EXACT algorithmic pipeline — do NOT paraphrase or rewrite the sentence:
+
+1. PARSE the input text to extract its core emotional or conceptual theme (e.g. overwhelm, hope, isolation, urgency, freedom).
+2. ABSTRACT-TO-CONCRETE MAPPING: translate that abstract meaning into a physical, tangible scene that a camera could literally photograph. No abstractions, no narration, no characters speaking, no on-screen text.
+3. SENSORY DESCRIPTIVE TRANSMUTATION: render the theme as a physical scenario using metaphorical objects, environment, scale, and orientation.
+4. VISUOSPATIAL PARAPHRASING: write ONE highly descriptive sentence (or two short ones) detailing the visual LAYOUT, physical ORIENTATION, COLORS, TEXTURES, LIGHT, and spatial relationships of that scene — a true "word picture".
+5. The output must read like a still-frame description a cinematographer could shoot, not like a rewrite of the narration.
+
+EXAMPLE
+Input: "I am overwhelmed by deadlines."
+Output: "A person standing at the bottom of a steep canyon as giant, loose boulders of paper look ready to slide down from the rims."
+
+HARD RULES
+- Never echo or lightly rephrase the source text — transmute it into imagery.
+- No on-screen text, letters, words, logos, captions, or UI.
+- Avoid abstract nouns (freedom, success, anxiety) in the output; show them as objects/spaces/light instead.
+- People only when essential to the metaphor; otherwise prefer objects, landscapes, environments.
+- 1–2 sentences, concrete, photographable, spatially specific.
+
 Also pick ONE cameraAngle from this exact list: ${CAMERA_KEYS.join(" | ")}.
+
 Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"..."}]}. Exactly ${count} items, in order.`;
     const user = segments.map((t, i) => `SEGMENT ${i + 1}: ${t}`).join("\n\n");
 
