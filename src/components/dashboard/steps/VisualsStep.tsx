@@ -22,7 +22,7 @@ const CAMERA_OPTIONS = [
   "Dynamic First-Person (Action)",
   "Cinematic Close-Up (Emotion)",
   "Low-Angle Heroic (Power)",
-  "Epic Landscape (Scale)",
+  "Epic Wide Shot (Scale)",
   "Dutch Angle (Tension)",
 ];
 const ENGINE_OPTIONS = [
@@ -427,7 +427,7 @@ const VisualsStep = () => {
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Aspect Ratio</label>
             <select value={visualAspectRatio} onChange={(e) => setVisualAspectRatio(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
-              <option value="16:9">16:9 (Landscape)</option>
+              <option value="16:9">16:9 (Widescreen)</option>
               <option value="9:16">9:16 (Portrait)</option>
               <option value="1:1">1:1 (Square)</option>
             </select>

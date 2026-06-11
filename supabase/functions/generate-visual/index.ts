@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const quality = safeText(body.quality, "HD");
     const motion = safeText(body.motion, "Static");
     const ambiance = safeText(body.ambiance, "Neutral & Realistic");
-    const camera = safeText(body.camera, "Epic Landscape (Scale)");
+    const camera = safeText(body.camera, "Epic Wide Shot (Scale)");
     const engine = safeText(body.engine, "IMAX Hollywood Quality");
     const palette = safeText(body.palette, "Teal & Tangerine");
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     const cleanPrompt = sanitizePrompt(prompt);
     const stylePreset = PRESET_STYLE[style] ?? PRESET_STYLE["Cinematic"];
     const ambiancePreset = AMBIANCE[ambiance] ?? AMBIANCE["Neutral & Realistic"];
-    const cameraPreset = CAMERA[camera] ?? CAMERA["Epic Landscape (Scale)"];
+    const cameraPreset = CAMERA[camera] ?? CAMERA["Epic Wide Shot (Scale)"];
     const enginePreset = ENGINE[engine] ?? ENGINE["IMAX Hollywood Quality"];
     const palettePreset = PALETTE[palette] ?? PALETTE["Teal & Tangerine"];
 
@@ -129,7 +129,7 @@ const CAMERA: Record<string, string> = {
   "Dynamic First-Person (Action)": "First-person point-of-view perspective, immersive action angle, low to the ground tracking shot, wide-angle distortion, high-octane composition",
   "Cinematic Close-Up (Emotion)": "Extreme macro close-up, tight framing, intimate details, shallow depth of field, crisp focus on textures, emotional character depth",
   "Low-Angle Heroic (Power)": "Low-angle worm's-eye view, dramatic upward perspective, powerful scale, heroic camera stance, looking up at the focal point",
-  "Epic Landscape (Scale)": "Extreme wide-angle establishing shot, bird's-eye view, high-altitude drone perspective, massive scale, vast horizon, rule of thirds layout",
+  "Epic Wide Shot (Scale)": "Extreme wide-angle establishing shot, sweeping vista, massive sense of scale, rule of thirds layout, atmospheric depth",
   "Dutch Angle (Tension)": "Tilted frame, dramatic Dutch angle, asymmetrical composition, high psychological tension, unexpected off-axis perspective",
 };
 
