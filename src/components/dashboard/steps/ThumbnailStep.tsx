@@ -78,7 +78,7 @@ const ThumbnailStep = () => {
   const [styleIdx, setStyleIdx] = useState(0);
   const [referenceUrl, setReferenceUrl] = useState("");
   const [description, setDescription] = useState(
-    "A shadowy desert landscape with a cartel boss highlighted in blue. A military drone flies overhead with glowing red sensors.",
+    "A shadowy desert scene with a cartel boss highlighted in blue. A military drone flies overhead with glowing red sensors.",
   );
   const [textOverlay, setTextOverlay] = useState("DRONE ARMY");
   const [variationCount, setVariationCount] = useState(4);

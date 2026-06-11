@@ -133,7 +133,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [visualQuality, setVisualQuality] = useState(saved.visualQuality ?? "HD");
   const [visualMotion, setVisualMotion] = useState(saved.visualMotion ?? "Static");
   const [visualAmbiance, setVisualAmbiance] = useState(saved.visualAmbiance ?? "Neutral & Realistic");
-  const [visualCamera, setVisualCamera] = useState(saved.visualCamera ?? "Epic Landscape (Scale)");
+  const [visualCamera, setVisualCamera] = useState(saved.visualCamera ?? "Epic Wide Shot (Scale)");
   const [visualEngine, setVisualEngine] = useState(saved.visualEngine ?? "IMAX Hollywood Quality");
   const [visualPalette, setVisualPalette] = useState(saved.visualPalette ?? "Teal & Tangerine");
   const [imagePrompt, setImagePrompt] = useState(saved.imagePrompt ?? "Cinematic close-up portrait of a narrator, soft lighting, 4k");
@@ -159,7 +159,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setVisualQuality("HD");
     setVisualMotion("Static");
     setVisualAmbiance("Neutral & Realistic");
-    setVisualCamera("Epic Landscape (Scale)");
+    setVisualCamera("Epic Wide Shot (Scale)");
     setVisualEngine("IMAX Hollywood Quality");
     setVisualPalette("Teal & Tangerine");
     setImagePrompt("Cinematic close-up portrait of a narrator, soft lighting, 4k");

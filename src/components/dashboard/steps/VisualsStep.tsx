@@ -22,7 +22,7 @@ const CAMERA_OPTIONS = [
   "Dynamic First-Person (Action)",
   "Cinematic Close-Up (Emotion)",
   "Low-Angle Heroic (Power)",
-  "Epic Landscape (Scale)",
+  "Epic Wide Shot (Scale)",
   "Dutch Angle (Tension)",
 ];
 const ENGINE_OPTIONS = [
@@ -164,10 +164,10 @@ const VisualsStep = () => {
         id: `scene-${i + 1}`,
         section,
         text: sceneText,
-        // Do NOT inject the video title or any titular wording — the model
-        // will try to render those letters into the image (gibberish text).
-        // Describe the scene visually only.
-        prompt: trimText(`A purely visual scene depicting: ${sceneText}`, 720),
+        // Leave the prompt empty until the AI storyboard planner fills in a
+        // proper short visual metaphor. We never want to fall back to the raw
+        // source text — that produced echoed/identical "conceptual metaphors".
+        prompt: "",
         imageUrl: visualScenes[i]?.imageUrl,
         status: (visualScenes[i]?.imageUrl ? "done" : "pending") as VisualScene["status"],
         error: undefined,
@@ -186,7 +186,10 @@ const VisualsStep = () => {
   const generateOne = async (scenes: VisualScene[], index: number) => {
     updateScene(scenes, index, { status: "generating", error: undefined });
     const sc = scenes[index];
-    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || sc.prompt;
+    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || (sc.prompt && sc.prompt.trim());
+    if (!promptToSend) {
+      throw new Error("This frame has no conceptual metaphor yet. Click \"1. Plan Storyboard (AI)\" or type a short visual description first.");
+    }
     const { data, error: invokeError } = await supabase.functions.invoke("generate-visual", {
       body: {
         prompt: promptToSend,
@@ -349,15 +352,17 @@ const VisualsStep = () => {
     setVisualScenes(base);
   };
 
-  // Auto-populate Conceptual Metaphors when the visuals page is opened and
-  // no scene yet has one. Runs once per mount when the script is ready.
+  // Auto-populate Conceptual Metaphors whenever the visuals page is opened
+  // and ANY scene is still missing a proper AI-generated metaphor. Runs once
+  // per mount when the script is ready.
   useEffect(() => {
     if (autoPlannedRef.current) return;
     if (!scriptText || isPlanning) return;
-    const hasAny = (visualScenes.length ? visualScenes : []).some(
+    const scenes = visualScenes.length ? visualScenes : [];
+    const allHaveConcept = scenes.length > 0 && scenes.every(
       (s) => s.conceptualPrompt && s.conceptualPrompt.trim().length > 0,
     );
-    if (hasAny) {
+    if (allHaveConcept) {
       autoPlannedRef.current = true;
       return;
     }
@@ -427,7 +432,7 @@ const VisualsStep = () => {
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Aspect Ratio</label>
             <select value={visualAspectRatio} onChange={(e) => setVisualAspectRatio(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground">
-              <option value="16:9">16:9 (Landscape)</option>
+              <option value="16:9">16:9 (Widescreen)</option>
               <option value="9:16">9:16 (Portrait)</option>
               <option value="1:1">1:1 (Square)</option>
             </select>
@@ -623,18 +628,18 @@ const VisualsStep = () => {
                     <p className="text-xs text-muted-foreground/90 mt-1 max-h-24 overflow-y-auto">{scene.text}</p>
                   </div>
                   <div>
-                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Conceptual Metaphor (AI image description)</label>
+                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Conceptual Metaphor (AI image description — max 3 sentences)</label>
                     {!scene.conceptualPrompt && isPlanning ? (
                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground bg-background/60 border border-border rounded-md p-2">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                        Crafting a visual description from the script…
+                        Crafting a short visual description from this segment…
                       </div>
                     ) : (
                       <Textarea
-                        value={scene.conceptualPrompt ?? scene.prompt ?? ""}
+                        value={scene.conceptualPrompt ?? ""}
                         onChange={(e) => patchScene(i, { conceptualPrompt: e.target.value, prompt: e.target.value })}
                         rows={3}
-                        placeholder="e.g. A picture of the sun, blazing and hot, scorching cracked desert earth…"
+                        placeholder={scene.conceptualPrompt ? "" : "Empty — click \"1. Plan Storyboard (AI)\" to auto-describe this frame, or type your own short visual scene (1–3 sentences)."}
                         className="text-xs mt-1 resize-none bg-background/60"
                       />
                     )}
