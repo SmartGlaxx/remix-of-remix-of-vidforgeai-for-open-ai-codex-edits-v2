@@ -6,7 +6,7 @@ const CAMERA_KEYS = [
   "Dynamic First-Person (Action)",
   "Cinematic Close-Up (Emotion)",
   "Low-Angle Heroic (Power)",
-  "Epic Landscape (Scale)",
+  "Epic Wide Shot (Scale)",
   "Dutch Angle (Tension)",
 ];
 
@@ -28,30 +28,33 @@ Deno.serve(async (req) => {
       segments.push(words.slice(s, Math.max(e, s + 6)).join(" "));
     }
 
-    const sys = `You are a visual director performing "Abstract-to-Concrete Semantic Translation" and "Visuospatial Paraphrasing" on narration segments.
+    const sys = `You are a visual director. For EACH narration segment, output a SHORT visual scene description (the "conceptualPrompt") that a camera could literally photograph.
 
-For EACH script segment, produce a "conceptualPrompt" by executing this EXACT algorithmic pipeline — do NOT paraphrase or rewrite the sentence:
+ALGORITHM (do not skip steps, do not echo the source):
+1. PARSE the segment to extract its core emotion/theme (overwhelm, hope, isolation, urgency, freedom, conflict, etc.).
+2. ABSTRACT-TO-CONCRETE MAPPING: turn that theme into a physical, tangible scene — objects, environment, scale, orientation. No narration, no speaking characters, no on-screen text.
+3. SENSORY/VISUOSPATIAL: describe LAYOUT, COLOR, TEXTURE, LIGHT, and spatial relationships in vivid concrete imagery.
+4. COMPRESS: rewrite into a SHORT image description — strictly 1 to 3 sentences, MUST be SHORTER than the source segment.
 
-1. PARSE the input text to extract its core emotional or conceptual theme (e.g. overwhelm, hope, isolation, urgency, freedom).
-2. ABSTRACT-TO-CONCRETE MAPPING: translate that abstract meaning into a physical, tangible scene that a camera could literally photograph. No abstractions, no narration, no characters speaking, no on-screen text.
-3. SENSORY DESCRIPTIVE TRANSMUTATION: render the theme as a physical scenario using metaphorical objects, environment, scale, and orientation.
-4. VISUOSPATIAL PARAPHRASING: write ONE highly descriptive sentence (or two short ones) detailing the visual LAYOUT, physical ORIENTATION, COLORS, TEXTURES, LIGHT, and spatial relationships of that scene — a true "word picture".
-5. The output must read like a still-frame description a cinematographer could shoot, not like a rewrite of the narration.
+EXAMPLES
+Source: "I am overwhelmed by deadlines."
+Output: "A lone figure at the bottom of a steep paper canyon, giant boulders of crumpled documents teetering on the rims, dim amber light, towering vertical perspective."
 
-EXAMPLE
-Input: "I am overwhelmed by deadlines."
-Output: "A person standing at the bottom of a steep canyon as giant, loose boulders of paper look ready to slide down from the rims."
+Source: "The sun was very hot and they trudged across the empty plain for hours."
+Output: "A blazing white sun scorches cracked earth, heat shimmer warping the horizon, two tiny silhouettes pressing forward through the haze."
 
-HARD RULES
-- Never echo or lightly rephrase the source text — transmute it into imagery.
-- No on-screen text, letters, words, logos, captions, or UI.
-- Avoid abstract nouns (freedom, success, anxiety) in the output; show them as objects/spaces/light instead.
-- People only when essential to the metaphor; otherwise prefer objects, landscapes, environments.
-- 1–2 sentences, concrete, photographable, spatially specific.
+HARD RULES — violations are rejected:
+- NEVER copy, quote, or lightly rephrase the source segment. Transmute it into imagery.
+- NEVER start with phrases like "A purely visual scene depicting" or "A scene showing" or "A picture of" followed by the original wording.
+- 1 to 3 sentences. Must be visibly SHORTER than the source.
+- No on-screen text, letters, words, logos, captions, UI.
+- Avoid abstract nouns (freedom, success, anxiety, copyright, future) — show them as physical objects, spaces, light, gestures.
+- People only when essential; prefer objects, environments, lighting, weather, scale.
+- Concrete, photographable, spatially specific.
 
 Also pick ONE cameraAngle from this exact list: ${CAMERA_KEYS.join(" | ")}.
 
-Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"..."}]}. Exactly ${count} items, in order.`;
+Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"..."}]}. Exactly ${count} items, in source order.`;
     const user = segments.map((t, i) => `SEGMENT ${i + 1}: ${t}`).join("\n\n");
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -61,7 +64,7 @@ Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"...
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: sys },
           { role: "user", content: user },
@@ -81,9 +84,15 @@ Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"...
     const frames = segments.map((sourceText, i) => {
       const ai = aiFrames[i] || {};
       const cam = CAMERA_KEYS.includes(ai.cameraAngle) ? ai.cameraAngle : CAMERA_KEYS[i % CAMERA_KEYS.length];
-      const concept = typeof ai.conceptualPrompt === "string" && ai.conceptualPrompt.trim()
-        ? ai.conceptualPrompt.trim()
-        : `A purely visual scene depicting: ${sourceText.slice(0, 400)}`;
+      // If the AI failed or echoed the source, leave concept blank so the UI
+      // shows "AI describing…" / lets the user re-plan, instead of polluting
+      // the prompt with the raw narration text.
+      let concept = typeof ai.conceptualPrompt === "string" ? ai.conceptualPrompt.trim() : "";
+      const echoesSource =
+        concept.length === 0 ||
+        concept.toLowerCase().includes(sourceText.slice(0, 40).toLowerCase()) ||
+        /^(a purely visual scene depicting|a scene showing|a picture of)\b/i.test(concept);
+      if (echoesSource) concept = "";
       return { sourceText, conceptualPrompt: concept, cameraAngle: cam };
     });
 
