@@ -186,7 +186,10 @@ const VisualsStep = () => {
   const generateOne = async (scenes: VisualScene[], index: number) => {
     updateScene(scenes, index, { status: "generating", error: undefined });
     const sc = scenes[index];
-    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || sc.prompt;
+    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || (sc.prompt && sc.prompt.trim());
+    if (!promptToSend) {
+      throw new Error("This frame has no conceptual metaphor yet. Click \"1. Plan Storyboard (AI)\" or type a short visual description first.");
+    }
     const { data, error: invokeError } = await supabase.functions.invoke("generate-visual", {
       body: {
         prompt: promptToSend,
