@@ -246,9 +246,13 @@ const VisualsStep = () => {
     const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
     if (count !== visualCount) setVisualCount(count);
 
-    const scenes: VisualScene[] = scenePlan.slice(0, count).map((scene) => ({
+    const plannedScenes = visualScenes.length ? visualScenes : scenePlan;
+    const scenes: VisualScene[] = plannedScenes.slice(0, count).map((scene, i) => ({
       ...scene,
+      ...(!scene.conceptualPrompt && scenePlan[i] ? { text: scenePlan[i].text } : {}),
+      prompt: scene.conceptualPrompt?.trim() || scene.prompt || "",
       status: scene.imageUrl ? "done" : "pending",
+      error: undefined,
     }));
     setVisualScenes(scenes);
     setIsGenerating(true);
@@ -318,6 +322,7 @@ const VisualsStep = () => {
       if (invokeError) throw new Error(invokeError.message);
       if (data?.error) throw new Error(data.error);
       const frames: { sourceText: string; conceptualPrompt: string; cameraAngle: string }[] = data?.frames || [];
+      if (!frames.length) throw new Error("No storyboard frames returned. Please try again.");
       const sectionWordEnds = scriptSections.reduce<{ section: string; end: number }[]>((acc, section) => {
         const last = acc[acc.length - 1]?.end ?? 0;
         acc.push({ section: section.section, end: last + getWords(section.text).length });
@@ -331,10 +336,16 @@ const VisualsStep = () => {
           id: `scene-${i + 1}`,
           section,
           text: trimText(f.sourceText, 520),
-          prompt: trimText(f.conceptualPrompt, 720),
-          conceptualPrompt: f.conceptualPrompt,
+          prompt: trimText(f.conceptualPrompt || "", 720),
+          conceptualPrompt: trimText(f.conceptualPrompt || "", 720),
           cameraAngle: f.cameraAngle,
           status: "pending",
+          imageUrl: visualScenes[i]?.imageUrl,
+          styleOverride: visualScenes[i]?.styleOverride,
+          ambianceOverride: visualScenes[i]?.ambianceOverride,
+          engineOverride: visualScenes[i]?.engineOverride,
+          paletteOverride: visualScenes[i]?.paletteOverride,
+          aspectOverride: visualScenes[i]?.aspectOverride,
         };
       });
       setVisualScenes(scenes);
