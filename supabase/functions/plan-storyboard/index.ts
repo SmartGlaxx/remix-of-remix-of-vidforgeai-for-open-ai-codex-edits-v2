@@ -26,6 +26,8 @@ function compactConcept(text: string, sourceText: string) {
   const maxWords = Math.min(38, sourceWordLimit);
   const words = compact.split(/\s+/).filter(Boolean);
   if (words.length > maxWords) {
+    const complete = sentences.find((sentence) => sentence.split(/\s+/).filter(Boolean).length <= maxWords);
+    if (complete) return complete.trim();
     const clipped = words.slice(0, maxWords);
     while (clipped.length > 8 && /^(a|an|the|of|to|in|on|at|by|from|with|without|through|across|over|under|and|or|but)$/i.test(clipped[clipped.length - 1].replace(/[,.!?;:]+$/, ""))) {
       clipped.pop();
