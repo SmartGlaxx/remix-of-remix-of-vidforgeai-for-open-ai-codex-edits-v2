@@ -10,6 +10,65 @@ const CAMERA_KEYS = [
   "Dutch Angle (Tension)",
 ];
 
+const SENTENCE_SPLIT = /(?<=[.!?])\s+/;
+const STOP_WORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "for", "with", "without", "that", "this", "these", "those", "was", "were", "is", "are", "be", "been", "being", "it", "its", "they", "them", "their", "you", "your", "we", "our", "i", "me", "my", "he", "she", "his", "her", "as", "at", "by", "from", "into", "then", "now", "just", "not", "once", "across", "all",
+]);
+
+function cleanWords(text: string) {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w && !STOP_WORDS.has(w));
+}
+
+function compactConcept(text: string, sourceText: string) {
+  const sentences = text.replace(/\s+/g, " ").trim().split(SENTENCE_SPLIT).filter(Boolean).slice(0, 3);
+  let compact = sentences.join(" ").trim();
+  const sourceWordLimit = Math.max(14, cleanWords(sourceText).length - 2);
+  const maxWords = Math.min(42, sourceWordLimit);
+  const words = compact.split(/\s+/).filter(Boolean);
+  if (words.length > maxWords) compact = `${words.slice(0, maxWords).join(" ").replace(/[,.!?;:]+$/, "")}.`;
+  return compact;
+}
+
+function overlapsSourceTooMuch(concept: string, sourceText: string) {
+  const c = cleanWords(concept);
+  const s = cleanWords(sourceText);
+  if (!concept.trim()) return true;
+  if (/^(a purely visual scene depicting|a scene showing|a picture of)\b/i.test(concept)) return true;
+  if (sourceText.slice(0, 40).trim() && concept.toLowerCase().includes(sourceText.slice(0, 40).toLowerCase())) return true;
+  if (c.length < 6 || s.length < 8) return false;
+  const shared = c.filter((word) => s.includes(word)).length;
+  return shared / Math.max(1, c.length) > 0.72;
+}
+
+function fallbackConcept(sourceText: string, index: number) {
+  const lower = sourceText.toLowerCase();
+  let concept = "A solitary figure faces a vast physical obstacle, surrounded by dramatic light, heavy texture, and a clear path cutting through the scene.";
+  if (/deadline|overwhelm|pressure|stress|burden|too much|urgent|rush/.test(lower)) {
+    concept = "A lone person stands at the base of a steep canyon as loose boulders of paper and metal teeter above, cold shadows pressing inward.";
+  } else if (/sun|hot|heat|desert|plain|dry|scorch|summer/.test(lower)) {
+    concept = "A white sun burns over cracked earth, heat shimmer bending the horizon while tiny silhouettes push through pale dust.";
+  } else if (/stone|structure|monument|carved|terrain|machinery|ancient|pyramid|temple/.test(lower)) {
+    concept = "Colossal carved stone blocks crawl across a harsh rocky expanse, dust curling around their bases under a hard white sky. Far ahead, an unfinished monument rises in stacked silhouettes, dwarfing the empty terrain.";
+  } else if (/hope|dream|future|begin|new|rise|grow|build/.test(lower)) {
+    concept = "A small green shoot breaks through dark cracked ground as warm light spills over distant rooftops, turning wet stone edges gold.";
+  } else if (/alone|isolation|silent|empty|lost|separate/.test(lower)) {
+    concept = "A single chair sits in the center of a vast dim hall, surrounded by long empty shadows and a thin shaft of blue window light.";
+  } else if (/conflict|fight|battle|against|danger|threat|fear/.test(lower)) {
+    concept = "Two opposing walls of storm cloud collide above a narrow bridge, sparks of light catching on wet stone while the path trembles between them.";
+  } else if (/time|history|years|centur|old|memory|past/.test(lower)) {
+    concept = "An ancient corridor stretches into dusty golden light, its cracked floor layered with sand, worn tools, and long shadows from unseen columns.";
+  }
+  return compactConcept(concept, sourceText || `frame ${index + 1}`);
+}
+
+function parseJsonObject(content: string) {
+  const stripped = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return {};
+  try { return JSON.parse(stripped.slice(start, end + 1)); } catch { return {}; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
