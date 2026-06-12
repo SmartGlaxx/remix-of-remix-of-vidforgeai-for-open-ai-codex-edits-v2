@@ -25,7 +25,13 @@ function compactConcept(text: string, sourceText: string) {
   const sourceWordLimit = Math.max(14, cleanWords(sourceText).length - 2);
   const maxWords = Math.min(42, sourceWordLimit);
   const words = compact.split(/\s+/).filter(Boolean);
-  if (words.length > maxWords) compact = `${words.slice(0, maxWords).join(" ").replace(/[,.!?;:]+$/, "")}.`;
+  if (words.length > maxWords) {
+    const clipped = words.slice(0, maxWords);
+    while (clipped.length > 8 && /^(a|an|the|of|to|in|on|at|by|from|with|without|through|across|over|under|and|or|but)$/i.test(clipped[clipped.length - 1].replace(/[,.!?;:]+$/, ""))) {
+      clipped.pop();
+    }
+    compact = `${clipped.join(" ").replace(/[,.!?;:]+$/, "")}.`;
+  }
   return compact;
 }
 
