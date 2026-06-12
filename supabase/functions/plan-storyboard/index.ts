@@ -22,8 +22,8 @@ function cleanWords(text: string) {
 function compactConcept(text: string, sourceText: string) {
   const sentences = text.replace(/\s+/g, " ").trim().split(SENTENCE_SPLIT).filter(Boolean).slice(0, 3);
   let compact = sentences.join(" ").trim();
-  const sourceWordLimit = Math.max(14, cleanWords(sourceText).length - 2);
-  const maxWords = Math.min(42, sourceWordLimit);
+  const sourceWordLimit = Math.max(24, cleanWords(sourceText).length - 2);
+  const maxWords = Math.min(38, sourceWordLimit);
   const words = compact.split(/\s+/).filter(Boolean);
   if (words.length > maxWords) {
     const clipped = words.slice(0, maxWords);
