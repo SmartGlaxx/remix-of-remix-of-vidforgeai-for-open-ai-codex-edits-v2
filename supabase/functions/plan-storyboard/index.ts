@@ -87,13 +87,13 @@ Deno.serve(async (req) => {
       segments.push(words.slice(s, Math.max(e, s + 6)).join(" "));
     }
 
-    const sys = `You are a visual director. For EACH narration segment, output a SHORT visual scene description (the "conceptualPrompt") that a camera could literally photograph.
+    const sys = `You are a semantic image-metaphor director. For EACH narration segment, transform the source into a DIFFERENT, SHORTER, concrete image prompt. The conceptualPrompt is NOT a summary and NOT a rewrite; it is a new photographable visual metaphor.
 
 ALGORITHM (do not skip steps, do not echo the source):
 1. PARSE the segment to extract its core emotion/theme (overwhelm, hope, isolation, urgency, freedom, conflict, etc.).
 2. ABSTRACT-TO-CONCRETE MAPPING: turn that theme into a physical, tangible scene — objects, environment, scale, orientation. No narration, no speaking characters, no on-screen text.
 3. SENSORY/VISUOSPATIAL: describe LAYOUT, COLOR, TEXTURE, LIGHT, and spatial relationships in vivid concrete imagery.
-4. COMPRESS: rewrite into a SHORT image description — strictly 1 to 3 sentences, MUST be SHORTER than the source segment.
+4. COMPRESS: rewrite into a SHORT image description — strictly 1 to 2 sentences, MUST be SHORTER than the source segment.
 
 EXAMPLES
 Source: "I am overwhelmed by deadlines."
@@ -105,7 +105,8 @@ Output: "A blazing white sun scorches cracked earth, heat shimmer warping the ho
 HARD RULES — violations are rejected:
 - NEVER copy, quote, or lightly rephrase the source segment. Transmute it into imagery.
 - NEVER start with phrases like "A purely visual scene depicting" or "A scene showing" or "A picture of" followed by the original wording.
-- 1 to 3 sentences. Must be visibly SHORTER than the source.
+- 1 to 2 sentences. Must be visibly SHORTER than the source. Aim for 18–38 words.
+- Use different nouns than the source where possible. Do not preserve the original sentence structure.
 - No on-screen text, letters, words, logos, captions, UI.
 - Avoid abstract nouns (freedom, success, anxiety, copyright, future) — show them as physical objects, spaces, light, gestures.
 - People only when essential; prefer objects, environments, lighting, weather, scale.
@@ -129,6 +130,8 @@ Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"...
           { role: "user", content: user },
         ],
         response_format: { type: "json_object" },
+        max_tokens: 8192,
+        temperature: 0.85,
       }),
     });
     if (!r.ok) {
@@ -136,22 +139,15 @@ Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"...
       return json({ error: `AI gateway ${r.status}: ${t}` }, 502);
     }
     const data = await r.json();
-    let parsed: any = {};
-    try { parsed = JSON.parse(data?.choices?.[0]?.message?.content ?? "{}"); } catch {}
+    const content = data?.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any = parseJsonObject(content);
     const aiFrames: any[] = Array.isArray(parsed.frames) ? parsed.frames : [];
 
     const frames = segments.map((sourceText, i) => {
       const ai = aiFrames[i] || {};
       const cam = CAMERA_KEYS.includes(ai.cameraAngle) ? ai.cameraAngle : CAMERA_KEYS[i % CAMERA_KEYS.length];
-      // If the AI failed or echoed the source, leave concept blank so the UI
-      // shows "AI describing…" / lets the user re-plan, instead of polluting
-      // the prompt with the raw narration text.
-      let concept = typeof ai.conceptualPrompt === "string" ? ai.conceptualPrompt.trim() : "";
-      const echoesSource =
-        concept.length === 0 ||
-        concept.toLowerCase().includes(sourceText.slice(0, 40).toLowerCase()) ||
-        /^(a purely visual scene depicting|a scene showing|a picture of)\b/i.test(concept);
-      if (echoesSource) concept = "";
+      let concept = compactConcept(typeof ai.conceptualPrompt === "string" ? ai.conceptualPrompt : "", sourceText);
+      if (overlapsSourceTooMuch(concept, sourceText)) concept = fallbackConcept(sourceText, i);
       return { sourceText, conceptualPrompt: concept, cameraAngle: cam };
     });
 
