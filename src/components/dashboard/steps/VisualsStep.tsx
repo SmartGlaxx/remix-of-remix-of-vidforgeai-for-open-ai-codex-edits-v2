@@ -453,15 +453,15 @@ const VisualsStep = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Button variant="outline" className="h-11" onClick={planStoryboard} disabled={isPlanning || isGenerating || !scriptText}>
             {isPlanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-            {isPlanning ? "Planning Storyboard…" : "1. Plan Storyboard (AI)"}
+            {isPlanning ? "Building Visual Bible…" : "1. Plan Visuals (AI)"}
           </Button>
           <Button className="glow-sm h-11" onClick={generateVisuals} disabled={isGenerating || !scriptText}>
             {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-            {isGenerating ? `Generating ${completed}/${scenesToShow.length || visualCount}…` : `2. Generate All (${visualCount})`}
+            {isGenerating ? `Generating ${completed}/${scenesToShow.length}…` : `2. Generate All${scenesToShow.length ? ` (${scenesToShow.length})` : ""}`}
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground mt-2">
-          Step 1 chunks the script and proposes a concept + camera angle per frame. Step 2 renders every card with its (optionally edited) settings.
+          Step 1 reads the WHOLE script, locks a Visual Bible (one consistent world), splits the text at natural idea shifts (segments can be 1 sentence or 20), and writes a continuity-aware image prompt per segment. Step 2 renders every card using that bible so frames belong to one directed sequence.
         </p>
 
         {error && (
@@ -471,6 +471,53 @@ const VisualsStep = () => {
           </div>
         )}
       </div>
+
+      {visualBible && (
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen className="w-4 h-4 text-primary" />
+            <h3 className="font-display font-semibold text-foreground text-sm">Visual Bible</h3>
+            <span className="text-[10px] text-muted-foreground">Locks the visual world across every frame</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-[11px]">
+            {[
+              ["Style", visualBible.style],
+              ["Time period", visualBible.time_period],
+              ["World", visualBible.location_world],
+              ["Palette", visualBible.color_palette],
+              ["Lighting", visualBible.lighting],
+              ["Camera grammar", visualBible.camera_style],
+              ["Realism", visualBible.realism_level],
+              ["Culture", visualBible.culture_influence],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k as string} className="rounded-md bg-secondary/40 border border-border p-2">
+                <div className="text-[9px] uppercase text-muted-foreground font-semibold">{k}</div>
+                <div className="text-foreground/90 mt-0.5 leading-snug">{v}</div>
+              </div>
+            ))}
+          </div>
+          {visualBible.recurring_motifs?.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[9px] uppercase text-muted-foreground font-semibold mb-1">Recurring motifs</div>
+              <div className="flex flex-wrap gap-1">
+                {visualBible.recurring_motifs.map((m) => (
+                  <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {visualBible.avoid?.length > 0 && (
+            <div className="mt-2">
+              <div className="text-[9px] uppercase text-muted-foreground font-semibold mb-1">Avoid</div>
+              <div className="flex flex-wrap gap-1">
+                {visualBible.avoid.map((m) => (
+                  <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/25">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="glass-card p-6">
         <div className="flex items-center justify-between gap-3 mb-4">
