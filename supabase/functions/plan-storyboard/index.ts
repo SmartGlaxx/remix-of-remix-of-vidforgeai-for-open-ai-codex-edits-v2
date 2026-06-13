@@ -10,65 +10,6 @@ const CAMERA_KEYS = [
   "Dutch Angle (Tension)",
 ];
 
-const SENTENCE_SPLIT = /(?<=[.!?])\s+/;
-const STOP_WORDS = new Set([
-  "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "for", "with", "without", "that", "this", "these", "those", "was", "were", "is", "are", "be", "been", "being", "it", "its", "they", "them", "their", "you", "your", "we", "our", "i", "me", "my", "he", "she", "his", "her", "as", "at", "by", "from", "into", "then", "now", "just", "not", "once", "across", "all",
-]);
-
-function cleanWords(text: string) {
-  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w && !STOP_WORDS.has(w));
-}
-
-function compactConcept(text: string, sourceText: string) {
-  const sentences = text.replace(/\s+/g, " ").trim().split(SENTENCE_SPLIT).filter(Boolean).slice(0, 3);
-  let compact = sentences.join(" ").trim();
-  const sourceWordLimit = Math.max(24, cleanWords(sourceText).length - 2);
-  const maxWords = Math.min(38, sourceWordLimit);
-  const words = compact.split(/\s+/).filter(Boolean);
-  if (words.length > maxWords) {
-    const complete = sentences.find((sentence) => sentence.split(/\s+/).filter(Boolean).length <= maxWords);
-    if (complete) return complete.trim();
-    const clipped = words.slice(0, maxWords);
-    while (clipped.length > 8 && /^(a|an|the|of|to|in|on|at|by|from|with|without|through|across|over|under|and|or|but)$/i.test(clipped[clipped.length - 1].replace(/[,.!?;:]+$/, ""))) {
-      clipped.pop();
-    }
-    compact = `${clipped.join(" ").replace(/[,.!?;:]+$/, "")}.`;
-  }
-  return compact;
-}
-
-function overlapsSourceTooMuch(concept: string, sourceText: string) {
-  const c = cleanWords(concept);
-  const s = cleanWords(sourceText);
-  if (!concept.trim()) return true;
-  if (/^(a purely visual scene depicting|a scene showing|a picture of)\b/i.test(concept)) return true;
-  if (sourceText.slice(0, 40).trim() && concept.toLowerCase().includes(sourceText.slice(0, 40).toLowerCase())) return true;
-  if (c.length < 6 || s.length < 8) return false;
-  const shared = c.filter((word) => s.includes(word)).length;
-  return shared / Math.max(1, c.length) > 0.72;
-}
-
-function fallbackConcept(sourceText: string, index: number) {
-  const lower = sourceText.toLowerCase();
-  let concept = "A solitary figure faces a vast physical obstacle, surrounded by dramatic light, heavy texture, and a clear path cutting through the scene.";
-  if (/deadline|overwhelm|pressure|stress|burden|too much|urgent|rush/.test(lower)) {
-    concept = "A lone person stands at the base of a steep canyon as loose boulders of paper and metal teeter above, cold shadows pressing inward.";
-  } else if (/sun|hot|heat|desert|plain|dry|scorch|summer/.test(lower)) {
-    concept = "A white sun burns over cracked earth, heat shimmer bending the horizon while tiny silhouettes push through pale dust.";
-  } else if (/stone|structure|monument|carved|terrain|machinery|ancient|pyramid|temple/.test(lower)) {
-    concept = "Colossal carved stone blocks crawl across a harsh rocky expanse, dust curling around their bases under a hard white sky. Far ahead, an unfinished monument rises in stacked silhouettes, dwarfing the empty terrain.";
-  } else if (/hope|dream|future|begin|new|rise|grow|build/.test(lower)) {
-    concept = "A small green shoot breaks through dark cracked ground as warm light spills over distant rooftops, turning wet stone edges gold.";
-  } else if (/alone|isolation|silent|empty|lost|separate/.test(lower)) {
-    concept = "A single chair sits in the center of a vast dim hall, surrounded by long empty shadows and a thin shaft of blue window light.";
-  } else if (/conflict|fight|battle|against|danger|threat|fear/.test(lower)) {
-    concept = "Two opposing walls of storm cloud collide above a narrow bridge, sparks of light catching on wet stone while the path trembles between them.";
-  } else if (/time|history|years|centur|old|memory|past/.test(lower)) {
-    concept = "An ancient corridor stretches into dusty golden light, its cracked floor layered with sand, worn tools, and long shadows from unseen columns.";
-  }
-  return compactConcept(concept, sourceText || `frame ${index + 1}`);
-}
-
 function parseJsonObject(content: string) {
   const stripped = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
   const start = stripped.indexOf("{");
@@ -77,53 +18,113 @@ function parseJsonObject(content: string) {
   try { return JSON.parse(stripped.slice(start, end + 1)); } catch { return {}; }
 }
 
+// Strip every timestamp/section label that pollutes the narration.
+function stripScriptNoise(raw: string): string {
+  let s = raw;
+  // [00:12], (0:45), 00:12 - 00:30, 0:45 –
+  s = s.replace(/[\[\(]?\s*\d{1,2}:\d{2}(?:\s*[-–—]\s*\d{1,2}:\d{2})?\s*[\]\)]?/g, " ");
+  // Section labels with brackets: HOOK (0:00 - 0:30)
+  s = s.replace(/\b(HOOK|CONTEXT|RISING\s+ACTION|CLIMAX|RESOLUTION|INTRO|OUTRO|CONCLUSION|SECTION|SCENE|PART|CHAPTER)\b\s*[:\-]?\s*/gi, " ");
+  // Stage cues like [PAUSE], (laughs)
+  s = s.replace(/\[(?:[^\]]{1,40})\]/g, " ");
+  s = s.replace(/\((?:pause|beat|laughs|sigh|silence)\)/gi, " ");
+  return s.replace(/\s{2,}/g, " ").trim();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not configured" }, 500);
     const body = await req.json().catch(() => ({}));
-    const scriptText = String(body.scriptText ?? "").trim();
-    const count = Math.max(1, Math.min(120, Number(body.count) || 12));
-    if (!scriptText) return json({ error: "scriptText required" }, 400);
+    const rawScript = String(body.scriptText ?? "").trim();
+    if (!rawScript) return json({ error: "scriptText required" }, 400);
+    const targetCount = Math.max(3, Math.min(80, Number(body.count) || 12));
+    const title = String(body.title ?? "").slice(0, 240);
+    const globalStyle = String(body.style ?? "Cinematic").slice(0, 60);
+    const globalPalette = String(body.palette ?? "Teal & Tangerine").slice(0, 60);
+    const globalAmbiance = String(body.ambiance ?? "Neutral & Realistic").slice(0, 60);
+    const globalEngine = String(body.engine ?? "IMAX Hollywood Quality").slice(0, 60);
 
-    // Deterministic word-based segmentation for source text snippets.
-    const words = scriptText.replace(/\s+/g, " ").trim().split(" ");
-    const segments: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const s = Math.floor((i * words.length) / count);
-      const e = Math.floor(((i + 1) * words.length) / count);
-      segments.push(words.slice(s, Math.max(e, s + 6)).join(" "));
+    const scriptText = stripScriptNoise(rawScript);
+
+    const sys = `You are an award-winning visual director planning a fully consistent image sequence for an AI video. Pipeline: Title -> structured script -> idea-based segments -> Visual Bible -> conceptual metaphors -> consistent image prompts.
+
+STEP A — VISUAL BIBLE (one for the whole video)
+Decide a single coherent visual world that fits the WHOLE script. Lock it down:
+- style (e.g. "Cinematic photoreal documentary")
+- time_period (e.g. "Late Bronze Age, ~1200 BCE" or "Near-future 2045")
+- location_world (one specific world the story lives in)
+- color_palette (3-5 named colors, must match the user's palette hint when sensible)
+- lighting (single recurring lighting language)
+- camera_style (one consistent grammar)
+- realism_level ("photoreal" | "stylized illustration" | "painterly" | "anime")
+- culture_influence
+- recurring_motifs (3-6 visual motifs that reappear across frames — props, materials, textures, shapes)
+- avoid (forbidden worlds/eras/aesthetics — what would break consistency)
+
+The bible is GLOBAL. Every frame must obey it. Do NOT jump between unrelated worlds (no mixing ancient vaults, icebergs, cyberpunk cities, temples unless the bible explicitly allows it).
+
+STEP B — INTELLIGENT IDEA-BASED SEGMENTATION
+Read the ENTIRE script and split it into "visual idea groups" at NATURAL BREAKS:
+- topic shift, emotional shift, location shift, example shift, argument shift, metaphor shift, scene/action shift.
+
+RULES:
+- A segment may be 1 sentence or 20 sentences. Length MUST vary. NEVER split by fixed length.
+- Each segment text must be a CONTIGUOUS verbatim slice of the cleaned script (no rewriting, no reshuffling, preserve original wording).
+- Concatenating all segment.text in order must reconstruct the cleaned script (you may drop pure whitespace).
+- Aim for roughly ${targetCount} segments (±40%). Prefer fewer, meatier segments over many tiny ones.
+- Never split mid-sentence.
+
+STEP C — PER-SEGMENT VISUAL PLAN
+For each segment produce:
+- summary: 1 short line, what this segment is really about
+- emotional_tone: 1-3 words
+- visual_purpose: what this image must accomplish in the sequence
+- conceptual_metaphor: ONE concrete photographable scene that lives inside the Visual Bible — never echo the segment text, never use abstract nouns, no on-screen text. 1-2 sentences, shorter than the segment.
+- image_prompt: a full director-ready prompt that bakes in the Visual Bible (style + world + palette + lighting + camera + recurring motifs) + the conceptual metaphor + continuity with previous frame. 40-80 words. No text/letters/logos/captions.
+- negative_prompt: short, frame-specific negatives in addition to global ones
+- camera_angle: pick exactly one of ${CAMERA_KEYS.join(" | ")}
+- previous_image_dependency: true if this frame should visually continue the previous frame's world/lighting/subject (almost always true)
+
+STEP D — CONTINUITY
+Every image_prompt must share: same world, same style, same lighting language, same camera grammar, recurring motifs, consistent subject scale. The viewer must feel one director shot every frame.
+
+OUTPUT — STRICT JSON ONLY, this exact schema:
+{
+  "visual_bible": {
+    "style": "", "time_period": "", "location_world": "", "color_palette": "",
+    "lighting": "", "camera_style": "", "realism_level": "", "culture_influence": "",
+    "recurring_motifs": [], "avoid": []
+  },
+  "segments": [
+    {
+      "segment_id": "seg-1",
+      "text": "<verbatim slice of cleaned script>",
+      "summary": "",
+      "emotional_tone": "",
+      "visual_purpose": "",
+      "conceptual_metaphor": "",
+      "image_prompt": "",
+      "negative_prompt": "",
+      "camera_angle": "Epic Wide Shot (Scale)",
+      "previous_image_dependency": true
     }
+  ]
+}`;
 
-    const sys = `You are a semantic image-metaphor director. For EACH narration segment, transform the source into a DIFFERENT, SHORTER, concrete image prompt. The conceptualPrompt is NOT a summary and NOT a rewrite; it is a new photographable visual metaphor.
+    const user = `TITLE: ${title || "(untitled)"}
+USER STYLE HINT: ${globalStyle}
+USER PALETTE HINT: ${globalPalette}
+USER AMBIANCE HINT: ${globalAmbiance}
+USER ENGINE HINT: ${globalEngine}
+TARGET SEGMENT COUNT: ~${targetCount} (you may deviate ±40% to honor natural idea breaks)
 
-ALGORITHM (do not skip steps, do not echo the source):
-1. PARSE the segment to extract its core emotion/theme (overwhelm, hope, isolation, urgency, freedom, conflict, etc.).
-2. ABSTRACT-TO-CONCRETE MAPPING: turn that theme into a physical, tangible scene — objects, environment, scale, orientation. No narration, no speaking characters, no on-screen text.
-3. SENSORY/VISUOSPATIAL: describe LAYOUT, COLOR, TEXTURE, LIGHT, and spatial relationships in vivid concrete imagery.
-4. COMPRESS: rewrite into a SHORT image description — strictly 1 to 2 sentences, MUST be SHORTER than the source segment.
+CLEANED SCRIPT (no timestamps, no section labels):
+"""
+${scriptText}
+"""
 
-EXAMPLES
-Source: "I am overwhelmed by deadlines."
-Output: "A lone figure at the bottom of a steep paper canyon, giant boulders of crumpled documents teetering on the rims, dim amber light, towering vertical perspective."
-
-Source: "The sun was very hot and they trudged across the empty plain for hours."
-Output: "A blazing white sun scorches cracked earth, heat shimmer warping the horizon, two tiny silhouettes pressing forward through the haze."
-
-HARD RULES — violations are rejected:
-- NEVER copy, quote, or lightly rephrase the source segment. Transmute it into imagery.
-- NEVER start with phrases like "A purely visual scene depicting" or "A scene showing" or "A picture of" followed by the original wording.
-- 1 to 2 sentences. Must be visibly SHORTER than the source. Aim for 18–38 words.
-- Use different nouns than the source where possible. Do not preserve the original sentence structure.
-- No on-screen text, letters, words, logos, captions, UI.
-- Avoid abstract nouns (freedom, success, anxiety, copyright, future) — show them as physical objects, spaces, light, gestures.
-- People only when essential; prefer objects, environments, lighting, weather, scale.
-- Concrete, photographable, spatially specific.
-
-Also pick ONE cameraAngle from this exact list: ${CAMERA_KEYS.join(" | ")}.
-
-Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"..."}]}. Exactly ${count} items, in source order.`;
-    const user = segments.map((t, i) => `SEGMENT ${i + 1}: ${t}`).join("\n\n");
+Plan the Visual Bible and segment the script by IDEA SHIFTS. Return STRICT JSON matching the schema. Segment.text must be verbatim contiguous slices of the cleaned script.`;
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -138,8 +139,8 @@ Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"...
           { role: "user", content: user },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 8192,
-        temperature: 0.85,
+        max_tokens: 16384,
+        temperature: 0.75,
       }),
     });
     if (!r.ok) {
@@ -148,18 +149,41 @@ Output STRICT JSON ONLY: {"frames":[{"conceptualPrompt":"...","cameraAngle":"...
     }
     const data = await r.json();
     const content = data?.choices?.[0]?.message?.content ?? "{}";
-    let parsed: any = parseJsonObject(content);
-    const aiFrames: any[] = Array.isArray(parsed.frames) ? parsed.frames : [];
+    const parsed: any = parseJsonObject(content);
+    const bible = parsed.visual_bible || {};
+    const rawSegs: any[] = Array.isArray(parsed.segments) ? parsed.segments : [];
+    if (!rawSegs.length) return json({ error: "AI returned no segments. Try again." }, 502);
 
-    const frames = segments.map((sourceText, i) => {
-      const ai = aiFrames[i] || {};
-      const cam = CAMERA_KEYS.includes(ai.cameraAngle) ? ai.cameraAngle : CAMERA_KEYS[i % CAMERA_KEYS.length];
-      let concept = compactConcept(typeof ai.conceptualPrompt === "string" ? ai.conceptualPrompt : "", sourceText);
-      if (overlapsSourceTooMuch(concept, sourceText)) concept = fallbackConcept(sourceText, i);
-      return { sourceText, conceptualPrompt: concept, cameraAngle: cam };
-    });
+    const visual_bible = {
+      style: String(bible.style ?? globalStyle),
+      time_period: String(bible.time_period ?? ""),
+      location_world: String(bible.location_world ?? ""),
+      color_palette: String(bible.color_palette ?? globalPalette),
+      lighting: String(bible.lighting ?? globalAmbiance),
+      camera_style: String(bible.camera_style ?? ""),
+      realism_level: String(bible.realism_level ?? "photoreal"),
+      culture_influence: String(bible.culture_influence ?? ""),
+      recurring_motifs: Array.isArray(bible.recurring_motifs) ? bible.recurring_motifs.map(String).slice(0, 8) : [],
+      avoid: Array.isArray(bible.avoid) ? bible.avoid.map(String).slice(0, 10) : [],
+    };
 
-    return json({ frames });
+    const frames = rawSegs.map((s, i) => {
+      const cam = CAMERA_KEYS.includes(s.camera_angle) ? s.camera_angle : CAMERA_KEYS[i % CAMERA_KEYS.length];
+      return {
+        segment_id: String(s.segment_id ?? `seg-${i + 1}`),
+        sourceText: String(s.text ?? "").trim(),
+        summary: String(s.summary ?? "").trim(),
+        emotional_tone: String(s.emotional_tone ?? "").trim(),
+        visual_purpose: String(s.visual_purpose ?? "").trim(),
+        conceptualPrompt: String(s.conceptual_metaphor ?? "").trim(),
+        imagePrompt: String(s.image_prompt ?? "").trim(),
+        negativePrompt: String(s.negative_prompt ?? "").trim(),
+        cameraAngle: cam,
+        previous_image_dependency: s.previous_image_dependency !== false,
+      };
+    }).filter((f) => f.sourceText.length > 0);
+
+    return json({ visual_bible, frames });
   } catch (e) {
     console.error("plan-storyboard error:", e);
     return json({ error: String((e as Error).message ?? e) }, 500);

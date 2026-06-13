@@ -13,12 +13,33 @@ export type VisualScene = {
   // Storyboard fields
   conceptualPrompt?: string;
   cameraAngle?: string;
+  // New: full director-ready image prompt + metadata
+  imagePrompt?: string;
+  negativePrompt?: string;
+  summary?: string;
+  emotionalTone?: string;
+  visualPurpose?: string;
+  segmentId?: string;
+  previousImageDependency?: boolean;
   // Per-frame overrides (fall back to global when undefined)
   styleOverride?: string;
   ambianceOverride?: string;
   engineOverride?: string;
   paletteOverride?: string;
   aspectOverride?: string;
+};
+
+export type VisualBible = {
+  style: string;
+  time_period: string;
+  location_world: string;
+  color_palette: string;
+  lighting: string;
+  camera_style: string;
+  realism_level: string;
+  culture_influence: string;
+  recurring_motifs: string[];
+  avoid: string[];
 };
 
 export type TitleCandidate = {
@@ -70,6 +91,8 @@ type ProjectState = {
   // Visuals step
   visualScenes: VisualScene[];
   setVisualScenes: (s: VisualScene[]) => void;
+  visualBible: VisualBible | null;
+  setVisualBible: (b: VisualBible | null) => void;
   visualCount: number;
   setVisualCount: (n: number) => void;
   visualStyle: string;
@@ -127,6 +150,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [scriptSections, setScriptSections] = useState<ScriptSection[]>(saved.scriptSections ?? []);
   const [scriptMeta, setScriptMeta] = useState<ProjectState["scriptMeta"]>(saved.scriptMeta ?? null);
   const [visualScenes, setVisualScenes] = useState<VisualScene[]>(saved.visualScenes ?? []);
+  const [visualBible, setVisualBible] = useState<VisualBible | null>((saved as any).visualBible ?? null);
   const [visualCount, setVisualCount] = useState(saved.visualCount ?? 80);
   const [visualStyle, setVisualStyle] = useState(saved.visualStyle ?? "Cinematic");
   const [visualAspectRatio, setVisualAspectRatio] = useState(saved.visualAspectRatio ?? "16:9");
@@ -153,6 +177,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setScriptSections([]);
     setScriptMeta(null);
     setVisualScenes([]);
+    setVisualBible(null);
     setVisualCount(80);
     setVisualStyle("Cinematic");
     setVisualAspectRatio("16:9");
@@ -175,19 +200,20 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
-      visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
+      visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
       visualAmbiance, visualCamera, visualEngine, visualPalette,
       imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
       audioDuration,
     }));
-  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration]);
+  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration]);
 
   return (
     <Ctx.Provider value={{
       topic, setTopic, customTitle, setCustomTitle, titles, setTitles, seo, setSeo,
       selectedTitle, setSelectedTitle,
       scriptSections, setScriptSections, scriptMeta, setScriptMeta,
-      visualScenes, setVisualScenes, visualCount, setVisualCount, visualStyle, setVisualStyle,
+      visualScenes, setVisualScenes, visualBible, setVisualBible,
+      visualCount, setVisualCount, visualStyle, setVisualStyle,
       visualAspectRatio, setVisualAspectRatio, visualQuality, setVisualQuality, visualMotion, setVisualMotion,
       visualAmbiance, setVisualAmbiance, visualCamera, setVisualCamera, visualEngine, setVisualEngine, visualPalette, setVisualPalette,
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,

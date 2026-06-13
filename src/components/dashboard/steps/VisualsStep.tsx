@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2,
+  Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2, BookOpen,
   Settings2, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,7 @@ const VisualsStep = () => {
   const {
     selectedTitle, scriptSections, scriptMeta,
     visualScenes, setVisualScenes,
+    visualBible, setVisualBible,
     visualCount, setVisualCount,
     visualStyle, setVisualStyle,
     visualAspectRatio, setVisualAspectRatio,
@@ -143,39 +144,8 @@ const VisualsStep = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioDuration, visualRange.recommended, visualRange.min, visualRange.max]);
 
-  const scenePlan = useMemo(() => {
-    const words = getWords(scriptText);
-    if (!words.length) return [] as VisualScene[];
-    const count = clamp(Math.round(visualCount || visualRange.recommended), visualRange.min, visualRange.max);
-    const sectionWordEnds = scriptSections.reduce<{ section: string; end: number }[]>((acc, section) => {
-      const last = acc[acc.length - 1]?.end ?? 0;
-      acc.push({ section: section.section, end: last + getWords(section.text).length });
-      return acc;
-    }, []);
-
-    return Array.from({ length: count }, (_, i) => {
-      const start = Math.floor((i * words.length) / count);
-      const end = Math.max(start + 12, Math.floor(((i + 1) * words.length) / count));
-      const text = words.slice(start, Math.min(end, words.length)).join(" ");
-      const midpoint = start + Math.floor((end - start) / 2);
-      const section = sectionWordEnds.find((s) => midpoint <= s.end)?.section || `Scene ${i + 1}`;
-      const sceneText = trimText(text || scriptText, 520);
-      return {
-        id: `scene-${i + 1}`,
-        section,
-        text: sceneText,
-        // Leave the prompt empty until the AI storyboard planner fills in a
-        // proper short visual metaphor. We never want to fall back to the raw
-        // source text — that produced echoed/identical "conceptual metaphors".
-        prompt: "",
-        imageUrl: visualScenes[i]?.imageUrl,
-        status: (visualScenes[i]?.imageUrl ? "done" : "pending") as VisualScene["status"],
-        error: undefined,
-      } as VisualScene;
-    });
-  }, [scriptText, scriptSections, selectedTitle, visualCount, visualRange.min, visualRange.max, visualRange.recommended, visualScenes]);
-
-  const scenesToShow = visualScenes.length ? visualScenes : scenePlan;
+  // No more arithmetic scene plan — the AI determines idea-based segments.
+  const scenesToShow = visualScenes;
   const completed = scenesToShow.filter((scene) => scene.status === "done" && scene.imageUrl).length;
 
   const updateScene = (scenes: VisualScene[], index: number, patch: Partial<VisualScene>) => {
@@ -186,9 +156,14 @@ const VisualsStep = () => {
   const generateOne = async (scenes: VisualScene[], index: number) => {
     updateScene(scenes, index, { status: "generating", error: undefined });
     const sc = scenes[index];
-    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || (sc.prompt && sc.prompt.trim());
+    // Prefer the full AI-authored image_prompt (already bakes in the Visual Bible).
+    // Fall back to conceptualPrompt, then any manual prompt.
+    const useFullPrompt = !!(sc.imagePrompt && sc.imagePrompt.trim());
+    const promptToSend = useFullPrompt
+      ? sc.imagePrompt!.trim()
+      : (sc.conceptualPrompt?.trim() || sc.prompt?.trim() || "");
     if (!promptToSend) {
-      throw new Error("This frame has no conceptual metaphor yet. Click \"1. Plan Storyboard (AI)\" or type a short visual description first.");
+      throw new Error("This frame has no image prompt yet. Click \"1. Plan Visuals (AI)\" first.");
     }
     const { data, error: invokeError } = await supabase.functions.invoke("generate-visual", {
       body: {
@@ -199,6 +174,9 @@ const VisualsStep = () => {
         camera: sc.cameraAngle || visualCamera,
         engine: sc.engineOverride || visualEngine,
         palette: sc.paletteOverride || visualPalette,
+        visual_bible: visualBible || undefined,
+        negative_prompt: sc.negativePrompt || undefined,
+        use_prompt_as_is: useFullPrompt,
         index,
       },
     });
@@ -231,6 +209,10 @@ const VisualsStep = () => {
       toast({ title: "No script found", description: "Generate the script before creating visuals.", variant: "destructive" });
       return;
     }
+    if (!scenesToShow.length) {
+      toast({ title: "Plan visuals first", description: "Click \"1. Plan Visuals (AI)\" so the director can segment the script and build the Visual Bible.", variant: "destructive" });
+      return;
+    }
 
     if (!approvedGenerate) {
       setApprovedGenerate(true);
@@ -243,14 +225,9 @@ const VisualsStep = () => {
       return;
     }
 
-    const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
-    if (count !== visualCount) setVisualCount(count);
-
-    const plannedScenes = visualScenes.length ? visualScenes : scenePlan;
-    const scenes: VisualScene[] = plannedScenes.slice(0, count).map((scene, i) => ({
+    const scenes: VisualScene[] = visualScenes.map((scene) => ({
       ...scene,
-      ...(!scene.conceptualPrompt && scenePlan[i] ? { text: scenePlan[i].text } : {}),
-      prompt: scene.conceptualPrompt?.trim() || scene.prompt || "",
+      prompt: scene.imagePrompt?.trim() || scene.conceptualPrompt?.trim() || scene.prompt || "",
       status: scene.imageUrl ? "done" : "pending",
       error: undefined,
     }));
@@ -289,7 +266,7 @@ const VisualsStep = () => {
   };
 
   const regenerateScene = async (index: number) => {
-    const scenes = (visualScenes.length ? visualScenes : scenePlan).map((scene) => ({ ...scene }));
+    const scenes = visualScenes.map((scene) => ({ ...scene }));
     setVisualScenes(scenes);
     setIsGenerating(true);
     try {
@@ -313,43 +290,50 @@ const VisualsStep = () => {
       toast({ title: "No script", description: "Generate the script first.", variant: "destructive" });
       return;
     }
-    const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
+    const targetCount = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
     setIsPlanning(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("plan-storyboard", {
-        body: { scriptText, count },
+        body: {
+          scriptText,
+          count: targetCount,
+          title: selectedTitle || "",
+          style: visualStyle,
+          palette: visualPalette,
+          ambiance: visualAmbiance,
+          engine: visualEngine,
+        },
       });
       if (invokeError) throw new Error(invokeError.message);
       if (data?.error) throw new Error(data.error);
-      const frames: { sourceText: string; conceptualPrompt: string; cameraAngle: string }[] = data?.frames || [];
+      const frames: any[] = data?.frames || [];
       if (!frames.length) throw new Error("No storyboard frames returned. Please try again.");
-      const sectionWordEnds = scriptSections.reduce<{ section: string; end: number }[]>((acc, section) => {
-        const last = acc[acc.length - 1]?.end ?? 0;
-        acc.push({ section: section.section, end: last + getWords(section.text).length });
-        return acc;
-      }, []);
-      const totalWords = getWords(scriptText).length;
-      const scenes: VisualScene[] = frames.map((f, i) => {
-        const midpoint = Math.floor(((i + 0.5) / frames.length) * totalWords);
-        const section = sectionWordEnds.find((s) => midpoint <= s.end)?.section || `Scene ${i + 1}`;
-        return {
-          id: `scene-${i + 1}`,
-          section,
-          text: trimText(f.sourceText, 520),
-          prompt: trimText(f.conceptualPrompt || "", 720),
-          conceptualPrompt: trimText(f.conceptualPrompt || "", 720),
-          cameraAngle: f.cameraAngle,
-          status: "pending",
-          imageUrl: visualScenes[i]?.imageUrl,
-          styleOverride: visualScenes[i]?.styleOverride,
-          ambianceOverride: visualScenes[i]?.ambianceOverride,
-          engineOverride: visualScenes[i]?.engineOverride,
-          paletteOverride: visualScenes[i]?.paletteOverride,
-          aspectOverride: visualScenes[i]?.aspectOverride,
-        };
-      });
+      if (data?.visual_bible) setVisualBible(data.visual_bible);
+      const scenes: VisualScene[] = frames.map((f: any, i: number) => ({
+        id: f.segment_id || `scene-${i + 1}`,
+        segmentId: f.segment_id || `seg-${i + 1}`,
+        section: f.summary ? trimText(f.summary, 60) : `Scene ${i + 1}`,
+        text: trimText(f.sourceText || "", 1200),
+        summary: f.summary,
+        emotionalTone: f.emotional_tone,
+        visualPurpose: f.visual_purpose,
+        conceptualPrompt: trimText(f.conceptualPrompt || "", 720),
+        imagePrompt: trimText(f.imagePrompt || "", 1400),
+        negativePrompt: f.negativePrompt || "",
+        previousImageDependency: f.previous_image_dependency !== false,
+        prompt: trimText(f.imagePrompt || f.conceptualPrompt || "", 1400),
+        cameraAngle: f.cameraAngle,
+        status: "pending",
+        imageUrl: visualScenes[i]?.imageUrl,
+        styleOverride: visualScenes[i]?.styleOverride,
+        ambianceOverride: visualScenes[i]?.ambianceOverride,
+        engineOverride: visualScenes[i]?.engineOverride,
+        paletteOverride: visualScenes[i]?.paletteOverride,
+        aspectOverride: visualScenes[i]?.aspectOverride,
+      }));
       setVisualScenes(scenes);
-      toast({ title: "Storyboard ready", description: `${scenes.length} frames planned. Review and tweak before generating.` });
+      setVisualCount(scenes.length);
+      toast({ title: "Visual Bible + Storyboard ready", description: `${scenes.length} idea-based segments planned. Bible locks the visual world for consistency.` });
     } catch (e) {
       toast({ title: "Storyboard failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -358,7 +342,7 @@ const VisualsStep = () => {
   };
 
   const patchScene = (index: number, patch: Partial<VisualScene>) => {
-    const base = (visualScenes.length ? visualScenes : scenePlan).map((s) => ({ ...s }));
+    const base = visualScenes.map((s) => ({ ...s }));
     base[index] = { ...base[index], ...patch };
     setVisualScenes(base);
   };
@@ -370,10 +354,10 @@ const VisualsStep = () => {
     if (autoPlannedRef.current) return;
     if (!scriptText || isPlanning) return;
     const scenes = visualScenes.length ? visualScenes : [];
-    const allHaveConcept = scenes.length > 0 && scenes.every(
-      (s) => s.conceptualPrompt && s.conceptualPrompt.trim().length > 0,
+    const allHavePrompt = scenes.length > 0 && scenes.every(
+      (s) => (s.imagePrompt && s.imagePrompt.trim().length > 0) || (s.conceptualPrompt && s.conceptualPrompt.trim().length > 0),
     );
-    if (allHaveConcept) {
+    if (allHavePrompt && visualBible) {
       autoPlannedRef.current = true;
       return;
     }
@@ -469,15 +453,15 @@ const VisualsStep = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Button variant="outline" className="h-11" onClick={planStoryboard} disabled={isPlanning || isGenerating || !scriptText}>
             {isPlanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-            {isPlanning ? "Planning Storyboard…" : "1. Plan Storyboard (AI)"}
+            {isPlanning ? "Building Visual Bible…" : "1. Plan Visuals (AI)"}
           </Button>
           <Button className="glow-sm h-11" onClick={generateVisuals} disabled={isGenerating || !scriptText}>
             {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-            {isGenerating ? `Generating ${completed}/${scenesToShow.length || visualCount}…` : `2. Generate All (${visualCount})`}
+            {isGenerating ? `Generating ${completed}/${scenesToShow.length}…` : `2. Generate All${scenesToShow.length ? ` (${scenesToShow.length})` : ""}`}
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground mt-2">
-          Step 1 chunks the script and proposes a concept + camera angle per frame. Step 2 renders every card with its (optionally edited) settings.
+          Step 1 reads the WHOLE script, locks a Visual Bible (one consistent world), splits the text at natural idea shifts (segments can be 1 sentence or 20), and writes a continuity-aware image prompt per segment. Step 2 renders every card using that bible so frames belong to one directed sequence.
         </p>
 
         {error && (
@@ -488,6 +472,53 @@ const VisualsStep = () => {
         )}
       </div>
 
+      {visualBible && (
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen className="w-4 h-4 text-primary" />
+            <h3 className="font-display font-semibold text-foreground text-sm">Visual Bible</h3>
+            <span className="text-[10px] text-muted-foreground">Locks the visual world across every frame</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-[11px]">
+            {[
+              ["Style", visualBible.style],
+              ["Time period", visualBible.time_period],
+              ["World", visualBible.location_world],
+              ["Palette", visualBible.color_palette],
+              ["Lighting", visualBible.lighting],
+              ["Camera grammar", visualBible.camera_style],
+              ["Realism", visualBible.realism_level],
+              ["Culture", visualBible.culture_influence],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k as string} className="rounded-md bg-secondary/40 border border-border p-2">
+                <div className="text-[9px] uppercase text-muted-foreground font-semibold">{k}</div>
+                <div className="text-foreground/90 mt-0.5 leading-snug">{v}</div>
+              </div>
+            ))}
+          </div>
+          {visualBible.recurring_motifs?.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[9px] uppercase text-muted-foreground font-semibold mb-1">Recurring motifs</div>
+              <div className="flex flex-wrap gap-1">
+                {visualBible.recurring_motifs.map((m) => (
+                  <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {visualBible.avoid?.length > 0 && (
+            <div className="mt-2">
+              <div className="text-[9px] uppercase text-muted-foreground font-semibold mb-1">Avoid</div>
+              <div className="flex flex-wrap gap-1">
+                {visualBible.avoid.map((m) => (
+                  <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/25">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="glass-card p-6">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
@@ -495,8 +526,8 @@ const VisualsStep = () => {
             <p className="text-xs text-muted-foreground">{scenesToShow.length ? `${completed}/${scenesToShow.length} generated` : "No script-based scenes yet"}</p>
           </div>
           {visualScenes.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setVisualScenes(scenePlan)} disabled={isGenerating}>
-              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Re-segment
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={planStoryboard} disabled={isGenerating || isPlanning}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Re-plan (AI)
             </Button>
           )}
         </div>
@@ -650,11 +681,37 @@ const VisualsStep = () => {
                         value={scene.conceptualPrompt ?? ""}
                         onChange={(e) => patchScene(i, { conceptualPrompt: e.target.value, prompt: e.target.value })}
                         rows={3}
-                        placeholder={scene.conceptualPrompt ? "" : "Empty — click \"1. Plan Storyboard (AI)\" to auto-describe this frame, or type your own short visual scene (1–3 sentences)."}
+                        placeholder={scene.conceptualPrompt ? "" : "Empty — click \"1. Plan Visuals (AI)\" to auto-describe this frame, or type your own short visual scene (1–3 sentences)."}
                         className="text-xs mt-1 resize-none bg-background/60"
                       />
                     )}
                   </div>
+                  <div>
+                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Director Image Prompt (sent to the model — bakes in the Visual Bible)</label>
+                    <Textarea
+                      value={scene.imagePrompt ?? ""}
+                      onChange={(e) => patchScene(i, { imagePrompt: e.target.value })}
+                      rows={4}
+                      placeholder="Auto-generated from the Visual Bible + your metaphor."
+                      className="text-[11px] mt-1 resize-none bg-background/60 font-mono"
+                    />
+                  </div>
+                  {(scene.summary || scene.emotionalTone || scene.visualPurpose) && (
+                    <div className="grid grid-cols-3 gap-2 text-[10px]">
+                      {scene.emotionalTone && (
+                        <div className="rounded bg-secondary/40 border border-border p-1.5">
+                          <div className="text-muted-foreground uppercase text-[8px] font-semibold">Tone</div>
+                          <div>{scene.emotionalTone}</div>
+                        </div>
+                      )}
+                      {scene.visualPurpose && (
+                        <div className="rounded bg-secondary/40 border border-border p-1.5 col-span-2">
+                          <div className="text-muted-foreground uppercase text-[8px] font-semibold">Purpose</div>
+                          <div>{scene.visualPurpose}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <SelectMini label="Style" value={styleVal} options={PRESET_STYLES} onChange={(v) => patchScene(i, { styleOverride: v })} />
                     <SelectMini label="Ambiance" value={ambianceVal} options={AMBIANCE_OPTIONS} onChange={(v) => patchScene(i, { ambianceOverride: v })} />
