@@ -479,8 +479,8 @@ const VisualsStep = () => {
             <p className="text-xs text-muted-foreground">{scenesToShow.length ? `${completed}/${scenesToShow.length} generated` : "No script-based scenes yet"}</p>
           </div>
           {visualScenes.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setVisualScenes(scenePlan)} disabled={isGenerating}>
-              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Re-segment
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={planStoryboard} disabled={isGenerating || isPlanning}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Re-plan (AI)
             </Button>
           )}
         </div>
