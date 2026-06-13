@@ -681,11 +681,37 @@ const VisualsStep = () => {
                         value={scene.conceptualPrompt ?? ""}
                         onChange={(e) => patchScene(i, { conceptualPrompt: e.target.value, prompt: e.target.value })}
                         rows={3}
-                        placeholder={scene.conceptualPrompt ? "" : "Empty — click \"1. Plan Storyboard (AI)\" to auto-describe this frame, or type your own short visual scene (1–3 sentences)."}
+                        placeholder={scene.conceptualPrompt ? "" : "Empty — click \"1. Plan Visuals (AI)\" to auto-describe this frame, or type your own short visual scene (1–3 sentences)."}
                         className="text-xs mt-1 resize-none bg-background/60"
                       />
                     )}
                   </div>
+                  <div>
+                    <label className="text-[9px] uppercase font-semibold text-muted-foreground">Director Image Prompt (sent to the model — bakes in the Visual Bible)</label>
+                    <Textarea
+                      value={scene.imagePrompt ?? ""}
+                      onChange={(e) => patchScene(i, { imagePrompt: e.target.value })}
+                      rows={4}
+                      placeholder="Auto-generated from the Visual Bible + your metaphor."
+                      className="text-[11px] mt-1 resize-none bg-background/60 font-mono"
+                    />
+                  </div>
+                  {(scene.summary || scene.emotionalTone || scene.visualPurpose) && (
+                    <div className="grid grid-cols-3 gap-2 text-[10px]">
+                      {scene.emotionalTone && (
+                        <div className="rounded bg-secondary/40 border border-border p-1.5">
+                          <div className="text-muted-foreground uppercase text-[8px] font-semibold">Tone</div>
+                          <div>{scene.emotionalTone}</div>
+                        </div>
+                      )}
+                      {scene.visualPurpose && (
+                        <div className="rounded bg-secondary/40 border border-border p-1.5 col-span-2">
+                          <div className="text-muted-foreground uppercase text-[8px] font-semibold">Purpose</div>
+                          <div>{scene.visualPurpose}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <SelectMini label="Style" value={styleVal} options={PRESET_STYLES} onChange={(v) => patchScene(i, { styleOverride: v })} />
                     <SelectMini label="Ambiance" value={ambianceVal} options={AMBIANCE_OPTIONS} onChange={(v) => patchScene(i, { ambianceOverride: v })} />
