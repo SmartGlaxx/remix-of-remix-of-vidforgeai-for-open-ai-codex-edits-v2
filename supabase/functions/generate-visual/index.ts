@@ -25,6 +25,9 @@ Deno.serve(async (req) => {
     const engine = safeText(body.engine, "IMAX Hollywood Quality");
     const palette = safeText(body.palette, "Teal & Tangerine");
     const index = Number.isFinite(Number(body.index)) ? Number(body.index) : 0;
+    const bible = (body.visual_bible && typeof body.visual_bible === "object") ? body.visual_bible : null;
+    const extraNegative = typeof body.negative_prompt === "string" ? body.negative_prompt.slice(0, 600) : "";
+    const usePromptAsIs = body.use_prompt_as_is === true; // when image_prompt already includes bible
 
     const dims = aspectRatio === "9:16" ? { width: 768, height: 1344 }
       : aspectRatio === "1:1" ? { width: 1024, height: 1024 }
@@ -37,17 +40,37 @@ Deno.serve(async (req) => {
     const enginePreset = ENGINE[engine] ?? ENGINE["IMAX Hollywood Quality"];
     const palettePreset = PALETTE[palette] ?? PALETTE["Teal & Tangerine"];
 
-    // [User Prompt], [Style], [Ambiance], [Camera], [Engine], [Palette]
-    const finalPrompt = [
-      cleanPrompt,
-      stylePreset,
-      ambiancePreset,
-      cameraPreset,
-      enginePreset,
-      palettePreset,
-    ].filter(Boolean).join(", ");
+    // Visual Bible anchor — forces consistency across the whole sequence.
+    const bibleAnchor = bible ? [
+      bible.style && `Visual style: ${bible.style}`,
+      bible.time_period && `Time period: ${bible.time_period}`,
+      bible.location_world && `World: ${bible.location_world}`,
+      bible.color_palette && `Palette: ${bible.color_palette}`,
+      bible.lighting && `Lighting: ${bible.lighting}`,
+      bible.camera_style && `Camera grammar: ${bible.camera_style}`,
+      bible.realism_level && `Realism: ${bible.realism_level}`,
+      bible.culture_influence && `Culture: ${bible.culture_influence}`,
+      Array.isArray(bible.recurring_motifs) && bible.recurring_motifs.length && `Recurring motifs: ${bible.recurring_motifs.join(", ")}`,
+    ].filter(Boolean).join(". ") : "";
 
-    const negativePrompt = UNIVERSAL_NEGATIVE;
+    // If the AI already authored a full image_prompt that bakes in the bible,
+    // skip duplicating style/camera/palette presets so we don't bloat the prompt.
+    const finalPrompt = usePromptAsIs
+      ? [bibleAnchor, cleanPrompt].filter(Boolean).join(". ")
+      : [
+          cleanPrompt,
+          bibleAnchor,
+          stylePreset,
+          ambiancePreset,
+          cameraPreset,
+          enginePreset,
+          palettePreset,
+        ].filter(Boolean).join(", ");
+
+    const bibleNegatives = bible && Array.isArray(bible.avoid) && bible.avoid.length
+      ? bible.avoid.join(", ")
+      : "";
+    const negativePrompt = [UNIVERSAL_NEGATIVE, bibleNegatives, extraNegative].filter(Boolean).join(", ");
 
     // call together ai flux.2-dev with exponential backoff on 429s
     const maxAttempts = 6;
