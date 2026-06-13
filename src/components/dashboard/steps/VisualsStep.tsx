@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2,
+  Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2, BookOpen,
   Settings2, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,7 @@ const VisualsStep = () => {
   const {
     selectedTitle, scriptSections, scriptMeta,
     visualScenes, setVisualScenes,
+    visualBible, setVisualBible,
     visualCount, setVisualCount,
     visualStyle, setVisualStyle,
     visualAspectRatio, setVisualAspectRatio,
@@ -143,39 +144,8 @@ const VisualsStep = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioDuration, visualRange.recommended, visualRange.min, visualRange.max]);
 
-  const scenePlan = useMemo(() => {
-    const words = getWords(scriptText);
-    if (!words.length) return [] as VisualScene[];
-    const count = clamp(Math.round(visualCount || visualRange.recommended), visualRange.min, visualRange.max);
-    const sectionWordEnds = scriptSections.reduce<{ section: string; end: number }[]>((acc, section) => {
-      const last = acc[acc.length - 1]?.end ?? 0;
-      acc.push({ section: section.section, end: last + getWords(section.text).length });
-      return acc;
-    }, []);
-
-    return Array.from({ length: count }, (_, i) => {
-      const start = Math.floor((i * words.length) / count);
-      const end = Math.max(start + 12, Math.floor(((i + 1) * words.length) / count));
-      const text = words.slice(start, Math.min(end, words.length)).join(" ");
-      const midpoint = start + Math.floor((end - start) / 2);
-      const section = sectionWordEnds.find((s) => midpoint <= s.end)?.section || `Scene ${i + 1}`;
-      const sceneText = trimText(text || scriptText, 520);
-      return {
-        id: `scene-${i + 1}`,
-        section,
-        text: sceneText,
-        // Leave the prompt empty until the AI storyboard planner fills in a
-        // proper short visual metaphor. We never want to fall back to the raw
-        // source text — that produced echoed/identical "conceptual metaphors".
-        prompt: "",
-        imageUrl: visualScenes[i]?.imageUrl,
-        status: (visualScenes[i]?.imageUrl ? "done" : "pending") as VisualScene["status"],
-        error: undefined,
-      } as VisualScene;
-    });
-  }, [scriptText, scriptSections, selectedTitle, visualCount, visualRange.min, visualRange.max, visualRange.recommended, visualScenes]);
-
-  const scenesToShow = visualScenes.length ? visualScenes : scenePlan;
+  // No more arithmetic scene plan — the AI determines idea-based segments.
+  const scenesToShow = visualScenes;
   const completed = scenesToShow.filter((scene) => scene.status === "done" && scene.imageUrl).length;
 
   const updateScene = (scenes: VisualScene[], index: number, patch: Partial<VisualScene>) => {
@@ -186,9 +156,14 @@ const VisualsStep = () => {
   const generateOne = async (scenes: VisualScene[], index: number) => {
     updateScene(scenes, index, { status: "generating", error: undefined });
     const sc = scenes[index];
-    const promptToSend = (sc.conceptualPrompt && sc.conceptualPrompt.trim()) || (sc.prompt && sc.prompt.trim());
+    // Prefer the full AI-authored image_prompt (already bakes in the Visual Bible).
+    // Fall back to conceptualPrompt, then any manual prompt.
+    const useFullPrompt = !!(sc.imagePrompt && sc.imagePrompt.trim());
+    const promptToSend = useFullPrompt
+      ? sc.imagePrompt!.trim()
+      : (sc.conceptualPrompt?.trim() || sc.prompt?.trim() || "");
     if (!promptToSend) {
-      throw new Error("This frame has no conceptual metaphor yet. Click \"1. Plan Storyboard (AI)\" or type a short visual description first.");
+      throw new Error("This frame has no image prompt yet. Click \"1. Plan Visuals (AI)\" first.");
     }
     const { data, error: invokeError } = await supabase.functions.invoke("generate-visual", {
       body: {
@@ -199,6 +174,9 @@ const VisualsStep = () => {
         camera: sc.cameraAngle || visualCamera,
         engine: sc.engineOverride || visualEngine,
         palette: sc.paletteOverride || visualPalette,
+        visual_bible: visualBible || undefined,
+        negative_prompt: sc.negativePrompt || undefined,
+        use_prompt_as_is: useFullPrompt,
         index,
       },
     });
@@ -231,6 +209,10 @@ const VisualsStep = () => {
       toast({ title: "No script found", description: "Generate the script before creating visuals.", variant: "destructive" });
       return;
     }
+    if (!scenesToShow.length) {
+      toast({ title: "Plan visuals first", description: "Click \"1. Plan Visuals (AI)\" so the director can segment the script and build the Visual Bible.", variant: "destructive" });
+      return;
+    }
 
     if (!approvedGenerate) {
       setApprovedGenerate(true);
@@ -243,14 +225,9 @@ const VisualsStep = () => {
       return;
     }
 
-    const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
-    if (count !== visualCount) setVisualCount(count);
-
-    const plannedScenes = visualScenes.length ? visualScenes : scenePlan;
-    const scenes: VisualScene[] = plannedScenes.slice(0, count).map((scene, i) => ({
+    const scenes: VisualScene[] = visualScenes.map((scene) => ({
       ...scene,
-      ...(!scene.conceptualPrompt && scenePlan[i] ? { text: scenePlan[i].text } : {}),
-      prompt: scene.conceptualPrompt?.trim() || scene.prompt || "",
+      prompt: scene.imagePrompt?.trim() || scene.conceptualPrompt?.trim() || scene.prompt || "",
       status: scene.imageUrl ? "done" : "pending",
       error: undefined,
     }));
@@ -289,7 +266,7 @@ const VisualsStep = () => {
   };
 
   const regenerateScene = async (index: number) => {
-    const scenes = (visualScenes.length ? visualScenes : scenePlan).map((scene) => ({ ...scene }));
+    const scenes = visualScenes.map((scene) => ({ ...scene }));
     setVisualScenes(scenes);
     setIsGenerating(true);
     try {
@@ -313,43 +290,50 @@ const VisualsStep = () => {
       toast({ title: "No script", description: "Generate the script first.", variant: "destructive" });
       return;
     }
-    const count = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
+    const targetCount = clamp(Math.round(visualCount), visualRange.min, visualRange.max);
     setIsPlanning(true);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("plan-storyboard", {
-        body: { scriptText, count },
+        body: {
+          scriptText,
+          count: targetCount,
+          title: selectedTitle || "",
+          style: visualStyle,
+          palette: visualPalette,
+          ambiance: visualAmbiance,
+          engine: visualEngine,
+        },
       });
       if (invokeError) throw new Error(invokeError.message);
       if (data?.error) throw new Error(data.error);
-      const frames: { sourceText: string; conceptualPrompt: string; cameraAngle: string }[] = data?.frames || [];
+      const frames: any[] = data?.frames || [];
       if (!frames.length) throw new Error("No storyboard frames returned. Please try again.");
-      const sectionWordEnds = scriptSections.reduce<{ section: string; end: number }[]>((acc, section) => {
-        const last = acc[acc.length - 1]?.end ?? 0;
-        acc.push({ section: section.section, end: last + getWords(section.text).length });
-        return acc;
-      }, []);
-      const totalWords = getWords(scriptText).length;
-      const scenes: VisualScene[] = frames.map((f, i) => {
-        const midpoint = Math.floor(((i + 0.5) / frames.length) * totalWords);
-        const section = sectionWordEnds.find((s) => midpoint <= s.end)?.section || `Scene ${i + 1}`;
-        return {
-          id: `scene-${i + 1}`,
-          section,
-          text: trimText(f.sourceText, 520),
-          prompt: trimText(f.conceptualPrompt || "", 720),
-          conceptualPrompt: trimText(f.conceptualPrompt || "", 720),
-          cameraAngle: f.cameraAngle,
-          status: "pending",
-          imageUrl: visualScenes[i]?.imageUrl,
-          styleOverride: visualScenes[i]?.styleOverride,
-          ambianceOverride: visualScenes[i]?.ambianceOverride,
-          engineOverride: visualScenes[i]?.engineOverride,
-          paletteOverride: visualScenes[i]?.paletteOverride,
-          aspectOverride: visualScenes[i]?.aspectOverride,
-        };
-      });
+      if (data?.visual_bible) setVisualBible(data.visual_bible);
+      const scenes: VisualScene[] = frames.map((f: any, i: number) => ({
+        id: f.segment_id || `scene-${i + 1}`,
+        segmentId: f.segment_id || `seg-${i + 1}`,
+        section: f.summary ? trimText(f.summary, 60) : `Scene ${i + 1}`,
+        text: trimText(f.sourceText || "", 1200),
+        summary: f.summary,
+        emotionalTone: f.emotional_tone,
+        visualPurpose: f.visual_purpose,
+        conceptualPrompt: trimText(f.conceptualPrompt || "", 720),
+        imagePrompt: trimText(f.imagePrompt || "", 1400),
+        negativePrompt: f.negativePrompt || "",
+        previousImageDependency: f.previous_image_dependency !== false,
+        prompt: trimText(f.imagePrompt || f.conceptualPrompt || "", 1400),
+        cameraAngle: f.cameraAngle,
+        status: "pending",
+        imageUrl: visualScenes[i]?.imageUrl,
+        styleOverride: visualScenes[i]?.styleOverride,
+        ambianceOverride: visualScenes[i]?.ambianceOverride,
+        engineOverride: visualScenes[i]?.engineOverride,
+        paletteOverride: visualScenes[i]?.paletteOverride,
+        aspectOverride: visualScenes[i]?.aspectOverride,
+      }));
       setVisualScenes(scenes);
-      toast({ title: "Storyboard ready", description: `${scenes.length} frames planned. Review and tweak before generating.` });
+      setVisualCount(scenes.length);
+      toast({ title: "Visual Bible + Storyboard ready", description: `${scenes.length} idea-based segments planned. Bible locks the visual world for consistency.` });
     } catch (e) {
       toast({ title: "Storyboard failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -358,7 +342,7 @@ const VisualsStep = () => {
   };
 
   const patchScene = (index: number, patch: Partial<VisualScene>) => {
-    const base = (visualScenes.length ? visualScenes : scenePlan).map((s) => ({ ...s }));
+    const base = visualScenes.map((s) => ({ ...s }));
     base[index] = { ...base[index], ...patch };
     setVisualScenes(base);
   };
@@ -370,10 +354,10 @@ const VisualsStep = () => {
     if (autoPlannedRef.current) return;
     if (!scriptText || isPlanning) return;
     const scenes = visualScenes.length ? visualScenes : [];
-    const allHaveConcept = scenes.length > 0 && scenes.every(
-      (s) => s.conceptualPrompt && s.conceptualPrompt.trim().length > 0,
+    const allHavePrompt = scenes.length > 0 && scenes.every(
+      (s) => (s.imagePrompt && s.imagePrompt.trim().length > 0) || (s.conceptualPrompt && s.conceptualPrompt.trim().length > 0),
     );
-    if (allHaveConcept) {
+    if (allHavePrompt && visualBible) {
       autoPlannedRef.current = true;
       return;
     }
