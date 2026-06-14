@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowRight, ArrowLeft, RotateCcw,
+  ArrowRight, ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,12 +16,6 @@ import SoundtrackStep from "@/components/dashboard/steps/SoundtrackStep";
 import VideoStep from "@/components/dashboard/steps/VideoStep";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { useProject } from "@/contexts/ProjectContext";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
 
 const stepComponents: Record<string, React.FC> = {
   title: TitleStep,
@@ -33,40 +27,6 @@ const stepComponents: Record<string, React.FC> = {
   video: VideoStep,
 };
 
-const ResetButton = () => {
-  const { resetProject } = useProject();
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-2 border-border/60 hover:border-destructive/40 hover:text-destructive">
-          <RotateCcw className="w-3.5 h-3.5" />
-          Reset Project
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Start a clean slate?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This clears every step — titles, script, voiceover, visuals, thumbnail,
-            soundtrack and final video — used or not. This cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              resetProject();
-              toast.success("Project reset. Fresh start ready.");
-            }}
-          >
-            Reset everything
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-};
-
 const DashboardInner = () => {
   const [activeStep, setActiveStep] = useState("title");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -75,12 +35,18 @@ const DashboardInner = () => {
   const ActiveStepComponent = stepComponents[activeStep];
   const { resetNonce } = useProject();
   const firstRender = useRef(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     setActiveStep("title");
     setCompletedSteps([]);
     setDirection(1);
   }, [resetNonce]);
+
+  // Scroll content to top whenever the step changes
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeStep]);
 
   const handleStepChange = (newStep: string) => {
     const oldIdx = pipelineSteps.findIndex((s) => s.id === activeStep);
@@ -117,11 +83,6 @@ const DashboardInner = () => {
       <Sidebar activePage="create" collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(v => !v)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Top toolbar */}
-        <div className="border-b border-border/60 px-4 py-2 flex items-center justify-end gap-2 bg-card/20 backdrop-blur-sm">
-          <ResetButton />
-        </div>
-
         {/* Pipeline */}
         <PipelineTabs
           activeStep={activeStep}
@@ -130,7 +91,7 @@ const DashboardInner = () => {
         />
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
