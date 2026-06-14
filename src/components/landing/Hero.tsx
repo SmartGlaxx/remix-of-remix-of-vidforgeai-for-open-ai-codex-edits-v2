@@ -1,53 +1,164 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Play, Sparkles } from "lucide-react";
+import { ArrowRight, Play, Sparkles, Wand2, Mic2, Image as ImageIcon, Film } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import heroBg from "@/assets/hero-bg.jpg";
 
-const pipelineSteps = ["Title", "Script", "Voiceover", "Visuals", "Thumbnail", "Soundtrack", "Video"];
-
 const Hero = () => {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 pb-24">
+      {/* Background image with deep vignette */}
       <div className="absolute inset-0">
-        <img src={heroBg} alt="" className="w-full h-full object-cover opacity-40" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+        <img src={heroBg} alt="" className="w-full h-full object-cover opacity-30" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/85 to-background" />
       </div>
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[120px] animate-pulse-glow" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-[120px] animate-pulse-glow" style={{ animationDelay: "1.5s" }} />
-      <div className="relative z-10 container mx-auto px-4 text-center">
+
+      {/* Animated radial color washes */}
+      <div className="absolute top-[10%] left-[12%] w-[34rem] h-[34rem] bg-primary/15 rounded-full blur-[140px] animate-pulse-glow" />
+      <div className="absolute bottom-[8%] right-[10%] w-[34rem] h-[34rem] bg-accent/15 rounded-full blur-[140px] animate-pulse-glow" style={{ animationDelay: "1.5s" }} />
+
+      {/* Subtle 3D grid floor */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[55vh] opacity-[0.18]"
+        style={{
+          backgroundImage:
+            "linear-gradient(hsl(var(--primary)/0.4) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary)/0.4) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+          transform: "perspective(900px) rotateX(62deg)",
+          transformOrigin: "center top",
+          maskImage: "radial-gradient(ellipse at top, black 40%, transparent 75%)",
+          WebkitMaskImage: "radial-gradient(ellipse at top, black 40%, transparent 75%)",
+        }}
+      />
+
+      <div className="relative z-10 container mx-auto px-4 text-center" style={{ perspective: "1400px" }}>
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm mb-8">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/5 backdrop-blur-md text-primary text-sm mb-8 shadow-[0_0_30px_-10px_hsl(var(--primary)/0.5)]"
+          >
             <Sparkles className="w-4 h-4" />
-            <span>AI-Powered Video Creation Platform</span>
+            <span className="font-medium tracking-wide">The AI Video Studio · Trusted by 12,000+ creators</span>
           </motion.div>
-          <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-6">
-            Create{" "}<span className="gradient-text">Viral Videos</span><br /><span className="text-foreground/80">In Minutes</span>
+
+          <h1 className="font-display text-5xl md:text-7xl lg:text-[5.75rem] font-bold tracking-tight mb-6 leading-[1.02]">
+            Create{" "}
+            <span className="gradient-text">Cinematic Videos</span>
+            <br />
+            <span className="text-foreground/85">at the speed of thought.</span>
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">Everything you need to dominate social media — AI scripts, voiceovers, visuals, thumbnails, and full video editing. All in one platform.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Button size="lg" className="glow-md text-base px-8 py-6" asChild><Link to="/dashboard">Start Creating <ArrowRight className="w-5 h-5 ml-2" /></Link></Button>
-            <Button variant="outline" size="lg" className="text-base px-8 py-6 border-border hover:bg-secondary" asChild><a href="#demo"><Play className="w-5 h-5 mr-2" /> Watch Demo</a></Button>
+
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
+            Script, voice, visuals, soundtrack and final cut — generated by one intelligent pipeline,
+            engineered for the next generation of storytellers.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
+            <Button size="lg" className="glow-md text-base px-8 py-6 rounded-xl" asChild>
+              <Link to="/dashboard">Start Creating <ArrowRight className="w-5 h-5 ml-2" /></Link>
+            </Button>
+            <Button variant="outline" size="lg" className="text-base px-8 py-6 rounded-xl border-border/80 bg-card/40 backdrop-blur-md hover:bg-secondary/80" asChild>
+              <a href="#demo"><Play className="w-5 h-5 mr-2" /> Watch Demo</a>
+            </Button>
           </div>
         </motion.div>
-        <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }} className="max-w-3xl mx-auto">
-          <div className="glass-card p-6">
-            <div className="flex items-center justify-between gap-1 mb-6 overflow-x-auto pb-2">
-              {pipelineSteps.map((step, i) => (
-                <button key={step} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all ${i === 0 ? "bg-primary text-primary-foreground glow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}>{step}</button>
+
+        {/* 3D layered showcase */}
+        <motion.div
+          initial={{ opacity: 0, y: 60, rotateX: 18 }}
+          animate={{ opacity: 1, y: 0, rotateX: 12 }}
+          transition={{ delay: 0.5, duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+          className="relative max-w-5xl mx-auto"
+          style={{ transformStyle: "preserve-3d" }}
+        >
+          {/* Reflective glow under the stack */}
+          <div className="absolute -inset-x-20 -bottom-16 h-40 bg-gradient-to-t from-primary/30 via-primary/10 to-transparent blur-3xl" />
+
+          {/* Back card */}
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -top-10 left-1/2 -translate-x-1/2 w-[78%] h-44 rounded-2xl border border-border/60 bg-card/40 backdrop-blur-xl shadow-2xl shadow-black/40"
+            style={{ transform: "translateZ(-120px) translateX(-50%)" }}
+          />
+
+          {/* Mid card */}
+          <motion.div
+            animate={{ y: [0, -5, 0] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+            className="absolute -top-5 left-1/2 -translate-x-1/2 w-[88%] h-48 rounded-2xl border border-border/70 bg-card/60 backdrop-blur-xl shadow-2xl shadow-black/50"
+            style={{ transform: "translateZ(-60px) translateX(-50%)" }}
+          />
+
+          {/* Foreground hero card */}
+          <div
+            className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-card/90 via-card/80 to-card/60 backdrop-blur-2xl p-6 md:p-8 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7),0_0_60px_-10px_hsl(var(--primary)/0.25)] ring-1 ring-inset ring-white/5"
+          >
+            {/* Inner sheen */}
+            <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-tr from-white/[0.06] via-transparent to-transparent" />
+
+            {/* Window chrome */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-destructive/70" />
+                <span className="w-2.5 h-2.5 rounded-full bg-primary/70" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
+              </div>
+              <div className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">vidforge · studio</div>
+              <div className="w-12" />
+            </div>
+
+            {/* Pipeline tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              {[
+                { icon: Wand2, label: "Script", value: "Generated", tone: "from-primary/25 to-primary/5" },
+                { icon: Mic2, label: "Voice", value: "af_heart · 00:42", tone: "from-accent/25 to-accent/5" },
+                { icon: ImageIcon, label: "Visuals", value: "8 scenes", tone: "from-primary/25 to-accent/10" },
+                { icon: Film, label: "Final cut", value: "1080p · MP4", tone: "from-accent/25 to-primary/10" },
+              ].map((tile, i) => (
+                <motion.div
+                  key={tile.label}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 + i * 0.08 }}
+                  className={`group relative rounded-2xl border border-white/10 bg-gradient-to-br ${tile.tone} p-4 text-left overflow-hidden`}
+                >
+                  <div className="absolute -top-10 -right-10 w-24 h-24 rounded-full bg-primary/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <tile.icon className="w-4 h-4 text-primary mb-3" />
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">{tile.label}</div>
+                  <div className="text-sm font-display font-semibold text-foreground">{tile.value}</div>
+                </motion.div>
               ))}
             </div>
-            <div className="bg-secondary/50 rounded-lg p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-destructive/20 flex items-center justify-center flex-shrink-0"><Play className="w-5 h-5 text-destructive" /></div>
-                <div className="text-left flex-1">
-                  <h3 className="font-display font-semibold text-foreground mb-1">Generate from YouTube Channel</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Analyze any channel and generate viral titles in their style</p>
-                  <div className="flex gap-3">
-                    <input type="text" placeholder="https://www.youtube.com/@channel" className="flex-1 bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" readOnly defaultValue="https://www.youtube.com/@fern-tv" />
-                    <Button className="glow-sm"><Sparkles className="w-4 h-4 mr-2" /> Generate</Button>
+
+            {/* Timeline bar */}
+            <div className="mt-6 rounded-xl border border-white/5 bg-background/50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <Play className="w-3.5 h-3.5 text-primary fill-primary" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs font-semibold text-foreground">Hidden Wonders of the Deep</div>
+                    <div className="text-[10px] text-muted-foreground">Rendering · 00:38 / 02:14</div>
                   </div>
                 </div>
+                <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+                </div>
+              </div>
+              <div className="flex gap-1 h-9">
+                {Array.from({ length: 28 }).map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ scaleY: 0.3 }}
+                    animate={{ scaleY: [0.3, Math.random() * 0.9 + 0.2, 0.3] }}
+                    transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.05 }}
+                    className="flex-1 rounded-sm bg-gradient-to-t from-primary/40 to-accent/70 origin-bottom"
+                  />
+                ))}
               </div>
             </div>
           </div>

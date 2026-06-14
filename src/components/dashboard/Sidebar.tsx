@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap, Film, Search, Palette, BarChart3, Plus,
   Clock, Crown, ChevronDown, Folder, Star, TrendingUp,
-  User, LogOut, PanelLeftClose, PanelLeft,
+  User, LogOut, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,15 +45,33 @@ const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: Sidebar
   return (
     <motion.aside
       initial={false}
-      animate={{ width: collapsed ? 68 : 288 }}
+      animate={{ width: collapsed ? 76 : 288 }}
       transition={{ type: "spring", stiffness: 260, damping: 32 }}
-      className="hidden lg:flex flex-col border-r border-border bg-card/30 backdrop-blur-sm relative overflow-hidden"
+      className="hidden lg:flex flex-col bg-gradient-to-b from-[hsl(225_24%_5%)] via-[hsl(225_22%_4%)] to-[hsl(225_25%_3%)] relative"
     >
-      {/* Logo + toggle */}
-      <div className="p-4 border-b border-border flex items-center justify-between gap-2">
-        <Link to="/" className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 shrink-0 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-            <Zap className="w-5 h-5 text-primary-foreground" />
+      {/* Premium right edge: hairline + soft glow */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-primary/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-[-1px] w-px bg-border/60" />
+
+      {/* Floating edge toggle — never overlaps the logo */}
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="group absolute top-7 -right-3 z-20 w-6 h-6 rounded-full bg-card border border-border/80 text-muted-foreground hover:text-primary hover:border-primary/40 shadow-md shadow-black/40 transition-all flex items-center justify-center"
+        >
+          {collapsed
+            ? <ChevronRight className="w-3 h-3" />
+            : <ChevronLeft className="w-3 h-3" />}
+        </button>
+      )}
+
+      {/* Logo */}
+      <div className="px-4 pt-5 pb-4 flex items-center">
+        <Link to="/" className="flex items-center gap-2.5 min-w-0 group/logo">
+          <div className="relative w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-primary via-primary/90 to-accent flex items-center justify-center shadow-lg shadow-primary/30 ring-1 ring-primary/30">
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-white/20 to-transparent opacity-70" />
+            <Zap className="relative w-5 h-5 text-primary-foreground drop-shadow" />
           </div>
           <AnimatePresence initial={false}>
             {!collapsed && (
@@ -64,24 +82,16 @@ const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: Sidebar
                 transition={{ duration: 0.15 }}
                 className="min-w-0"
               >
-                <span className="font-display text-lg font-bold text-foreground whitespace-nowrap">
+                <span className="font-display text-[17px] font-bold tracking-tight text-foreground whitespace-nowrap">
                   VidForge<span className="text-primary">AI</span>
                 </span>
-                <span className="block text-[10px] text-muted-foreground -mt-0.5 tracking-wider uppercase">Studio Pro</span>
+                <span className="block text-[9px] font-medium text-muted-foreground/80 -mt-0.5 tracking-[0.18em] uppercase">Studio · Pro</span>
               </motion.div>
             )}
           </AnimatePresence>
         </Link>
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all"
-          >
-            {collapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-          </button>
-        )}
       </div>
+      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
       {/* Main Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
