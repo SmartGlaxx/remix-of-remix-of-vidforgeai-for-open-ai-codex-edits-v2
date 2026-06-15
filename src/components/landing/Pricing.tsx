@@ -63,9 +63,9 @@ const Pricing = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <p className="text-primary text-xs font-semibold tracking-[0.3em] uppercase mb-4">— Pricing</p>
-          <h2 className="font-display text-4xl md:text-6xl font-bold mb-4 text-balance">
-            One studio. <span className="gradient-text">Three tiers.</span>
+          <p className="text-primary text-sm font-semibold tracking-wider uppercase mb-3">Pricing</p>
+          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
+            Simple, <span className="gradient-text">Transparent</span> Pricing
           </h2>
           <p className="text-muted-foreground text-lg">No hidden fees. Cancel anytime.</p>
         </motion.div>
@@ -78,15 +78,10 @@ const Pricing = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className={`relative flex flex-col p-8 rounded-3xl border bg-card/40 backdrop-blur-2xl transition-all duration-500 hover:-translate-y-1 ${
-                plan.popular
-                  ? "border-primary/50 shadow-[0_20px_80px_-20px_hsl(var(--primary)/0.55)]"
-                  : "border-border/60 hover:border-primary/30"
+              className={`glass-card p-8 relative flex flex-col ${
+                plan.popular ? "border-primary/40 glow-md" : ""
               }`}
             >
-              {plan.popular && (
-                <div className="absolute inset-0 rounded-3xl pointer-events-none bg-gradient-to-br from-primary/10 via-transparent to-accent/10" />
-              )}
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center gap-1">
                   <Zap className="w-3 h-3" /> Most Popular

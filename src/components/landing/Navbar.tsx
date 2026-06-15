@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Menu, X, Sparkles } from "lucide-react";
+import { Menu, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ThemeToggle from "@/components/ThemeToggle";
 
 const navLinks = [
   { label: "Features", href: "#features" },
@@ -19,54 +18,45 @@ const Navbar = () => {
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(96%,1180px)]"
+      transition={{ duration: 0.5 }}
+      className="fixed top-0 left-0 right-0 z-50 glass-card border-t-0 border-x-0 rounded-none"
     >
-      <div className="premium-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_-15px_hsl(var(--primary)/0.25)]">
-        <div className="flex items-center justify-between h-14 px-4 md:px-6">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-primary via-primary to-accent shadow-lg shadow-primary/30 flex items-center justify-center ring-1 ring-white/10">
-              <Sparkles className="w-4 h-4 text-primary-foreground" />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-white/20 to-transparent" />
-            </div>
-            <span className="font-display text-[17px] font-bold tracking-tight text-foreground">
-              VidForge<span className="gradient-text">AI</span>
-            </span>
-          </Link>
-
-          <div className="hidden md:flex items-center gap-1 rounded-full bg-secondary/40 border border-border/60 px-1 py-1">
-            {navLinks.map((link) => (
-              <a key={link.label} href={link.href} className="px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground rounded-full hover:bg-background/60 transition-colors">{link.label}</a>
-            ))}
+      <div className="container mx-auto flex items-center justify-between h-16 px-4">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+            <Zap className="w-5 h-5 text-primary" />
           </div>
+          <span className="font-display text-xl font-bold text-foreground">
+            VidForge<span className="text-primary">AI</span>
+          </span>
+        </Link>
 
-          <div className="hidden md:flex items-center gap-3">
-            <ThemeToggle />
-            <Button variant="ghost" size="sm" asChild><Link to="/dashboard">Sign in</Link></Button>
-            <Button size="sm" className="glow-sm rounded-full px-4 bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-95" asChild>
-              <Link to="/dashboard">Launch Studio</Link>
-            </Button>
-          </div>
-
-          <div className="md:hidden flex items-center gap-2">
-            <ThemeToggle />
-            <button className="text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
-              {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+        <div className="hidden md:flex items-center gap-8">
+          {navLinks.map((link) => (
+            <a key={link.label} href={link.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{link.label}</a>
+          ))}
         </div>
 
-        {mobileOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="md:hidden border-t border-border">
-            <div className="flex flex-col p-4 gap-2">
-              {navLinks.map((link) => (
-                <a key={link.label} href={link.href} className="text-sm text-muted-foreground hover:text-foreground py-2" onClick={() => setMobileOpen(false)}>{link.label}</a>
-              ))}
-              <Button size="sm" className="mt-2 rounded-full bg-gradient-to-r from-primary to-accent" asChild><Link to="/dashboard">Launch Studio</Link></Button>
-            </div>
-          </motion.div>
-        )}
+        <div className="hidden md:flex items-center gap-3">
+          <Button variant="ghost" size="sm" asChild><Link to="/dashboard">Log In</Link></Button>
+          <Button size="sm" className="glow-sm" asChild><Link to="/dashboard">Get Started</Link></Button>
+        </div>
+
+        <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
+          {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
       </div>
+
+      {mobileOpen && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="md:hidden border-t border-border bg-card/95 backdrop-blur-xl">
+          <div className="flex flex-col p-4 gap-3">
+            {navLinks.map((link) => (
+              <a key={link.label} href={link.href} className="text-sm text-muted-foreground hover:text-foreground py-2" onClick={() => setMobileOpen(false)}>{link.label}</a>
+            ))}
+            <Button size="sm" className="mt-2" asChild><Link to="/dashboard">Get Started</Link></Button>
+          </div>
+        </motion.div>
+      )}
     </motion.nav>
   );
 };

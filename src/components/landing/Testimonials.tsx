@@ -20,9 +20,9 @@ const Testimonials = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <p className="text-primary text-xs font-semibold tracking-[0.3em] uppercase mb-4">— Testimonials</p>
-          <h2 className="font-display text-4xl md:text-6xl font-bold mb-4 text-balance">
-            Real <span className="gradient-text">results.</span>
+          <p className="text-primary text-sm font-semibold tracking-wider uppercase mb-3">Testimonials</p>
+          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
+            Real <span className="gradient-text">Results</span>
           </h2>
           <p className="text-muted-foreground text-lg">See what our users are achieving.</p>
         </motion.div>
@@ -35,7 +35,7 @@ const Testimonials = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
-              className="relative p-6 rounded-3xl border border-border/60 bg-card/40 backdrop-blur-2xl hover:border-primary/40 hover:shadow-[0_10px_60px_-15px_hsl(var(--primary)/0.35)] transition-all duration-500 hover:-translate-y-1"
+              className="glass-card-hover p-6"
             >
               <div className="flex gap-1 mb-3">
                 {Array.from({ length: 5 }).map((_, j) => (
