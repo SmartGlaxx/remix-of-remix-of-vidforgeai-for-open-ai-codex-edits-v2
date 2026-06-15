@@ -237,7 +237,6 @@
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, hsl(var(--primary-glow) / 0.35), transparent);
   animation: beam 2.8s linear infinite;
-  }
 }
 
 @keyframes float {
