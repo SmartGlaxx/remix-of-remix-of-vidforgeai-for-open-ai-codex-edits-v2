@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const mainNavItems = [
   { icon: Plus, label: "New Project", badge: null, path: "/dashboard" },
@@ -47,7 +48,7 @@ const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: Sidebar
       initial={false}
       animate={{ width: collapsed ? 76 : 288 }}
       transition={{ type: "spring", stiffness: 260, damping: 32 }}
-      className="hidden lg:flex flex-col bg-gradient-to-b from-[hsl(225_24%_5%)] via-[hsl(225_22%_4%)] to-[hsl(225_25%_3%)] relative"
+      className="hidden lg:flex flex-col bg-sidebar relative"
     >
       {/* Premium right edge: hairline + soft glow */}
       <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-primary/20 to-transparent" />
@@ -229,6 +230,11 @@ const Sidebar = ({ activePage = "create", collapsed = false, onToggle }: Sidebar
           <LogOut className="w-4 h-4 shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </button>
+
+        <div className={`flex ${collapsed ? "justify-center" : "justify-between items-center px-2"} pt-1`}>
+          {!collapsed && <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Theme</span>}
+          <ThemeToggle />
+        </div>
       </div>
     </motion.aside>
   );

@@ -1,65 +1,50 @@
 import { motion } from "framer-motion";
-import { UserPlus, Palette, DollarSign } from "lucide-react";
+import { Lightbulb, Layers, Sparkles, Rocket } from "lucide-react";
 
 const steps = [
-  {
-    icon: UserPlus,
-    title: "Sign Up",
-    description: "Create your account and choose a plan that fits your goals.",
-    color: "primary" as const,
-  },
-  {
-    icon: Palette,
-    title: "Choose Your Style",
-    description: "Replicate any successful channel or create a unique custom style.",
-    color: "accent" as const,
-  },
-  {
-    icon: DollarSign,
-    title: "Start Earning",
-    description: "Generate complete videos and upload them to monetize your channels.",
-    color: "primary" as const,
-  },
+  { icon: Lightbulb, title: "Drop an idea", description: "A title, a niche, a URL — that's all. Our planner turns it into a structured brief." },
+  { icon: Layers, title: "Pick your style", description: "Choose a visual reference, voice, and pacing — or clone an existing channel's DNA." },
+  { icon: Sparkles, title: "AI orchestrates", description: "Script, voice, scenes, music, lip-sync — generated in parallel by a director-level agent." },
+  { icon: Rocket, title: "Ship to platform", description: "Export a final cut and upload — or schedule a series across channels." },
 ];
 
 const HowItWorks = () => {
   return (
     <section id="how-it-works" className="py-24 relative">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <p className="text-primary text-sm font-semibold tracking-wider uppercase mb-3">How It Works</p>
-          <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">
-            From Idea to Upload in{" "}
-            <span className="gradient-text">3 Steps</span>
+          <p className="text-primary text-xs font-semibold tracking-[0.3em] uppercase mb-4">— The Workflow</p>
+          <h2 className="font-display text-4xl md:text-6xl font-bold mb-4 text-balance">
+            Idea to upload, in <span className="gradient-text">four moves.</span>
           </h2>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {steps.map((step, i) => (
             <motion.div
               key={step.title}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.15 }}
-              className="text-center relative"
+              transition={{ delay: i * 0.1, duration: 0.6, ease: [0.22,1,0.36,1] }}
+              className="relative group"
             >
-              {i < steps.length - 1 && (
-                <div className="hidden md:block absolute top-12 left-[60%] w-[80%] h-px bg-gradient-to-r from-border to-transparent" />
-              )}
-              <div className="w-24 h-24 rounded-2xl bg-secondary border border-border flex items-center justify-center mx-auto mb-6 relative">
-                <step.icon className={`w-10 h-10 ${step.color === 'accent' ? 'text-accent' : 'text-primary'}`} />
-                <span className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center">
-                  {i + 1}
-                </span>
+              <div className="relative h-full rounded-3xl border border-border/60 bg-card/40 backdrop-blur-2xl p-6 hover:border-primary/40 hover:shadow-[0_10px_60px_-15px_hsl(var(--primary)/0.35)] transition-all duration-500 overflow-hidden">
+                <div className="absolute -top-12 -right-10 w-44 h-44 bg-primary/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative">
+                  <div className="text-[10px] font-mono text-muted-foreground mb-4">0{i + 1}</div>
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 border border-primary/20 flex items-center justify-center mb-5">
+                    <step.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <h3 className="font-display text-lg font-semibold mb-2">{step.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                </div>
               </div>
-              <h3 className="font-display text-xl font-semibold mb-2 text-foreground">{step.title}</h3>
-              <p className="text-muted-foreground text-sm">{step.description}</p>
             </motion.div>
           ))}
         </div>

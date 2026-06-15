@@ -20,9 +20,9 @@ const FAQ = () => {
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <p className="text-primary text-sm font-semibold tracking-wider uppercase mb-3">FAQ</p>
-          <h2 className="font-display text-4xl md:text-5xl font-bold">
-            Got <span className="gradient-text">Questions?</span>
+          <p className="text-primary text-xs font-semibold tracking-[0.3em] uppercase mb-4">— FAQ</p>
+          <h2 className="font-display text-4xl md:text-6xl font-bold text-balance">
+            Got <span className="gradient-text">questions?</span>
           </h2>
         </motion.div>
 
@@ -36,7 +36,7 @@ const FAQ = () => {
               <AccordionItem
                 key={i}
                 value={`faq-${i}`}
-                className="glass-card px-6 border border-border rounded-xl data-[state=open]:border-primary/30"
+                className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-2xl px-6 data-[state=open]:border-primary/40 data-[state=open]:shadow-[0_10px_40px_-15px_hsl(var(--primary)/0.3)] transition-all"
               >
                 <AccordionTrigger className="text-foreground font-display font-medium hover:no-underline">
                   {faq.q}
