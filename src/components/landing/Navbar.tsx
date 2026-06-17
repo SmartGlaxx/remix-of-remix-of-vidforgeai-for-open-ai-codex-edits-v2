@@ -27,7 +27,7 @@ const Navbar = () => {
             <Zap className="w-5 h-5 text-primary" />
           </div>
           <span className="font-display text-xl font-bold text-foreground">
-            VidForge<span className="text-primary">AI</span>
+            Capscify<span className="text-primary">AI</span>
           </span>
         </Link>
 
