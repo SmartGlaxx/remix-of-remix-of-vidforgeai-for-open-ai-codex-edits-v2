@@ -23,7 +23,10 @@ VERIFY BEFORE FIRST DEPLOY (see README.md for the full checklist):
      LTX-2 repo version. The generation BEHAVIOUR below is benchmarked
      (10s, 1080p, native audio, word-perfect dialogue on both models),
      but the exact flag spellings are taken from the README distilled
-     example and must be confirmed once against the installed version.
+     example and confirmed against the installed version 2026-10-26:
+     2.5 uses the split flags; 2.3 MUST use the monolith flags
+     (--distilled-checkpoint-path + --gemma-root) — the split flags
+     crash it with video_vae_path missing (see MODELS comment).
      Any flag can be overridden without a code change via the
      PIPELINE_FLAG_* env vars (see build_pipeline_cmd).
   2. 2.3 weights must be re-downloaded before the backup endpoint can
@@ -74,9 +77,15 @@ S3_BUCKET = os.environ.get("BUCKET_NAME")
 FPS = 24
 
 # Model file layouts, relative to VOLUME_ROOT. 2.5 paths follow the
-# LTX-2 README distilled example; 2.3's checkpoint bundles transformer +
-# VAEs + text projection, so it maps onto the same flag set with the
-# VAE entries omitted (confirm the 2.3 flag mapping during validation).
+# LTX-2 README distilled example (split layout: one file per component).
+# 2.3's checkpoint is a MONOLITH (transformer + VAEs + text projection in
+# one file), so it uses the distilled CLI's monolith flags instead:
+# --distilled-checkpoint-path + --gemma-root. Passing 2.3's files via the
+# split flags (--transformer-path etc.) selects split mode, where every
+# component slot must be given explicitly — the pipeline then crashes with
+# "ModelPaths.video_vae_path is required but missing (mode='split')"
+# (proven by backup validation job 4156824c, 2026-10-26). The two flag sets
+# are mutually exclusive (the CLI aborts if combined).
 MODELS = {
     "ltx-2.5": {
         "base": "ltx25",
@@ -92,8 +101,8 @@ MODELS = {
     "ltx-2.3": {
         "base": "ltx23",
         "args": {
-            "transformer": "ltx-2.3-22b-distilled-1.1.safetensors",
-            "text_encoder": "gemma3",
+            "checkpoint": "ltx-2.3-22b-distilled-1.1.safetensors",
+            "gemma_root": "gemma3",
             "upscaler": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
         },
     },
@@ -107,6 +116,8 @@ FLAG_DEFAULTS = {
     "video_vae": "--video-vae-path",
     "audio_vae": "--audio-vae-path",
     "duration_head": "--duration-head-path",
+    "checkpoint": "--distilled-checkpoint-path",
+    "gemma_root": "--gemma-root",
     "upscaler": "--spatial-upsampler-path",
     "prompt": "--prompt",
     "negative_prompt": "--negative-prompt",
