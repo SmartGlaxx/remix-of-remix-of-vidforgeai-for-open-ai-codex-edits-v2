@@ -31,18 +31,21 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      # The CUDA devel base image is ~15GB+ unpacked and the stock
-      # ubuntu-latest runner only has ~14GB free: the build died with
-      # "no space left on device" while unpacking the base image
-      # (run 40392667110, step 2/10 — before any of our code is copied,
-      # so no source change can be the cause). Reclaim ~15-20GB first.
-      # Do NOT delete /opt/hostedtoolcache: the actions themselves run
-      # on the node/python installed there.
+      # Disk: stock runner has ~13GB free; the CUDA devel base (~15GB+)
+      # plus torch + LTX deps need 30GB+. Run 40392667110 died unpacking
+      # the base image; after freeing 17GB (30GB free) run 40412266458
+      # got to the LTX pip install and died again. So free aggressively:
+      # hostedtoolcache is safe to remove here — this workflow uses no
+      # setup-* actions, and the docker actions run on the runner's
+      # bundled node, not the tool cache.
       - name: Free disk space for the large CUDA image
         run: |
           df -h
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache /usr/local/julia /opt/az
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
           sudo apt-get clean
+          docker system prune -af || true
           df -h
 
       - name: Set up Docker Buildx
