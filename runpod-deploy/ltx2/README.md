@@ -58,7 +58,8 @@ reference urls). Errors return `{"status": "error", "error": ...}`.
 - Attach the network volume at `/runpod-volume`.
 - Env: `MODEL_ID=ltx-2.5` on the primary endpoint,
   `MODEL_ID=ltx-2.3` on the backup endpoint, plus Filebase secrets.
-- Workers: 0–20, scaler `REQUEST_COUNT` (quoted string in RunPod's API).
+- Workers: 0–8 (account worker quota is 10 total across all endpoints),
+  scaler `QUEUE_DELAY` (quoted string in RunPod's API).
 - GPU class: TBD by validation (see below).
 
 ## Verification checklist (before first deploy)
@@ -66,6 +67,10 @@ reference urls). Errors return `{"status": "error", "error": ...}`.
 1. **CLI flags**: confirm the distilled flag spellings in `handler.py`
    (`FLAG_DEFAULTS`) against the installed LTX-2 repo version. Any flag
    can be overridden via `PIPELINE_FLAG_<KEY>` env without a code change.
+   UPDATE (first endpoint run, 2026-10-26): argparse accepted every flag
+   except `--negative-prompt`, which the installed CLI rejects — so the
+   worker no longer passes it (input still accepted, dropped with a
+   warning). 2.3's flag mapping is still unverified.
 2. **2.3 weights**: re-download checkpoint + Gemma encoder to
    `ltx23/` — only the 2.3 spatial upscaler remains on the volume.
 3. **Volume attach**: endpoint must mount the volume at

@@ -242,9 +242,13 @@ def build_pipeline_cmd(model_cfg, paths, opts, work_dir):
     cmd = ["python", "-m", PIPELINE_MODULE]
     for key, path in paths.items():
         cmd += [flag(key), path]
+    # NOTE: no --negative-prompt. The installed ltx_pipelines.distilled
+    # CLI rejects it (argparse: unrecognized arguments) — confirmed by
+    # the first endpoint validation run. Negative prompts are accepted
+    # in input but dropped with a warning (see handler) until/unless a
+    # CLI version supports them.
     cmd += [
         flag("prompt"), opts["prompt"],
-        flag("negative_prompt"), opts["negative_prompt"],
         flag("width"), str(opts["gen_w"]),
         flag("height"), str(opts["gen_h"]),
         flag("num_frames"), str(opts["num_frames"]),
@@ -319,6 +323,10 @@ def handler(job):
         )
 
         warnings = []
+        if inp.get("negative_prompt") is not None:
+            warnings.append(
+                "negative_prompt ignored: installed ltx_pipelines.distilled "
+                "CLI does not accept --negative-prompt")
         # Accepted + recorded for now; only first_frame_url drives
         # conditioning (when IMAGE_ARG is configured). Character /
         # environment references are registry data owned by the app layer.
