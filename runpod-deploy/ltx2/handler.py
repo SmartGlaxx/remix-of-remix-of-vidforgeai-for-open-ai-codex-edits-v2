@@ -62,10 +62,14 @@ DEFAULT_MODEL = os.environ.get("MODEL_ID", "ltx-2.5")
 PIPELINE_MODULE = os.environ.get("PIPELINE_MODULE", "ltx_pipelines.distilled")
 GEN_TIMEOUT = int(os.environ.get("GEN_TIMEOUT", "1800"))  # 30 min: load + generate
 DEFAULT_RESOLUTION = os.environ.get("DEFAULT_RESOLUTION", "1080p")
-# Image-conditioning flag for the distilled CLI, e.g. "--image-path".
-# Empty by default: first_frame_url is then accepted but ignored for
-# generation (recorded in generation_metadata.warnings) until the flag
-# is confirmed against the installed ltx-pipelines version.
+# Image-conditioning flag for the distilled CLI: "--image" (confirmed
+# against the installed ltx_pipelines: distilled.py uses
+# default_2_stage_distilled_arg_parser -> new_video_gen_arg_parser, which
+# declares --image with ImageAction). The CLI requires 3-5 tokens:
+# PATH FRAME_IDX STRENGTH [BINDING] [CRF]; the handler appends frame 0 +
+# strength 1.0 (binding auto: frame 0 replaces the latent = first-frame
+# conditioning). Empty by default: first_frame_url is then accepted but
+# ignored for generation (recorded in generation_metadata.warnings).
 IMAGE_ARG = os.environ.get("IMAGE_ARG", "")
 
 # Filebase (S3-compatible) config — same env names as the api-gateway.
@@ -268,7 +272,9 @@ def build_pipeline_cmd(model_cfg, paths, opts, work_dir):
     if opts.get("seed") is not None:
         cmd += [flag("seed"), str(opts["seed"])]
     if opts.get("first_frame_path") and IMAGE_ARG:
-        cmd += [IMAGE_ARG, opts["first_frame_path"]]
+        # --image requires PATH FRAME_IDX STRENGTH; frame 0 + strength 1.0
+        # (auto binding) pins the still as the first frame.
+        cmd += [IMAGE_ARG, opts["first_frame_path"], "0", "1.0"]
     return cmd
 
 
