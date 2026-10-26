@@ -1,0 +1,26 @@
+# Capscify — GitLab CI: worker image builds (kaniko, no Docker daemon).
+#
+# NOTE: this image is large (CUDA base + torch + LTX pipelines, roughly
+# 10-20GB). First builds can take 20-40 minutes and consume a noticeable
+# share of GitLab's free CI minutes — that is expected, not a failure.
+# The model weights are NOT in the image; they come from the attached
+# network volume at runtime.
+
+stages:
+  - build
+
+build:ltx2:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR/runpod-deploy/ltx2"
+      --dockerfile "$CI_PROJECT_DIR/runpod-deploy/ltx2/Dockerfile"
+      --destination "$CI_REGISTRY_IMAGE/ltx2:$CI_COMMIT_SHORT_SHA"
+      --destination "$CI_REGISTRY_IMAGE/ltx2:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
