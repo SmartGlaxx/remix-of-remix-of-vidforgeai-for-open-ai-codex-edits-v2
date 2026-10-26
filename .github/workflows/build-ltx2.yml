@@ -8,7 +8,10 @@
 # not a failure. The model weights are NOT in the image; they come
 # from the attached RunPod network volume at runtime.
 #
-# Image lands at ghcr.io/<owner>/ltx2:<sha> and :latest.
+# Image lands at ghcr.io/smartglaxx/ltx2:<sha> and :latest.
+# (Owner lowercased on purpose: registry names must be lowercase,
+# and github.repository_owner here is "SmartGlaxx" — using it raw
+# makes buildx reject the tag. That was the first build's failure.)
 # RunPod endpoints use the :latest tag (pin to a sha later if needed).
 
 name: Build ltx2 worker image
@@ -45,5 +48,5 @@ jobs:
           file: runpod-deploy/ltx2/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/ltx2:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/ltx2:latest
+            ghcr.io/smartglaxx/ltx2:${{ github.sha }}
+            ghcr.io/smartglaxx/ltx2:latest
