@@ -70,14 +70,9 @@ reference urls). Errors return `{"status": "error", "error": ...}`.
    UPDATE (first endpoint run, 2026-10-26): argparse accepted every flag
    except `--negative-prompt`, which the installed CLI rejects — so the
    worker no longer passes it (input still accepted, dropped with a
-   warning). 2.3's flag mapping RESOLVED 2026-10-26: the distilled CLI
-   has monolith vs split layouts — 2.3's fat checkpoint needs the
-   monolith flags (--distilled-checkpoint-path + --gemma-root); the
-   split flags crash it with video_vae_path missing (backup
-   validation job 4156824c). Handler fixed accordingly.
-2. **2.3 weights**: DONE 2026-10-26 — checkpoint (46.1GB) + Gemma
-   encoder (18 files, 24.4GB) re-downloaded to `ltx23/`; ltx23 totals
-   67 GiB with the upscaler that was already kept.
+   warning). 2.3's flag mapping is still unverified.
+2. **2.3 weights**: re-download checkpoint + Gemma encoder to
+   `ltx23/` — only the 2.3 spatial upscaler remains on the volume.
 3. **Volume attach**: endpoint must mount the volume at
    `/runpod-volume`, or jobs fail fast listing the missing paths.
 4. **Peak VRAM + resolution validation**: run a full generation on the
