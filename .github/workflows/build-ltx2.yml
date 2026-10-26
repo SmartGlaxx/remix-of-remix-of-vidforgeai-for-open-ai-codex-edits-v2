@@ -1,0 +1,49 @@
+# Capscify — GitHub Actions: ltx2 worker image build.
+#
+# Replaces .gitlab-ci.yml (GitLab CI is blocked on this project:
+# identity verification is required to run CI jobs).
+#
+# NOTE: this image is large (CUDA base + torch + LTX pipelines, roughly
+# 10-20GB). First builds can take 20-40 minutes — that is expected,
+# not a failure. The model weights are NOT in the image; they come
+# from the attached RunPod network volume at runtime.
+#
+# Image lands at ghcr.io/<owner>/ltx2:<sha> and :latest.
+# RunPod endpoints use the :latest tag (pin to a sha later if needed).
+
+name: Build ltx2 worker image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ltx2:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ltx2 image
+        uses: docker/build-push-action@v6
+        with:
+          context: runpod-deploy/ltx2
+          file: runpod-deploy/ltx2/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ltx2:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/ltx2:latest
