@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject } from "@/contexts/ProjectContext";
+import StudioClipPanel from "@/components/dashboard/StudioClipPanel";
 
 type Stage =
   | "idle"
@@ -234,6 +235,7 @@ const VideoStep = () => {
 
   return (
     <div className="space-y-6">
+      <StudioClipPanel />
       <div className="glass-card p-6 space-y-4">
         <div>
           <h3 className="font-display text-lg font-bold text-foreground">Generate Video</h3>
