@@ -64,9 +64,6 @@ const StudioClipPanel = () => {
     } catch {
       return toast({ title: "First frame must be a public HTTPS image URL", variant: "destructive" });
     }
-    if (frameUrl && useTier === "backup") {
-      return toast({ title: "Use the main engine for first-frame shots", variant: "destructive" });
-    }
     cancel.current = false;
     setTier(useTier); setRunning(true); setError(null); setWarning(null);
     setStartedAt(Date.now()); setNow(Date.now()); setPhase("Sending to the video engine…");
@@ -182,7 +179,7 @@ const StudioClipPanel = () => {
         <Button onClick={() => run("primary")} disabled={running}>
           {running && tier === "primary" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Generate clip
         </Button>
-        <Button variant="outline" onClick={() => run("backup")} disabled={running || !!firstFrame.trim()} title={firstFrame.trim() ? "First-frame conditioning is verified on the main engine only" : undefined}>
+        <Button variant="outline" onClick={() => run("backup")} disabled={running}>
           {running && tier === "backup" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Use backup engine
         </Button>
       </div>
@@ -199,7 +196,7 @@ const StudioClipPanel = () => {
       {error && (
         <div className="flex items-start gap-2 text-sm text-destructive">
           <AlertCircle className="w-4 h-4 mt-0.5" />
-          <span>{error}{tier === "primary" && !firstFrame.trim() ? " — try “Use backup engine”." : ""}</span>
+          <span>{error}{tier === "primary" ? " — try “Use backup engine”." : ""}</span>
         </div>
       )}
 

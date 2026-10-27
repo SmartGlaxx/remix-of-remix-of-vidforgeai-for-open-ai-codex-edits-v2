@@ -35,7 +35,7 @@ describe("Studio chaining", () => {
       .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-two.mp4" } });
     render(<StudioClipPanel />);
     fireEvent.click(screen.getByText("Use first storyboard image"));
-    expect(screen.getByText("Use backup engine")).toBeDisabled();
+    expect(screen.getByText("Use backup engine")).toBeEnabled();
     fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "First shot" } });
     fireEvent.click(screen.getByText("Generate clip"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1")).toBeInTheDocument());
@@ -51,6 +51,22 @@ describe("Studio chaining", () => {
     await waitFor(() => expect(screen.getByLabelText("Shot 2")).toBeInTheDocument());
     expect(invoke.mock.calls[3][1].body).toMatchObject({ tier: "primary", first_frame_url: "https://example.com/last.png" });
     expect(screen.getByLabelText("Shot 2")).toHaveAttribute("src", "https://example.com/saved-two.mp4");
+  });
+  it("renders a first-frame-conditioned shot on the backup engine once conditioning is verified", async () => {
+    const original = window.setTimeout.bind(window);
+    vi.spyOn(window, "setTimeout").mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => original(handler, timeout === 5000 ? 0 : timeout, ...args)) as typeof window.setTimeout);
+    invoke.mockResolvedValueOnce({ data: { job_id: "bk" } })
+      .mockResolvedValueOnce({ data: { status: "COMPLETED", output: { video_url: "https://example.com/bk.mp4", last_frame_url: "https://example.com/bk-last.png" } } })
+      .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-bk.mp4" } });
+    render(<StudioClipPanel />);
+    fireEvent.click(screen.getByText("Use first storyboard image"));
+    fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "Fallback shot" } });
+    fireEvent.click(screen.getByText("Use backup engine"));
+    await waitFor(() => expect(screen.getByLabelText("Shot 1")).toBeInTheDocument());
+    expect(invoke.mock.calls[0][1].body).toMatchObject({ tier: "backup", first_frame_url: "https://example.com/first.png" });
+    expect(screen.getByLabelText("Shot 1")).toHaveAttribute("src", "https://example.com/saved-bk.mp4");
+    fireEvent.click(screen.getByText("Chain next shot"));
+    expect(screen.getByLabelText("First frame (optional)")).toHaveValue("https://example.com/bk-last.png");
   });
   it.each(["fallback", "error", "throw"])("retains a completed clip and chaining when storage returns %s", async (failure) => {
     const original = window.setTimeout.bind(window);
