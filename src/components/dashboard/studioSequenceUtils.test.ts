@@ -25,6 +25,7 @@ describe("Studio stitch contract", () => {
   it("accepts direct and nested HTTPS video outputs, but rejects failures and unsafe URLs", () => {
     expect(sequenceVideoUrl({ video_url: "https://example.com/final.mp4" })).toBe("https://example.com/final.mp4");
     expect(sequenceVideoUrl({ output: { url: "https://example.com/final.mp4" } })).toBe("https://example.com/final.mp4");
+    expect(sequenceVideoUrl({ status: "success", output: { final_video_url: "https://example.com/live.mp4", clip_audio_preserved: true } })).toBe("https://example.com/live.mp4");
     expect(() => sequenceVideoUrl({ output: { error: "FFmpeg failed" } })).toThrow("FFmpeg failed");
     expect(() => sequenceVideoUrl({ url: "http://example.com/final.mp4" })).toThrow();
   });
