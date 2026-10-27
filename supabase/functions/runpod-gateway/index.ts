@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }, 200);
   } catch (e) {
     console.error("runpod-gateway error:", e);
-    return json({ error: String(e?.message ?? e) }, 500);
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
 

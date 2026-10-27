@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Clapperboard, Loader2, AlertCircle, Download } from "lucide-react";
+import { Clapperboard, Loader2, AlertCircle, Download, Link, Image, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useProject } from "@/contexts/ProjectContext";
+import { firstFrameIgnored, validateFirstFrame } from "./studioClipUtils";
 
 // Worst measured cold first clip ≈ 13 min (285s queue + 491s gen). Size for 14.
 export const COLD_START_BUDGET_MS = 14 * 60 * 1000;
@@ -19,6 +22,12 @@ const fmt = (ms: number) => {
 };
 
 const StudioClipPanel = () => {
+  const { visualScenes } = useProject();
+  const storyboardFrame = visualScenes.find((scene) => scene.imageUrl)?.imageUrl;
+  const [firstFrame, setFirstFrame] = useState("");
+  const [clips, setClips] = useState<{ videoUrl: string; lastFrame: string | null; tier: Tier }[]>([]);
+  const [warning, setWarning] = useState<string | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const [prompt, setPrompt] = useState("");
   const [dialogue, setDialogue] = useState("");
   const [duration, setDuration] = useState(10);
@@ -32,8 +41,7 @@ const StudioClipPanel = () => {
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [lastFrame, setLastFrame] = useState<string | null>(null);
+  const lastFrame = clips.at(-1)?.lastFrame;
   const cancel = useRef(false);
 
   useEffect(() => {
@@ -47,9 +55,19 @@ const StudioClipPanel = () => {
   const pct = Math.min(97, (elapsed / COLD_START_BUDGET_MS) * 100);
 
   const run = async (useTier: Tier) => {
+    if (running) return;
     if (!prompt.trim()) return toast({ title: "Describe the shot first", variant: "destructive" });
+    let frameUrl: string | undefined;
+    try {
+      frameUrl = validateFirstFrame(firstFrame);
+    } catch {
+      return toast({ title: "First frame must be a public HTTPS image URL", variant: "destructive" });
+    }
+    if (frameUrl && useTier === "backup") {
+      return toast({ title: "Use the main engine for first-frame shots", variant: "destructive" });
+    }
     cancel.current = false;
-    setTier(useTier); setRunning(true); setError(null); setVideoUrl(null); setLastFrame(null);
+    setTier(useTier); setRunning(true); setError(null); setWarning(null);
     setStartedAt(Date.now()); setNow(Date.now()); setPhase("Sending to the video engine…");
     try {
       const { data, error } = await supabase.functions.invoke("studio-clip", {
@@ -57,22 +75,28 @@ const StudioClipPanel = () => {
           action: "submit", tier: useTier, prompt: prompt.trim(),
           dialogue: dialogue.trim() || undefined, duration_seconds: duration,
           resolution, aspect_ratio: aspect, camera_motion: camera === "static" ? undefined : camera,
+          ...(frameUrl ? { first_frame_url: frameUrl } : {}),
         },
       });
       if (error || !data?.job_id) throw new Error(error?.message || data?.error || "Could not start the clip");
       const start = Date.now();
       while (!cancel.current) {
         await new Promise((r) => setTimeout(r, POLL_MS));
+        if (cancel.current) return;
         const { data: s, error: se } = await supabase.functions.invoke("studio-clip", {
           body: { action: "status", tier: useTier, job_id: data.job_id },
         });
+        if (cancel.current) return;
         if (se) continue;
+        if (firstFrameIgnored(s)) {
+          setWarning("The worker reported first_frame_url ignored. This shot may not match your first frame; flag this to Muse.");
+        }
         if (s?.status === "IN_QUEUE") setPhase("Waking up the GPU (first clip can take up to ~14 min)…");
         else if (s?.status === "IN_PROGRESS") setPhase("Rendering video + sound…");
         else if (s?.status === "COMPLETED") {
           const out = s.output?.output ?? s.output;
           if (!out?.video_url) throw new Error("Finished but no video came back");
-          setVideoUrl(out.video_url); setLastFrame(out.last_frame_url ?? null);
+          setClips((previous) => [...previous, { videoUrl: out.video_url, lastFrame: out.last_frame_url ?? null, tier: useTier }]);
           toast({ title: "Clip ready", description: `Made with ${out.model_used ?? useTier}` });
           return;
         } else if (s?.status === "FAILED" || s?.status === "CANCELLED" || s?.status === "TIMED_OUT") {
@@ -97,10 +121,23 @@ const StudioClipPanel = () => {
         </div>
       </div>
 
-      <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
+      <Textarea ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
         placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" />
       <Textarea value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
         placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" />
+
+      <div className="space-y-2">
+        <label htmlFor="studio-first-frame" className="text-xs text-muted-foreground">First frame (optional)</label>
+        <div className="flex items-center gap-2">
+          <Input id="studio-first-frame" type="url" value={firstFrame} disabled={running}
+            onChange={(e) => setFirstFrame(e.target.value)} placeholder="https://…" />
+          {firstFrame && <Button variant="ghost" size="icon" disabled={running} aria-label="Clear first frame" title="Clear first frame" onClick={() => setFirstFrame("")}><X className="w-4 h-4" /></Button>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled={running || !storyboardFrame} onClick={() => setFirstFrame(storyboardFrame ?? "")}><Image className="w-4 h-4" /> Use first storyboard image</Button>
+          <Button variant="outline" size="sm" disabled={running || !lastFrame} onClick={() => setFirstFrame(lastFrame ?? "")}><Link className="w-4 h-4" /> Use previous last frame</Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
         <label className="space-y-1"><span className="text-xs text-muted-foreground">Length</span>
@@ -129,7 +166,7 @@ const StudioClipPanel = () => {
         <Button onClick={() => run("primary")} disabled={running}>
           {running && tier === "primary" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Generate clip
         </Button>
-        <Button variant="outline" onClick={() => run("backup")} disabled={running}>
+        <Button variant="outline" onClick={() => run("backup")} disabled={running || !!firstFrame.trim()} title={firstFrame.trim() ? "First-frame conditioning is verified on the main engine only" : undefined}>
           {running && tier === "backup" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Use backup engine
         </Button>
       </div>
@@ -146,25 +183,32 @@ const StudioClipPanel = () => {
       {error && (
         <div className="flex items-start gap-2 text-sm text-destructive">
           <AlertCircle className="w-4 h-4 mt-0.5" />
-          <span>{error}{tier === "primary" ? " — try “Use backup engine”." : ""}</span>
+          <span>{error}{tier === "primary" && !firstFrame.trim() ? " — try “Use backup engine”." : ""}</span>
         </div>
       )}
 
-      {videoUrl && (
-        <div className="space-y-2">
-          <video src={videoUrl} controls className="w-full rounded-lg bg-muted" />
+      {warning && <div role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{warning}</span></div>}
+
+      {clips.map((clip, index) => (
+        <div key={`${clip.videoUrl}-${index}`} className="space-y-2 border-t border-border pt-4">
+          <h4 className="text-sm font-medium">Shot {index + 1} · {clip.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}</h4>
+          <video aria-label={`Shot ${index + 1}`} src={clip.videoUrl} controls className="w-full aspect-video rounded-lg bg-muted" />
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm">
-              <a href={videoUrl} target="_blank" rel="noreferrer"><Download className="w-4 h-4" /> Download</a>
+              <a href={clip.videoUrl} target="_blank" rel="noreferrer"><Download className="w-4 h-4" /> Download</a>
             </Button>
-            {lastFrame && (
+            {clip.lastFrame && (
               <Button asChild variant="ghost" size="sm">
-                <a href={lastFrame} target="_blank" rel="noreferrer">View last frame</a>
+                <a href={clip.lastFrame} target="_blank" rel="noreferrer">View last frame</a>
               </Button>
             )}
           </div>
         </div>
-      )}
+      ))}
+      {lastFrame && <Button variant="outline" disabled={running} onClick={() => {
+        setFirstFrame(lastFrame); setTier("primary"); setPrompt(""); setDialogue("");
+        promptRef.current?.focus();
+      }}><Link className="w-4 h-4" /> Chain next shot</Button>}
     </div>
   );
 };
