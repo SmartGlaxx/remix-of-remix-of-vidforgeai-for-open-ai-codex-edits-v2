@@ -35,7 +35,7 @@ describe("Studio chaining", () => {
       .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-two.mp4" } });
     render(<StudioClipPanel />);
     fireEvent.click(screen.getByText("Use first storyboard image"));
-    expect(screen.getByText("Use backup engine")).toBeDisabled();
+    expect(screen.getByText("Use backup engine")).toBeEnabled();
     fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "First shot" } });
     fireEvent.click(screen.getByText("Generate clip"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1")).toBeInTheDocument());
