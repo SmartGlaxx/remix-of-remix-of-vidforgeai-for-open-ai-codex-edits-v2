@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Clapperboard, Loader2, AlertCircle, Download, Link, Image, X } from "lucide-react";
+import { Clapperboard, Loader2, AlertCircle, Link, Image, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useProject } from "@/contexts/ProjectContext";
 import { firstFrameIgnored, validateFirstFrame } from "./studioClipUtils";
+import StudioClipPlayer from "./StudioClipPlayer";
 
 // Worst measured cold first clip ≈ 13 min (285s queue + 491s gen). Size for 14.
 export const COLD_START_BUDGET_MS = 14 * 60 * 1000;
@@ -25,7 +26,7 @@ const StudioClipPanel = () => {
   const { visualScenes } = useProject();
   const storyboardFrame = visualScenes.find((scene) => scene.imageUrl)?.imageUrl;
   const [firstFrame, setFirstFrame] = useState("");
-  const [clips, setClips] = useState<{ videoUrl: string; lastFrame: string | null; tier: Tier }[]>([]);
+  const [clips, setClips] = useState<{ videoUrl: string; lastFrame: string | null; tier: Tier; saved: boolean }[]>([]);
   const [warning, setWarning] = useState<string | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const [prompt, setPrompt] = useState("");
@@ -96,7 +97,22 @@ const StudioClipPanel = () => {
         else if (s?.status === "COMPLETED") {
           const out = s.output?.output ?? s.output;
           if (!out?.video_url) throw new Error("Finished but no video came back");
-          setClips((previous) => [...previous, { videoUrl: out.video_url, lastFrame: out.last_frame_url ?? null, tier: useTier }]);
+          setPhase("Saving your clip to app storage…");
+          let videoUrl = out.video_url;
+          let saved = false;
+          try {
+            const { data: hosted, error: hostingError } = await supabase.functions.invoke("rehost-video", {
+              body: { url: out.video_url, label: `studio-${data.job_id}` },
+            });
+            if (!hostingError && hosted?.rehosted === true && typeof hosted.url === "string") {
+              const hostedUrl = validateFirstFrame(hosted.url);
+              if (hostedUrl) { videoUrl = hostedUrl; saved = true; }
+            }
+          } catch {
+            // Keep the completed shot even if storage is temporarily unavailable.
+          }
+          if (cancel.current) return;
+          setClips((previous) => [...previous, { videoUrl, lastFrame: out.last_frame_url ?? null, tier: useTier, saved }]);
           toast({ title: "Clip ready", description: `Made with ${out.model_used ?? useTier}` });
           return;
         } else if (s?.status === "FAILED" || s?.status === "CANCELLED" || s?.status === "TIMED_OUT") {
@@ -192,11 +208,8 @@ const StudioClipPanel = () => {
       {clips.map((clip, index) => (
         <div key={`${clip.videoUrl}-${index}`} className="space-y-2 border-t border-border pt-4">
           <h4 className="text-sm font-medium">Shot {index + 1} · {clip.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}</h4>
-          <video aria-label={`Shot ${index + 1}`} src={clip.videoUrl} controls className="w-full aspect-video rounded-lg bg-muted" />
-          <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <a href={clip.videoUrl} target="_blank" rel="noreferrer"><Download className="w-4 h-4" /> Download</a>
-            </Button>
+           <StudioClipPlayer videoUrl={clip.videoUrl} shot={index + 1} saved={clip.saved} />
+           <div className="flex flex-wrap gap-2">
             {clip.lastFrame && (
               <Button asChild variant="ghost" size="sm">
                 <a href={clip.lastFrame} target="_blank" rel="noreferrer">View last frame</a>
