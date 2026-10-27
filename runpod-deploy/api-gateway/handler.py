@@ -582,6 +582,15 @@ def _ffprobe_duration(path):
         return 0.0
 
 
+def _clip_has_audio(path):
+    import subprocess
+    cmd = ["ffprobe", "-v", "error", "-select_streams", "a",
+           "-show_entries", "stream=codec_type",
+           "-of", "csv=p=0", path]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    return "audio" in proc.stdout
+
+
 def _srt_timestamp(seconds):
     ms = int(round(float(seconds) * 1000))
     h, rem = divmod(ms, 3600000)
@@ -617,12 +626,21 @@ def capscify_stitch_final(params):
       input:  { video_clips: [{url, shot_index}],
                 voiceover_url?, soundtrack_url?, subtitles?,
                 resolution? ("1280x720"), music_volume? (0-1),
-                ducking? (default true) }
+                ducking? (default true),
+                preserve_clip_audio? (default true) }
       subtitles: url to .srt/.vtt, or {"segments":[{start,end,text}]}, or [...]
-      output: { final_video_url, duration_seconds, clips_used, resolution }
+      output: { final_video_url, duration_seconds, clips_used, resolution,
+                voiceover, soundtrack, subtitles, clip_audio_preserved }
 
-    Clips are normalized (scale/pad/fps/h264) before concat so there is no
-    A/V drift; audio tracks are trimmed/padded to the exact video duration.
+    Clips are normalized (scale/pad/fps/h264 + AAC 48kHz stereo audio)
+    before concat so there is no A/V drift. With preserve_clip_audio
+    (default), each clip's native audio is carried through the concat;
+    clips without an audio track get a silent track so the concat stays
+    uniform. Voiceover (when present) ducks both clip audio and music
+    when ducking is on. With preserve_clip_audio=false, the legacy
+    behavior applies: clip audio is stripped and only voiceover /
+    soundtrack are mixed. All audio is trimmed/padded to the exact
+    video duration.
     """
     import subprocess
 
@@ -636,6 +654,7 @@ def capscify_stitch_final(params):
     subtitles = params.get("subtitles")
     music_volume = float(params.get("music_volume", 0.35))
     ducking = bool(params.get("ducking", True))
+    preserve_clip_audio = bool(params.get("preserve_clip_audio", True))
 
     try:
         w, h = params.get("resolution", "1280x720").lower().split("x")
@@ -664,9 +683,26 @@ def capscify_stitch_final(params):
             norm = os.path.join(work_dir, f"norm_{i}.mp4")
             vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
                   f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24")
-            cmd = ["ffmpeg", "-y", "-i", src, "-vf", vf,
-                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                   "-pix_fmt", "yuv420p", "-an", norm]
+            if preserve_clip_audio and _clip_has_audio(src):
+                # keep native audio, normalized to AAC 48kHz stereo
+                cmd = ["ffmpeg", "-y", "-i", src, "-vf", vf,
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                       "-pix_fmt", "yuv420p",
+                       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+                       "-shortest", norm]
+            elif preserve_clip_audio:
+                # no audio track: add a silent track so the concat stays uniform
+                cmd = ["ffmpeg", "-y", "-i", src,
+                       "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+                       "-vf", vf, "-map", "0:v", "-map", "1:a",
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                       "-pix_fmt", "yuv420p",
+                       "-c:a", "aac", "-b:a", "192k", "-shortest", norm]
+            else:
+                # legacy: strip clip audio, video-only concat
+                cmd = ["ffmpeg", "-y", "-i", src, "-vf", vf,
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                       "-pix_fmt", "yuv420p", "-an", norm]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
             if proc.returncode != 0:
                 return {"error": f"normalize clip {i} failed: {proc.stderr[-400:]}"}
@@ -709,32 +745,81 @@ def capscify_stitch_final(params):
             inputs += ["-i", mp]
             has_music = True
 
-        # input indices: 0=video, 1=voice?, 2=music? (voice added before music)
+        # input indices: 0=concat (video+audio when preserving),
+        # 1=voice?, 2=music? (voice added before music)
         vi = 1 if has_voice else None
         mi = (2 if has_voice else 1) if has_music else None
+        sc = "sidechaincompress=threshold=0.03:ratio=6:attack=300:release=800"
 
-        if has_voice and has_music and ducking:
-            fc = (f"[{vi}:a]atrim=0:{D},apad=whole_dur={D},asetpts=PTS-STARTPTS[voice];"
-                  f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
-                  f"[music][voice]sidechaincompress=threshold=0.03:ratio=6:"
-                  f"attack=300:release=800[ducked];"
-                  f"[voice][ducked]amix=inputs=2:duration=first:dropout_transition=0[aout]")
-        elif has_voice and has_music:
-            fc = (f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[voice];"
-                  f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
-                  f"[voice][music]amix=inputs=2:duration=first:dropout_transition=0[aout]")
-        elif has_voice:
-            fc = f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[aout]"
-        elif has_music:
-            fc = f"[{mi}:a]volume={music_volume},atrim=0:{D}[aout]"
+        if preserve_clip_audio:
+            clip = f"[0:a]atrim=0:{D},apad=whole_dur={D}[clip];"
+            if has_voice and has_music and ducking:
+                # NOTE: a filter output feeding a sidechaincompress sidechain
+                # AND another filter must be explicitly split — this ffmpeg
+                # build drops the second consumer's audio otherwise (voice
+                # vanished after ~2.5s in local tests without asplit).
+                fc = (clip +
+                      f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[voice];"
+                      f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
+                      f"[voice]asplit=3[voice_sc1][voice_sc2][voice_mix];"
+                      f"[clip][voice_sc1]{sc}[duckedclip];"
+                      f"[music][voice_sc2]{sc}[duckedmusic];"
+                      f"[duckedclip][voice_mix][duckedmusic]amix=inputs=3:"
+                      f"duration=first:dropout_transition=0[aout]")
+            elif has_voice and has_music:
+                fc = (clip +
+                      f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[voice];"
+                      f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
+                      f"[clip][voice][music]amix=inputs=3:"
+                      f"duration=first:dropout_transition=0[aout]")
+            elif has_voice and ducking:
+                fc = (clip +
+                      f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[voice];"
+                      f"[voice]asplit=2[voice_sc][voice_mix];"
+                      f"[clip][voice_sc]{sc}[duckedclip];"
+                      f"[duckedclip][voice_mix]amix=inputs=2:"
+                      f"duration=first:dropout_transition=0[aout]")
+            elif has_voice:
+                fc = (clip +
+                      f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[voice];"
+                      f"[clip][voice]amix=inputs=2:"
+                      f"duration=first:dropout_transition=0[aout]")
+            elif has_music:
+                fc = (clip +
+                      f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
+                      f"[clip][music]amix=inputs=2:"
+                      f"duration=first:dropout_transition=0[aout]")
+            else:
+                fc = None
         else:
-            fc = None
+            if has_voice and has_music and ducking:
+                fc = (f"[{vi}:a]atrim=0:{D},apad=whole_dur={D},asetpts=PTS-STARTPTS[voice];"
+                      f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
+                      f"[voice]asplit=2[voice_sc][voice_mix];"
+                      f"[music][voice_sc]{sc}[ducked];"
+                      f"[voice_mix][ducked]amix=inputs=2:duration=first:dropout_transition=0[aout]")
+            elif has_voice and has_music:
+                fc = (f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[voice];"
+                      f"[{mi}:a]volume={music_volume},atrim=0:{D}[music];"
+                      f"[voice][music]amix=inputs=2:duration=first:dropout_transition=0[aout]")
+            elif has_voice:
+                fc = f"[{vi}:a]atrim=0:{D},apad=whole_dur={D}[aout]"
+            elif has_music:
+                fc = f"[{mi}:a]volume={music_volume},atrim=0:{D}[aout]"
+            else:
+                fc = None
 
         av_path = os.path.join(work_dir, "av.mp4")
         if fc:
             cmd = (["ffmpeg", "-y"] + inputs +
                    ["-filter_complex", fc, "-map", "0:v", "-map", "[aout]",
                     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                    "-movflags", "+faststart", av_path])
+        elif preserve_clip_audio:
+            # clip audio only: carry both streams through untouched
+            cmd = (["ffmpeg", "-y"] + inputs +
+                   ["-map", "0:v", "-map", "0:a",
+                    "-c:v", "copy", "-c:a", "copy",
                     "-movflags", "+faststart", av_path])
         else:
             cmd = (["ffmpeg", "-y"] + inputs +
@@ -780,6 +865,7 @@ def capscify_stitch_final(params):
                 "voiceover": has_voice,
                 "soundtrack": has_music,
                 "subtitles": bool(srt_text and srt_text.strip()),
+                "clip_audio_preserved": preserve_clip_audio,
             },
         }
     finally:
