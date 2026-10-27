@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { useProject } from "@/contexts/ProjectContext";
 import { firstFrameIgnored, validateFirstFrame } from "./studioClipUtils";
 import StudioClipPlayer from "./StudioClipPlayer";
+import { sequenceVideoUrl } from "./studioSequenceUtils";
 
 // Worst measured cold first clip ≈ 13 min (285s queue + 491s gen). Size for 14.
 export const COLD_START_BUDGET_MS = 14 * 60 * 1000;
@@ -23,10 +24,15 @@ const fmt = (ms: number) => {
 };
 
 const StudioClipPanel = () => {
-  const { visualScenes } = useProject();
+  const { visualScenes, soundtrackTracks, studioClips: clips, setStudioClips: setClips,
+    studioSequence, setStudioSequence } = useProject();
   const storyboardFrame = visualScenes.find((scene) => scene.imageUrl)?.imageUrl;
   const [firstFrame, setFirstFrame] = useState("");
-  const [clips, setClips] = useState<{ videoUrl: string; lastFrame: string | null; tier: Tier; saved: boolean }[]>([]);
+  const [stitching, setStitching] = useState(false);
+  const [stitchPhase, setStitchPhase] = useState("");
+  const [stitchError, setStitchError] = useState<string | null>(null);
+  const [soundtrack, setSoundtrack] = useState("");
+  const musicTracks = soundtrackTracks.filter((track) => track.status === "done" && track.url);
   const [warning, setWarning] = useState<string | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const [prompt, setPrompt] = useState("");
@@ -44,6 +50,7 @@ const StudioClipPanel = () => {
   const [error, setError] = useState<string | null>(null);
   const lastFrame = clips.at(-1)?.lastFrame;
   const cancel = useRef(false);
+  const busy = running || stitching;
 
   useEffect(() => {
     if (!running) return;
@@ -56,7 +63,7 @@ const StudioClipPanel = () => {
   const pct = Math.min(97, (elapsed / COLD_START_BUDGET_MS) * 100);
 
   const run = async (useTier: Tier) => {
-    if (running) return;
+    if (busy) return;
     if (!prompt.trim()) return toast({ title: "Describe the shot first", variant: "destructive" });
     let frameUrl: string | undefined;
     try {
@@ -124,6 +131,57 @@ const StudioClipPanel = () => {
     }
   };
 
+  const stitch = async () => {
+    if (busy || clips.length < 2) return;
+    cancel.current = false;
+    setStitching(true); setStitchError(null); setStitchPhase("Sending sequence…");
+    try {
+      const selectedMusic = musicTracks.find((track) => track.id === soundtrack)?.url;
+      const { data, error } = await supabase.functions.invoke("studio-stitch", { body: {
+        action: "submit",
+        video_clips: clips.map((clip, index) => ({ url: clip.videoUrl, shot_index: index })),
+        ...(selectedMusic ? { soundtrack_url: selectedMusic } : {}),
+      } });
+      if (error || !data?.job_id) throw new Error(error?.message || data?.error || "Could not start stitching");
+      const start = Date.now();
+      while (!cancel.current) {
+        if (Date.now() - start > 20 * 60 * 1000) throw new Error("Stitching took longer than expected. Your shots are still available; try again.");
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        if (cancel.current) return;
+        const { data: result, error: statusError } = await supabase.functions.invoke("studio-stitch", {
+          body: { action: "status", job_id: data.job_id },
+        });
+        if (cancel.current) return;
+        if (statusError) { setStitchPhase("Reconnecting to stitch service…"); continue; }
+        if (result?.status === "COMPLETED") {
+          const source = sequenceVideoUrl(result.output);
+          setStitchPhase("Saving final sequence…");
+          let videoUrl = source;
+          let saved = false;
+          try {
+            const { data: hosted, error: hostingError } = await supabase.functions.invoke("rehost-video", {
+              body: { url: source, label: `studio-sequence-${data.job_id}` },
+            });
+            if (!hostingError && hosted?.rehosted === true && typeof hosted.url === "string") {
+              const url = validateFirstFrame(hosted.url);
+              if (url) { videoUrl = url; saved = true; }
+            }
+          } catch { /* Retain the completed sequence when storage is unavailable. */ }
+          if (cancel.current) return;
+          setStudioSequence({ videoUrl, saved });
+          toast({ title: "Sequence ready" });
+          return;
+        }
+        if (["FAILED", "CANCELLED", "TIMED_OUT"].includes(result?.status)) {
+          throw new Error(result.error || `Stitch ${result.status.toLowerCase()}`);
+        }
+        setStitchPhase(result?.status === "IN_QUEUE" ? "Waiting for stitch worker…" : "Stitching video and sound…");
+      }
+    } catch (error) {
+      setStitchError(error instanceof Error ? error.message : "Stitch failed");
+    } finally { setStitching(false); }
+  };
+
   return (
     <div className="glass-card p-6 space-y-4">
       <div className="flex items-center gap-2">
@@ -135,7 +193,7 @@ const StudioClipPanel = () => {
       </div>
 
       <Textarea ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
-        placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" />
+         placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" />
       <Textarea value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
         placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" />
 
@@ -176,10 +234,10 @@ const StudioClipPanel = () => {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => run("primary")} disabled={running}>
+        <Button onClick={() => run("primary")} disabled={busy}>
           {running && tier === "primary" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Generate clip
         </Button>
-        <Button variant="outline" onClick={() => run("backup")} disabled={running}>
+        <Button variant="outline" onClick={() => run("backup")} disabled={busy}>
           {running && tier === "backup" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Use backup engine
         </Button>
       </div>
@@ -219,6 +277,28 @@ const StudioClipPanel = () => {
         setFirstFrame(lastFrame); setTier("primary"); setPrompt(""); setDialogue("");
         promptRef.current?.focus();
       }}><Link className="w-4 h-4" /> Chain next shot</Button>}
+
+      <div className="space-y-3 border-t border-border pt-4">
+        <h4 className="text-sm font-medium">Sequence · {clips.length} shots</h4>
+        <label className="block space-y-1 text-sm">
+          <span className="text-xs text-muted-foreground">Soundtrack</span>
+          <select aria-label="Sequence soundtrack" value={soundtrack} disabled={busy}
+            onChange={(event) => setSoundtrack(event.target.value)}
+            className="w-full rounded-md border border-border bg-background p-2">
+            <option value="">No added music</option>
+            {musicTracks.map((track) => <option key={track.id} value={track.id}>{track.segment}</option>)}
+          </select>
+        </label>
+        <Button onClick={stitch} disabled={busy || clips.length < 2}>
+          {stitching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clapperboard className="w-4 h-4" />} Stitch Sequence
+        </Button>
+        {stitching && <p role="status" className="text-sm text-muted-foreground">{stitchPhase}</p>}
+        {stitchError && <p role="alert" className="text-sm text-destructive">{stitchError}</p>}
+        {studioSequence && <div className="space-y-2">
+          <h4 className="text-sm font-medium">Final sequence</h4>
+          <StudioClipPlayer key={studioSequence.videoUrl} label="Final sequence" videoUrl={studioSequence.videoUrl} saved={studioSequence.saved} />
+        </div>}
+      </div>
     </div>
   );
 };
