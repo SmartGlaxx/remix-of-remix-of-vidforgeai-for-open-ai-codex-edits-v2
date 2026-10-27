@@ -1,0 +1,52 @@
+# Capscify — GitHub Actions: api-gateway image build.
+#
+# Builds the RunPod api-gateway worker image (capscify/stitch-final and
+# the other gateway routes live here). Mirrors build-ltx2.yml, but this
+# image is small (python:3.11-slim + ffmpeg + pip deps), so it builds
+# in minutes and needs no disk-freeing steps.
+#
+# Image lands at ghcr.io/smartglaxx/gateway:<sha> and :latest.
+# (Owner lowercased on purpose: registry names must be lowercase.)
+# The RunPod gateway endpoint uses the :latest tag (pin to a sha later
+# if needed). The package must stay PUBLIC for unauthenticated RunPod
+# pulls — verify anonymous pullability after the first build.
+
+name: Build gateway image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - runpod-deploy/api-gateway/**
+      - .github/workflows/build-gateway.yml
+  workflow_dispatch:
+
+jobs:
+  build-gateway:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: runpod-deploy/api-gateway
+          file: runpod-deploy/api-gateway/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/smartglaxx/gateway:${{ github.sha }}
+            ghcr.io/smartglaxx/gateway:latest
