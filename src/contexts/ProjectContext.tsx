@@ -71,7 +71,14 @@ export type SoundtrackTrack = {
   created_at?: number;
 };
 
+export type StudioClip = { videoUrl: string; lastFrame: string | null; tier: "primary" | "backup"; saved: boolean };
+export type StudioSequence = { videoUrl: string; saved: boolean };
+
 type ProjectState = {
+  studioClips: StudioClip[];
+  setStudioClips: React.Dispatch<React.SetStateAction<StudioClip[]>>;
+  studioSequence: StudioSequence | null;
+  setStudioSequence: (sequence: StudioSequence | null) => void;
   // Title step
   topic: string;
   setTopic: (t: string) => void;
@@ -164,6 +171,8 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [musicPrompt, setMusicPrompt] = useState(saved.musicPrompt ?? "Cinematic ambient background music, soft and atmospheric");
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
   const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
+  const [studioClips, setStudioClips] = useState<StudioClip[]>(saved.studioClips ?? []);
+  const [studioSequence, setStudioSequence] = useState<StudioSequence | null>(saved.studioSequence ?? null);
   const [soundtrackTracks, setSoundtrackTracks] = useState<SoundtrackTrack[]>(saved.soundtrackTracks ?? []);
   const [audioDuration, setAudioDuration] = useState<number>(saved.audioDuration ?? 0);
   const [resetNonce, setResetNonce] = useState(0);
@@ -191,6 +200,8 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setMusicPrompt("Cinematic ambient background music, soft and atmospheric");
     setVoice("af_heart");
     setVideoUrl(null);
+    setStudioClips([]);
+    setStudioSequence(null);
     setSoundtrackTracks([]);
     setAudioDuration(0);
     try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
@@ -203,12 +214,13 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
       visualAmbiance, visualCamera, visualEngine, visualPalette,
       imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
-      audioDuration,
+      audioDuration, studioClips, studioSequence,
     }));
-  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration]);
+  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration, studioClips, studioSequence]);
 
   return (
     <Ctx.Provider value={{
+      studioClips, setStudioClips, studioSequence, setStudioSequence,
       topic, setTopic, customTitle, setCustomTitle, titles, setTitles, seo, setSeo,
       selectedTitle, setSelectedTitle,
       scriptSections, setScriptSections, scriptMeta, setScriptMeta,
