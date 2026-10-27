@@ -71,7 +71,8 @@ export type SoundtrackTrack = {
   created_at?: number;
 };
 
-export type StudioClip = { videoUrl: string; lastFrame: string | null; tier: "primary" | "backup"; saved: boolean };
+export type StudioFailover = { primaryJobId?: string; primaryError: string; backupJobId: string; at: number };
+export type StudioClip = { videoUrl: string; lastFrame: string | null; tier: "primary" | "backup"; saved: boolean; jobId?: string; failover?: StudioFailover };
 export type StudioSequence = { videoUrl: string; saved: boolean };
 
 type ProjectState = {

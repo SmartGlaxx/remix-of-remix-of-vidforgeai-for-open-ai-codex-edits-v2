@@ -6,7 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useProject } from "@/contexts/ProjectContext";
+import { useProject, type StudioClip } from "@/contexts/ProjectContext";
+
+type ShotFailure = Error & { jobId?: string };
 import { firstFrameIgnored, validateFirstFrame } from "./studioClipUtils";
 import StudioClipPlayer from "./StudioClipPlayer";
 import { sequenceVideoUrl } from "./studioSequenceUtils";
@@ -74,61 +76,89 @@ const StudioClipPanel = () => {
     cancel.current = false;
     setTier(useTier); setRunning(true); setError(null); setWarning(null);
     setStartedAt(Date.now()); setNow(Date.now()); setPhase("Sending to the video engine…");
+    // Identical inputs for the primary attempt and any automatic backup resubmission.
+    const shot = {
+      prompt: prompt.trim(), dialogue: dialogue.trim() || undefined, duration_seconds: duration,
+      resolution, aspect_ratio: aspect, camera_motion: camera === "static" ? undefined : camera,
+      seed: Math.floor(Math.random() * 2_147_483_647),
+      ...(frameUrl ? { first_frame_url: frameUrl } : {}),
+    };
     try {
-      const { data, error } = await supabase.functions.invoke("studio-clip", {
-        body: {
-          action: "submit", tier: useTier, prompt: prompt.trim(),
-          dialogue: dialogue.trim() || undefined, duration_seconds: duration,
-          resolution, aspect_ratio: aspect, camera_motion: camera === "static" ? undefined : camera,
-          ...(frameUrl ? { first_frame_url: frameUrl } : {}),
-        },
-      });
-      if (error || !data?.job_id) throw new Error(error?.message || data?.error || "Could not start the clip");
-      const start = Date.now();
-      while (!cancel.current) {
-        await new Promise((r) => setTimeout(r, POLL_MS));
-        if (cancel.current) return;
-        const { data: s, error: se } = await supabase.functions.invoke("studio-clip", {
-          body: { action: "status", tier: useTier, job_id: data.job_id },
-        });
-        if (cancel.current) return;
-        if (se) continue;
-        if (firstFrameIgnored(s)) {
-          setWarning("The worker reported first_frame_url ignored. This shot may not match your first frame; flag this to Muse.");
-        }
-        if (s?.status === "IN_QUEUE") setPhase("Waking up the GPU (first clip can take up to ~14 min)…");
-        else if (s?.status === "IN_PROGRESS") setPhase("Rendering video + sound…");
-        else if (s?.status === "COMPLETED") {
-          const out = s.output?.output ?? s.output;
-          if (!out?.video_url) throw new Error("Finished but no video came back");
-          setPhase("Saving your clip to app storage…");
-          let videoUrl = out.video_url;
-          let saved = false;
-          try {
-            const { data: hosted, error: hostingError } = await supabase.functions.invoke("rehost-video", {
-              body: { url: out.video_url, label: `studio-${data.job_id}` },
-            });
-            if (!hostingError && hosted?.rehosted === true && typeof hosted.url === "string") {
-              const hostedUrl = validateFirstFrame(hosted.url);
-              if (hostedUrl) { videoUrl = hostedUrl; saved = true; }
-            }
-          } catch {
-            // Keep the completed shot even if storage is temporarily unavailable.
-          }
-          if (cancel.current) return;
-          setClips((previous) => [...previous, { videoUrl, lastFrame: out.last_frame_url ?? null, tier: useTier, saved }]);
-          toast({ title: "Clip ready", description: `Made with ${out.model_used ?? useTier}` });
-          return;
-        } else if (s?.status === "FAILED" || s?.status === "CANCELLED" || s?.status === "TIMED_OUT") {
-          throw new Error(s?.error || `Job ${s.status.toLowerCase()}`);
-        }
-        if (Date.now() - start > COLD_START_BUDGET_MS + 6 * 60 * 1000) throw new Error("Took far longer than expected");
+      let result: Awaited<ReturnType<typeof renderOn>>;
+      try {
+        result = await renderOn(useTier, shot);
+      } catch (e) {
+        // Auto-failover fires only when the primary fails or is unavailable.
+        if (useTier !== "primary" || cancel.current) throw e;
+        const failure = e as ShotFailure;
+        setTier("backup");
+        setPhase("Main engine unavailable — retrying this shot on the backup engine…");
+        toast({ title: "Switching to backup engine", description: failure.message });
+        result = await renderOn("backup", shot);
+        result.clip.failover = {
+          primaryJobId: failure.jobId, primaryError: failure.message,
+          backupJobId: result.clip.jobId!, at: Date.now(),
+        };
       }
+      if (!result || cancel.current) return;
+      setClips((previous) => [...previous, result.clip]);
+      toast({ title: "Clip ready", description: `Made with ${result.model ?? result.clip.tier}` });
     } catch (e) {
-      setError((e as Error).message);
+      if (!cancel.current) setError((e as Error).message);
     } finally {
       setRunning(false);
     }
+  };
+
+  const renderOn = async (useTier: Tier, shot: Record<string, unknown>) => {
+    let jobId: string | undefined;
+    const fail = (message: string): never => { throw Object.assign(new Error(message), { jobId }); };
+    let data: { job_id?: string; error?: string } | null = null;
+    try {
+      const res = await supabase.functions.invoke("studio-clip", { body: { action: "submit", tier: useTier, ...shot } });
+      if (res.error || !res.data?.job_id) fail(res.error?.message || res.data?.error || "Could not start the clip");
+      data = res.data;
+    } catch (e) { fail((e as Error).message || "Video engine unavailable"); }
+    jobId = data!.job_id;
+    const start = Date.now();
+    while (!cancel.current) {
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      if (cancel.current) break;
+      const { data: s, error: se } = await supabase.functions.invoke("studio-clip", {
+        body: { action: "status", tier: useTier, job_id: jobId },
+      });
+      if (cancel.current) break;
+      if (se) continue;
+      if (firstFrameIgnored(s)) {
+        setWarning("The worker reported first_frame_url ignored. This shot may not match your first frame; flag this to Muse.");
+      }
+      if (s?.status === "IN_QUEUE") setPhase(useTier === "backup" ? "Waiting for the backup engine (one shot at a time)…" : "Waking up the GPU (first clip can take up to ~14 min)…");
+      else if (s?.status === "IN_PROGRESS") setPhase("Rendering video + sound…");
+      else if (s?.status === "COMPLETED") {
+        const out = s.output?.output ?? s.output;
+        if (!out?.video_url) fail("Finished but no video came back");
+        setPhase("Saving your clip to app storage…");
+        let videoUrl = out.video_url;
+        let saved = false;
+        try {
+          const { data: hosted, error: hostingError } = await supabase.functions.invoke("rehost-video", {
+            body: { url: out.video_url, label: `studio-${jobId}` },
+          });
+          if (!hostingError && hosted?.rehosted === true && typeof hosted.url === "string") {
+            const hostedUrl = validateFirstFrame(hosted.url);
+            if (hostedUrl) { videoUrl = hostedUrl; saved = true; }
+          }
+        } catch {
+          // Keep the completed shot even if storage is temporarily unavailable.
+        }
+        const clip: StudioClip = { videoUrl, lastFrame: out.last_frame_url ?? null, tier: useTier, saved, jobId };
+        return { clip, model: out.model_used as string | undefined };
+      } else if (s?.status === "FAILED" || s?.status === "CANCELLED" || s?.status === "TIMED_OUT") {
+        fail(typeof s?.error === "string" ? s.error : `Job ${s.status.toLowerCase()}`);
+      }
+      if (Date.now() - start > COLD_START_BUDGET_MS + 6 * 60 * 1000) fail("Took far longer than expected");
+    }
+    return null as never;
   };
 
   const stitch = async () => {
@@ -254,7 +284,7 @@ const StudioClipPanel = () => {
       {error && (
         <div className="flex items-start gap-2 text-sm text-destructive">
           <AlertCircle className="w-4 h-4 mt-0.5" />
-          <span>{error}{tier === "primary" ? " — try “Use backup engine”." : ""}</span>
+          <span>{error} — your earlier shots are kept; try again.</span>
         </div>
       )}
 
@@ -262,7 +292,8 @@ const StudioClipPanel = () => {
 
       {clips.map((clip, index) => (
         <div key={`${clip.videoUrl}-${index}`} className="space-y-2 border-t border-border pt-4">
-          <h4 className="text-sm font-medium">Shot {index + 1} · {clip.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}</h4>
+          <h4 className="text-sm font-medium">Shot {index + 1} · {clip.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}{clip.failover ? " · auto-backup" : ""}</h4>
+           {clip.failover && <p className="text-xs text-muted-foreground">Main engine failed (job {clip.failover.primaryJobId ?? "not started"}: {clip.failover.primaryError}). Rendered on backup, job {clip.failover.backupJobId}.</p>}
            <StudioClipPlayer videoUrl={clip.videoUrl} shot={index + 1} saved={clip.saved} />
            <div className="flex flex-wrap gap-2">
             {clip.lastFrame && (
