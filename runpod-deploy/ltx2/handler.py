@@ -454,6 +454,12 @@ def handler(job):
                     "generation_seconds": gen_seconds,
                     "audio_enabled": audio_enabled,
                     "warnings": warnings,
+                    # Diagnostic for the IMAGE_ARG delivery puzzle (2026-10-26):
+                    # reports what the worker process actually sees at runtime.
+                    # Key NAMES only, never values, so no credential can leak.
+                    "image_arg_configured": bool(IMAGE_ARG),
+                    "image_arg_value": IMAGE_ARG,
+                    "worker_env_keys": sorted(os.environ.keys()),
                     "character_reference_urls": inp.get("character_reference_urls"),
                     "environment_reference_url": inp.get("environment_reference_url"),
                     "audio_reference_urls": inp.get("audio_reference_urls"),
