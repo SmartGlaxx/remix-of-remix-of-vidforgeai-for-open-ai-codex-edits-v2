@@ -3,14 +3,53 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import StudioClipPanel, { COLD_START_BUDGET_MS } from "./StudioClipPanel";
 import { firstFrameIgnored, validateFirstFrame } from "./studioClipUtils";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, tracks } = vi.hoisted(() => ({ invoke: vi.fn(), tracks: [{ id: "music", segment: "Music tab track", status: "done", url: "https://example.com/music.mp3" }] }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke } } }));
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
-vi.mock("@/contexts/ProjectContext", () => ({ useProject: () => ({ visualScenes: [{ imageUrl: "https://example.com/first.png" }] }) }));
+vi.mock("@/contexts/ProjectContext", async () => {
+  const { useState } = await import("react");
+  return { useProject: () => {
+    const [studioClips, setStudioClips] = useState<unknown[]>([]);
+    const [studioSequence, setStudioSequence] = useState(null);
+    return { visualScenes: [{ imageUrl: "https://example.com/first.png" }], soundtrackTracks: tracks,
+      studioClips, setStudioClips, studioSequence, setStudioSequence };
+  } };
+});
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); invoke.mockReset(); });
 
 describe("Studio chaining", () => {
+  it.each([true, false])("stitches ordered clips with Music soundtrack and retains the final source if saving fails: saved=%s", async (saved) => {
+    const original = window.setTimeout.bind(window);
+    vi.spyOn(window, "setTimeout").mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => original(handler, timeout === 5000 ? 0 : timeout, ...args)) as typeof window.setTimeout);
+    invoke.mockResolvedValueOnce({ data: { job_id: "one" } })
+      .mockResolvedValueOnce({ data: { status: "COMPLETED", output: { video_url: "https://example.com/one.mp4" } } })
+      .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-one.mp4" } })
+      .mockResolvedValueOnce({ data: { job_id: "two" } })
+      .mockResolvedValueOnce({ data: { status: "COMPLETED", output: { video_url: "https://example.com/two.mp4" } } })
+      .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-two.mp4" } })
+      .mockResolvedValueOnce({ data: { job_id: "stitch" } })
+      .mockResolvedValueOnce({ data: { status: "COMPLETED", output: { output: { url: "https://example.com/final.mp4" } } } })
+      .mockResolvedValueOnce({ data: { rehosted: saved, url: saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4" } });
+    render(<StudioClipPanel />);
+    expect(screen.getByText("Stitch Sequence")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "First" } });
+    fireEvent.click(screen.getByText("Generate clip"));
+    await waitFor(() => expect(screen.getByLabelText("Shot 1")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Generate clip"));
+    await waitFor(() => expect(screen.getByLabelText("Shot 2")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Sequence soundtrack"), { target: { value: "music" } });
+    fireEvent.click(screen.getByText("Stitch Sequence"));
+    await waitFor(() => expect(screen.getByLabelText("Final sequence")).toBeInTheDocument());
+    expect(invoke.mock.calls[6]).toEqual(["studio-stitch", { body: { action: "submit", video_clips: [
+      { url: "https://example.com/saved-one.mp4", shot_index: 0 },
+      { url: "https://example.com/saved-two.mp4", shot_index: 1 },
+    ], soundtrack_url: "https://example.com/music.mp3" } }]);
+    expect(invoke.mock.calls[8]).toEqual(["rehost-video", { body: { url: "https://example.com/final.mp4", label: "studio-sequence-stitch" } }]);
+    expect(screen.getByLabelText("Final sequence")).toHaveAttribute("src", saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4");
+    expect(screen.getByLabelText("Shot 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Shot 2")).toBeInTheDocument();
+  });
   it("budgets 14 minutes for cold starts", () => {
     expect(COLD_START_BUDGET_MS).toBe(840_000);
   });

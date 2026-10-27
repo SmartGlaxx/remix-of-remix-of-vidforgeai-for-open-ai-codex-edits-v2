@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const input = parsed.data;
     const base = `https://api.runpod.ai/v2/${STITCH_ENDPOINT}`;
     const status = input.action === "status";
-    const response = await fetch(status ? `${base}/status/${encodeURIComponent(input.job_id)}` : `${base}/run`, {
+    const response = await fetch(input.action === "status" ? `${base}/status/${encodeURIComponent(input.job_id)}` : `${base}/run`, {
       method: status ? "GET" : "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       ...(input.action === "submit" ? { body: JSON.stringify(stitchEnvelope({
