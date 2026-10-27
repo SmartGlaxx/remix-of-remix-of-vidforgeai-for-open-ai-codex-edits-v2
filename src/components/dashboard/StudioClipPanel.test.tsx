@@ -124,3 +124,51 @@ describe("Studio chaining", () => {
     expect(screen.getByLabelText("First frame (optional)")).toHaveValue("https://example.com/last.png");
   });
 });
+describe("Automatic failover", () => {
+  const fast = () => {
+    const original = window.setTimeout.bind(window);
+    vi.spyOn(window, "setTimeout").mockImplementation(((h: TimerHandler, t?: number, ...a: unknown[]) => original(h, t === 5000 ? 0 : t, ...a)) as typeof window.setTimeout);
+  };
+  it("resubmits a failed primary job to backup with identical inputs, records it, and chains from the backup frame", async () => {
+    fast();
+    invoke.mockResolvedValueOnce({ data: { job_id: "p1" } })
+      .mockResolvedValueOnce({ data: { status: "FAILED", error: "worker crashed" } })
+      .mockResolvedValueOnce({ data: { job_id: "b1" } })
+      .mockResolvedValueOnce({ data: { status: "COMPLETED", output: { video_url: "https://example.com/b.mp4", last_frame_url: "https://example.com/b-last.png" } } })
+      .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-b.mp4" } });
+    render(<StudioClipPanel />);
+    fireEvent.click(screen.getByText("Use first storyboard image"));
+    fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "Shot" } });
+    fireEvent.click(screen.getByText("Generate clip"));
+    await waitFor(() => expect(screen.getByLabelText("Shot 1")).toBeInTheDocument());
+    const { tier: t1, ...primary } = invoke.mock.calls[0][1].body;
+    const { tier: t2, ...backup } = invoke.mock.calls[2][1].body;
+    expect([t1, t2]).toEqual(["primary", "backup"]);
+    expect(backup).toEqual(primary);
+    expect(typeof primary.seed).toBe("number");
+    expect(screen.getByText(/job p1: worker crashed\). Rendered on backup, job b1/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Chain next shot"));
+    expect(screen.getByLabelText("First frame (optional)")).toHaveValue("https://example.com/b-last.png");
+  });
+  it("fails over when the primary is unavailable at submit", async () => {
+    fast();
+    invoke.mockResolvedValueOnce({ error: new Error("endpoint paused") })
+      .mockResolvedValueOnce({ data: { job_id: "b2" } })
+      .mockResolvedValueOnce({ data: { status: "COMPLETED", output: { video_url: "https://example.com/b2.mp4" } } })
+      .mockResolvedValueOnce({ data: { rehosted: true, url: "https://example.com/saved-b2.mp4" } });
+    render(<StudioClipPanel />);
+    fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "Shot" } });
+    fireEvent.click(screen.getByText("Generate clip"));
+    await waitFor(() => expect(screen.getByText(/job not started: endpoint paused/)).toBeInTheDocument());
+  });
+  it("never auto-routes a successful primary shot or a manual backup failure", async () => {
+    fast();
+    invoke.mockResolvedValueOnce({ data: { job_id: "b3" } })
+      .mockResolvedValueOnce({ data: { status: "FAILED", error: "backup down" } });
+    render(<StudioClipPanel />);
+    fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "Shot" } });
+    fireEvent.click(screen.getByText("Use backup engine"));
+    await waitFor(() => expect(screen.getByText(/backup down/)).toBeInTheDocument());
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+});

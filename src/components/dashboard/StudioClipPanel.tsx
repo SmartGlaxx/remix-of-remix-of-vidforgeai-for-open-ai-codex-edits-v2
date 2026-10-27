@@ -6,7 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useProject } from "@/contexts/ProjectContext";
+import { useProject, type StudioClip } from "@/contexts/ProjectContext";
+
+type ShotFailure = Error & { jobId?: string };
 import { firstFrameIgnored, validateFirstFrame } from "./studioClipUtils";
 import StudioClipPlayer from "./StudioClipPlayer";
 import { sequenceVideoUrl } from "./studioSequenceUtils";
@@ -282,7 +284,7 @@ const StudioClipPanel = () => {
       {error && (
         <div className="flex items-start gap-2 text-sm text-destructive">
           <AlertCircle className="w-4 h-4 mt-0.5" />
-          <span>{error}{tier === "primary" ? " — try “Use backup engine”." : ""}</span>
+          <span>{error} — your earlier shots are kept; try again.</span>
         </div>
       )}
 
@@ -290,7 +292,8 @@ const StudioClipPanel = () => {
 
       {clips.map((clip, index) => (
         <div key={`${clip.videoUrl}-${index}`} className="space-y-2 border-t border-border pt-4">
-          <h4 className="text-sm font-medium">Shot {index + 1} · {clip.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}</h4>
+          <h4 className="text-sm font-medium">Shot {index + 1} · {clip.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}{clip.failover ? " · auto-backup" : ""}</h4>
+           {clip.failover && <p className="text-xs text-muted-foreground">Main engine failed (job {clip.failover.primaryJobId ?? "not started"}: {clip.failover.primaryError}). Rendered on backup, job {clip.failover.backupJobId}.</p>}
            <StudioClipPlayer videoUrl={clip.videoUrl} shot={index + 1} saved={clip.saved} />
            <div className="flex flex-wrap gap-2">
             {clip.lastFrame && (
