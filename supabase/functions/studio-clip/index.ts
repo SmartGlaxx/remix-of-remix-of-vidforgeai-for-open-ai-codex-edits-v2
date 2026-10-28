@@ -52,8 +52,15 @@ Deno.serve(async (req) => {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({ input: { ...input, model_id: ep.model, audio_enabled: true } }),
     });
-    const data = await r.json();
-    if (!r.ok) return json(data, r.status);
+    const data = await r.json().catch(() => ({}));
+    // Engine unavailable (e.g. paused, 409 ENDPOINT_PAUSED): reply 200 with an error so the
+    // client fails over to backup cleanly instead of surfacing a runtime error.
+    if (!r.ok) {
+      return json({
+        error: data?.detail || data?.error || `Video engine unavailable (${r.status})`,
+        code: data?.code ?? "ENGINE_UNAVAILABLE", upstream_status: r.status, tier,
+      });
+    }
     return json({ job_id: data.id, status: data.status ?? "IN_QUEUE", tier, model: ep.model });
   } catch (e) {
     console.error("studio-clip error:", e);
