@@ -23,7 +23,7 @@ override. The router above this worker owns the default/failover policy
 | `PIPELINE_MODULE` | `ltx_pipelines.distilled` | Pipeline module to invoke |
 | `GEN_TIMEOUT` | `1800` | Seconds allowed for load + generation |
 | `DEFAULT_RESOLUTION` | `1080p` | Fallback when input has no resolution |
-| `IMAGE_ARG` | _(empty)_ | CLI flag for first-frame conditioning, e.g. `--image-path`. Empty = first_frame_url is accepted but ignored (recorded in warnings) |
+| `IMAGE_ARG` | _(empty)_ | CLI flag for start/end-frame conditioning, e.g. `--image`. Empty = first_frame_url and last_frame_url are accepted but ignored (recorded in warnings) |
 | `BUCKET_ENDPOINT_URL`, `BUCKET_ACCESS_KEY_ID`, `BUCKET_SECRET_ACCESS_KEY`, `BUCKET_NAME` | — | Filebase S3 config (same names as api-gateway) |
 
 ## Input (job `input`)
@@ -85,8 +85,8 @@ reference urls). Errors return `{"status": "error", "error": ...}`.
    ran on 96GB only; 48GB is a planning assumption, 24GB is not promised.
 5. **Failover test** (spec Test G): 2.5 endpoint down → job routes to
    2.3, state preserved, fallback recorded.
-6. **First-frame conditioning**: set `IMAGE_ARG` once the flag is
-   confirmed, or first_frame_url stays ignored (warned, not silent).
+6. **Start/end-frame conditioning**: set `IMAGE_ARG` once the flag is
+   confirmed, or first_frame_url and last_frame_url stay ignored (warned, not silent).
 
 ## Known MVP scope limits
 

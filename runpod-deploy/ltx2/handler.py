@@ -68,8 +68,10 @@ DEFAULT_RESOLUTION = os.environ.get("DEFAULT_RESOLUTION", "1080p")
 # declares --image with ImageAction). The CLI requires 3-5 tokens:
 # PATH FRAME_IDX STRENGTH [BINDING] [CRF]; the handler appends frame 0 +
 # strength 1.0 (binding auto: frame 0 replaces the latent = first-frame
-# conditioning). Empty by default: first_frame_url is then accepted but
-# ignored for generation (recorded in generation_metadata.warnings).
+# conditioning) and, when last_frame_url is given, the last frame index +
+# strength 1.0 (start+end workflow: the clip is generated between the two
+# stills). Empty by default: first_frame_url and last_frame_url are then
+# accepted but ignored for generation (recorded in generation_metadata.warnings).
 IMAGE_ARG = os.environ.get("IMAGE_ARG", "")
 
 # Filebase (S3-compatible) config — same env names as the api-gateway.
@@ -275,6 +277,11 @@ def build_pipeline_cmd(model_cfg, paths, opts, work_dir):
         # --image requires PATH FRAME_IDX STRENGTH; frame 0 + strength 1.0
         # (auto binding) pins the still as the first frame.
         cmd += [IMAGE_ARG, opts["first_frame_path"], "0", "1.0"]
+    if opts.get("last_frame_path") and IMAGE_ARG:
+        # Second --image binding: pin the still as the LAST frame, so the
+        # clip is generated between the start and end images (start+end
+        # workflow). Frame indices run 0..num_frames-1.
+        cmd += [IMAGE_ARG, opts["last_frame_path"], str(opts["num_frames"] - 1), "1.0"]
     return cmd
 
 
@@ -344,8 +351,8 @@ def handler(job):
             warnings.append(
                 "negative_prompt ignored: installed ltx_pipelines.distilled "
                 "CLI does not accept --negative-prompt")
-        # Accepted + recorded for now; only first_frame_url drives
-        # conditioning (when IMAGE_ARG is configured). Character /
+        # Accepted + recorded for now; first_frame_url and last_frame_url
+        # drive conditioning (when IMAGE_ARG is configured). Character /
         # environment references are registry data owned by the app layer.
         for field in ("character_reference_urls", "environment_reference_url",
                       "audio_reference_urls", "transition_type", "motion_level"):
@@ -358,6 +365,13 @@ def handler(job):
                 "first_frame_url ignored: IMAGE_ARG not configured "
                 "(see README.md)"
             )
+        last_frame_path = None
+        last_frame_url = inp.get("last_frame_url")
+        if last_frame_url and not IMAGE_ARG:
+            warnings.append(
+                "last_frame_url ignored: IMAGE_ARG not configured "
+                "(see README.md)"
+            )
 
         work_dir = os.path.join(tempfile.gettempdir(), uuid.uuid4().hex)
         os.makedirs(work_dir, exist_ok=True)
@@ -366,6 +380,12 @@ def handler(job):
                 first_frame_path = download_file(
                     first_frame_url,
                     os.path.join(work_dir, "first_frame.jpg"),
+                    max_bytes=20 * 1024 * 1024,
+                )
+            if last_frame_url and IMAGE_ARG:
+                last_frame_path = download_file(
+                    last_frame_url,
+                    os.path.join(work_dir, "last_frame.jpg"),
                     max_bytes=20 * 1024 * 1024,
                 )
 
@@ -377,6 +397,7 @@ def handler(job):
                 "num_frames": num_frames,
                 "seed": seed,
                 "first_frame_path": first_frame_path,
+                "last_frame_path": last_frame_path,
             }, work_dir)
             print(f"running pipeline: {' '.join(cmd)}", flush=True)
             run_cmd(cmd, timeout=GEN_TIMEOUT)
@@ -459,6 +480,9 @@ def handler(job):
                     # Key NAMES only, never values, so no credential can leak.
                     "image_arg_configured": bool(IMAGE_ARG),
                     "image_arg_value": IMAGE_ARG,
+                    "end_frame_url": inp.get("last_frame_url"),
+                    "end_frame_index": num_frames - 1,
+                    "end_frame_configured": bool(last_frame_path),
                     "worker_env_keys": sorted(os.environ.keys()),
                     "character_reference_urls": inp.get("character_reference_urls"),
                     "environment_reference_url": inp.get("environment_reference_url"),
