@@ -5,7 +5,10 @@ import Dashboard from "./Dashboard";
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { email: "director@example.com" }, signOut: vi.fn() }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  Element.prototype.scrollTo = vi.fn();
+});
 afterEach(cleanup);
 
 it("retains the Director draft through navigation and a fresh page load", async () => {
@@ -17,7 +20,7 @@ it("retains the Director draft through navigation and a fresh page load", async 
   fireEvent.change(screen.getByText("Length").closest("label")?.querySelector("select") as HTMLSelectElement, { target: { value: "15" } });
   fireEvent.click(screen.getAllByRole("link", { name: "Sequence" })[0]);
   fireEvent.change(await screen.findByLabelText("GPU pool rate"), { target: { value: "3.75" } });
-  fireEvent.click(screen.getAllByRole("link", { name: "Director", exact: true })[0]);
+  fireEvent.click(screen.getAllByRole("link", { name: "Director" })[0]);
   expect(screen.getByLabelText("Shot description")).toHaveValue("Astronaut crossing Mars");
   await waitFor(() => expect(JSON.parse(localStorage.getItem("vidforge_project_state_v1") || "{}").poolRate).toBe(3.75));
   first.unmount();
