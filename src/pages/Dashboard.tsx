@@ -1,151 +1,75 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowRight, ArrowLeft,
-} from "lucide-react";
+import { NavLink, Navigate, useLocation } from "react-router-dom";
+import { BookOpen, Images, Clapperboard, Film, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
 import Sidebar from "@/components/dashboard/Sidebar";
-import PipelineTabs, { pipelineSteps } from "@/components/dashboard/PipelineTabs";
-import TitleStep from "@/components/dashboard/steps/TitleStep";
 import ScriptStep from "@/components/dashboard/steps/ScriptStep";
-import VoiceoverStep from "@/components/dashboard/steps/VoiceoverStep";
 import VisualsStep from "@/components/dashboard/steps/VisualsStep";
-import ThumbnailStep from "@/components/dashboard/steps/ThumbnailStep";
 import SoundtrackStep from "@/components/dashboard/steps/SoundtrackStep";
-import VideoStep from "@/components/dashboard/steps/VideoStep";
-import { ProjectProvider } from "@/contexts/ProjectContext";
-import { useProject } from "@/contexts/ProjectContext";
+import StudioClipPanel from "@/components/dashboard/StudioClipPanel";
+import StudioSequencePanel from "@/components/dashboard/StudioSequencePanel";
+import { ProjectProvider, useProject } from "@/contexts/ProjectContext";
 
-const stepComponents: Record<string, React.FC> = {
-  title: TitleStep,
-  script: ScriptStep,
-  voiceover: VoiceoverStep,
-  visuals: VisualsStep,
-  thumbnail: ThumbnailStep,
-  soundtrack: SoundtrackStep,
-  video: VideoStep,
-};
+export const workspacePages = [
+  { id: "script", label: "Script", icon: BookOpen },
+  { id: "storyboard", label: "Storyboard", icon: Images },
+  { id: "director", label: "Director", icon: Clapperboard },
+  { id: "sequence", label: "Sequence", icon: Film },
+];
 
-const DashboardInner = () => {
-  const [activeStep, setActiveStep] = useState("title");
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [direction, setDirection] = useState(1);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const ActiveStepComponent = stepComponents[activeStep];
-  const { resetNonce } = useProject();
-  const firstRender = useRef(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
+function DashboardInner() {
+  const { pathname } = useLocation();
+  const page = workspacePages.find((item) => pathname === `/dashboard/${item.id}`);
+  const [collapsed, setCollapsed] = useState(false);
+  const [musicOpen, setMusicOpen] = useState(false);
+  const [visited, setVisited] = useState<string[]>([]);
+  const scroll = useRef<HTMLDivElement>(null);
+  const { topic, selectedTitle, studioClips } = useProject();
   useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return; }
-    setActiveStep("title");
-    setCompletedSteps([]);
-    setDirection(1);
-  }, [resetNonce]);
-
-  // Scroll content to top whenever the step changes
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, [activeStep]);
-
-  const handleStepChange = (newStep: string) => {
-    const oldIdx = pipelineSteps.findIndex((s) => s.id === activeStep);
-    const newIdx = pipelineSteps.findIndex((s) => s.id === newStep);
-    setDirection(newIdx > oldIdx ? 1 : -1);
-    setActiveStep(newStep);
-  };
-
-  const handleContinue = () => {
-    const idx = pipelineSteps.findIndex((s) => s.id === activeStep);
-    if (idx < pipelineSteps.length - 1) {
-      setCompletedSteps((prev) => [...new Set([...prev, activeStep])]);
-      setDirection(1);
-      setActiveStep(pipelineSteps[idx + 1].id);
-    }
-  };
-
-  const handleBack = () => {
-    const idx = pipelineSteps.findIndex((s) => s.id === activeStep);
-    if (idx > 0) {
-      setDirection(-1);
-      setActiveStep(pipelineSteps[idx - 1].id);
-    }
-  };
-
-  const slideVariants = {
-    enter: (dir: number) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (dir: number) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
-  };
-
+    if (page) setVisited((items) => items.includes(page.id) ? items : [...items, page.id]);
+    scroll.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [pathname, page]);
+  if (pathname === "/dashboard" || pathname === "/dashboard/") return <Navigate to="/dashboard/script" replace />;
+  if (!page) return <Navigate to="/dashboard/script" replace />;
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <Sidebar activePage="create" collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(v => !v)} />
-
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Pipeline */}
-        <PipelineTabs
-          activeStep={activeStep}
-          onStepChange={handleStepChange}
-          completedSteps={completedSteps}
-        />
-
-        {/* Content */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-2xl mx-auto">
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
-                key={`${activeStep}-${resetNonce}`}
-                custom={direction}
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              >
-                <ActiveStepComponent />
-              </motion.div>
-            </AnimatePresence>
-
-            {(() => {
-              const idx = pipelineSteps.findIndex((s) => s.id === activeStep);
-              const isLast = idx === pipelineSteps.length - 1;
-              return (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="flex items-center justify-between mt-8 pt-6 border-t border-border"
-              >
-                <Button
-                  variant="ghost"
-                  onClick={handleBack}
-                  disabled={idx === 0}
-                  className="h-10 px-4 text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
+    <div className="flex h-screen overflow-hidden bg-background">
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 md:px-8">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">{topic || selectedTitle || "Untitled project"}</p>
+            <h1 className="text-2xl font-semibold">{page.label}</h1>
+          </div>
+          <span className="text-xs text-muted-foreground">{studioClips.length} shots · Director Studio</span>
+        </header>
+        <nav aria-label="Workspace pages" className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2 md:px-7">
+          {workspacePages.map(({ id, label, icon: Icon }) => (
+            <Button key={id} asChild variant={page.id === id ? "secondary" : "ghost"} size="sm">
+              <NavLink to={`/dashboard/${id}`}><Icon className="mr-2 h-4 w-4" />{label}</NavLink>
+            </Button>
+          ))}
+        </nav>
+        <div ref={scroll} className="flex-1 overflow-y-auto px-5 py-6 md:px-8" data-workspace-scroll>
+          <div className="mx-auto max-w-6xl">
+            {/* Keep visited tools mounted so navigation cannot interrupt in-flight work. */}
+            {visited.includes("script") && <div hidden={page.id !== "script"}><ScriptStep /></div>}
+            {visited.includes("storyboard") && <div hidden={page.id !== "storyboard"}><VisualsStep /></div>}
+            {visited.includes("director") && <div hidden={page.id !== "director"}><StudioClipPanel includeSequence={false} /></div>}
+            {visited.includes("sequence") && <div hidden={page.id !== "sequence"}>
+              <StudioSequencePanel />
+              <div className="mt-8 border-t border-border pt-5">
+                <Button variant="outline" onClick={() => setMusicOpen((open) => !open)} aria-expanded={musicOpen}>
+                  <Music className="mr-2 h-4 w-4" />Optional background music
                 </Button>
-                {!isLast && (
-                  <Button onClick={handleContinue} className="glow-sm h-10 px-6">
-                    Continue to {pipelineSteps[idx + 1]?.label}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                )}
-              </motion.div>
-              );
-            })()}
+                {musicOpen && <div className="mt-5"><SoundtrackStep /></div>}
+              </div>
+            </div>}
           </div>
         </div>
       </main>
     </div>
   );
-};
-
-const Dashboard = () => (
-  <ProjectProvider>
-    <DashboardInner />
-  </ProjectProvider>
-);
-
-export default Dashboard;
+}
+export default function Dashboard() {
+  return <ProjectProvider><DashboardInner /></ProjectProvider>;
+}

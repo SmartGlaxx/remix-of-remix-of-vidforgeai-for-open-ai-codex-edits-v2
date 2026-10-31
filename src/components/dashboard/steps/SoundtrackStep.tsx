@@ -3,7 +3,7 @@ import { Music, Sparkles, Loader2, AlertCircle, Plus, Trash2, Library, RefreshCw
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useProject } from "@/contexts/ProjectContext";
+import { useProject, useDraftField } from "@/contexts/ProjectContext";
 
 const genres = [
   { label: "Cinematic", emoji: "🎬", directive: "cinematic orchestral score, sweeping strings, epic brass swells, film-trailer style" },
@@ -26,14 +26,7 @@ const mixOptions = [
   { label: "Prominent (-6dB)", value: "prominent and foreground, full presence and dynamics" },
 ];
 
-type Segment = { label: string; mood: string; intensity: number; duration: number };
-
-const defaultSegments: Segment[] = [
-  { label: "Intro Hook", mood: "Mysterious, building tension", intensity: 30, duration: 15 },
-  { label: "Rising Action", mood: "Energetic, driving rhythm", intensity: 60, duration: 20 },
-  { label: "Climax", mood: "Peak energy, dramatic", intensity: 95, duration: 20 },
-  { label: "Resolution", mood: "Reflective, fading out", intensity: 40, duration: 15 },
-];
+import type { MusicSegment as Segment } from "@/contexts/projectDrafts";
 
 async function pollJob(endpointId: string, jobId: string, timeoutMs = 600_000) {
   const start = Date.now();
@@ -73,11 +66,11 @@ async function rehostAudio(sourceUrl: string, segmentLabel: string) {
 }
 
 const SoundtrackStep = () => {
-  const { selectedTitle, scriptSections, soundtrackTracks, setSoundtrackTracks } = useProject();
-  const [genreIdx, setGenreIdx] = useState(0);
-  const [bpmIdx, setBpmIdx] = useState(0);
-  const [mixIdx, setMixIdx] = useState(0);
-  const [segments, setSegments] = useState<Segment[]>(defaultSegments);
+  const { selectedTitle, scriptSections, soundtrackTracks, setSoundtrackTracks, musicDraft, setMusicDraft } = useProject();
+  const [genreIdx, setGenreIdx] = useDraftField(musicDraft, setMusicDraft, "genreIdx");
+  const [bpmIdx, setBpmIdx] = useDraftField(musicDraft, setMusicDraft, "bpmIdx");
+  const [mixIdx, setMixIdx] = useDraftField(musicDraft, setMusicDraft, "mixIdx");
+  const [segments, setSegments] = useDraftField(musicDraft, setMusicDraft, "segments");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tracks = soundtrackTracks;
@@ -190,7 +183,7 @@ const SoundtrackStep = () => {
 
   return (
     <div className="space-y-6">
-      <div className="glass-card p-6">
+      <div className="border-t border-border pt-6">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center border border-primary/20">
             <Music className="w-5 h-5 text-primary" />
@@ -308,7 +301,7 @@ const SoundtrackStep = () => {
       </div>
 
       {tracks.length > 0 && (
-        <div className="glass-card p-6">
+        <div className="border-t border-border pt-6">
           <h3 className="font-display font-semibold text-foreground mb-4">Generated Tracks</h3>
           <div className="space-y-3">
             {tracks.map((t) => (
@@ -346,7 +339,7 @@ const SoundtrackStep = () => {
       )}
 
       {library.length > 0 && (
-        <div className="glass-card p-6">
+        <div className="border-t border-border pt-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Library className="w-4 h-4 text-primary" />
