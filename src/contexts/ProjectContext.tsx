@@ -170,7 +170,7 @@ const readSavedProject = (): Partial<ProjectState> => {
   }
 };
 
-export const ProjectProvider = ({ children }: { children: ReactNode, Dispatch, SetStateAction }) => {
+export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const saved = useMemo(readSavedProject, []);
   const [studioDraft, setStudioDraft] = useState({ ...DEFAULT_STUDIO_DRAFT, ...saved.studioDraft });
   const [scriptDraft, setScriptDraft] = useState({ ...DEFAULT_SCRIPT_DRAFT, ...saved.scriptDraft });
