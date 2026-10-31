@@ -1,5 +1,12 @@
 # Video playback update
 
+# Director workspace
+
+- [ ] Replace the locked wizard with Script, Storyboard, Director, and Sequence URLs and honest navigation.
+- [ ] Persist editable Script, Director, and optional Music drafts; keep ongoing work alive during navigation.
+- [ ] Move sequence tools and optional music to Sequence; save and display sequence job IDs.
+- [ ] Verify draft refresh/navigation and run generation, failover, QC, cost and stitch regression tests.
+
 - [x] Automatically save completed Studio clips through existing video storage service.
 - [x] Add playback error handling and direct video links.
 - [x] Verify rehosting, fallback, and chaining tests and authenticated browser playback using a sample clip (no paid GPU job).
