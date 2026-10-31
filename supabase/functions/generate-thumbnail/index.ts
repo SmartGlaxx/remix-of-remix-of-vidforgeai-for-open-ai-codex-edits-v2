@@ -62,18 +62,6 @@ Deno.serve(async (req) => {
     if (!gen.ok) return json({ error: gen.error }, gen.status === 402 || gen.status === 403 || gen.status === 429 ? gen.status : 502);
     const imageUrl = gen.url;
 
-    return json({ error: lastErr }, 502);
-      }
-      const resetHeader = Number(r.headers.get("x-ratelimit-reset")) || 0;
-      const base = Math.max(resetHeader * 1000, 1500 * Math.pow(2, attempt));
-      const jitter = Math.floor(Math.random() * 750);
-      await new Promise((res) => setTimeout(res, base + jitter));
-    }
-    if (!r || !r.ok) return json({ error: lastErr }, 502);
-
-    const imageUrl = data?.data?.[0]?.url;
-    if (!imageUrl) return json({ error: "No image URL returned" }, 502);
-
     return json({
       image_url: imageUrl,
       url: imageUrl,
