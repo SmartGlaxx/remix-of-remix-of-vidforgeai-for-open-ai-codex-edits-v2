@@ -22,6 +22,7 @@ function DashboardInner() {
   const page = workspacePages.find((item) => pathname === `/dashboard/${item.id}`);
   const [collapsed, setCollapsed] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  const [musicVisited, setMusicVisited] = useState(false);
   const [visited, setVisited] = useState<string[]>([]);
   const scroll = useRef<HTMLDivElement>(null);
   const { topic, selectedTitle, studioClips } = useProject();
@@ -58,10 +59,10 @@ function DashboardInner() {
             {visited.includes("sequence") && <div hidden={page.id !== "sequence"}>
               <StudioSequencePanel />
               <div className="mt-8 border-t border-border pt-5">
-                <Button variant="outline" onClick={() => setMusicOpen((open) => !open)} aria-expanded={musicOpen}>
+                <Button variant="outline" onClick={() => { setMusicVisited(true); setMusicOpen((open) => !open); }} aria-expanded={musicOpen}>
                   <Music className="mr-2 h-4 w-4" />Optional background music
                 </Button>
-                {musicOpen && <div className="mt-5"><SoundtrackStep /></div>}
+                {musicVisited && <div hidden={!musicOpen} className="mt-5"><SoundtrackStep /></div>}
               </div>
             </div>}
           </div>
