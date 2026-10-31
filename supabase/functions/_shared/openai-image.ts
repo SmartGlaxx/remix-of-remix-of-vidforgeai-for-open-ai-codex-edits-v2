@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // Affordable OpenAI image model via Lovable AI Gateway. Swap back to FLUX later if desired.
-export const IMAGE_MODEL = "openai/gpt-image-1-mini";
+export const IMAGE_MODEL = "openai/gpt-image-2.5-flare";
 
 export function openaiSize(aspectRatio: string) {
   return aspectRatio === "9:16" ? "1024x1536" : aspectRatio === "1:1" ? "1024x1024" : "1536x1024";
