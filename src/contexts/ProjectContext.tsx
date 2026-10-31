@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode, Dispatch, SetStateAction } from "react";
+
+import { DEFAULT_STUDIO_DRAFT, DEFAULT_SCRIPT_DRAFT, DEFAULT_MUSIC_DRAFT } from "./projectDrafts";
 
 export type ScriptSection = { section: string; text: string };
 
@@ -83,9 +85,19 @@ export type StudioShot = {
   durationSeconds: number; resolution: "720p" | "1080p"; aspectRatio: "16:9" | "9:16"; cameraMotion?: string;
   activeTakeIndex: number; takes: StudioTake[];
 };
-export type StudioSequence = { videoUrl: string; saved: boolean };
+export type StudioSequence = { videoUrl: string; saved: boolean; jobId?: string };
 
 type ProjectState = {
+  studioDraft: typeof DEFAULT_STUDIO_DRAFT;
+  setStudioDraft: Dispatch<SetStateAction<typeof DEFAULT_STUDIO_DRAFT>>;
+  scriptDraft: typeof DEFAULT_SCRIPT_DRAFT;
+  setScriptDraft: Dispatch<SetStateAction<typeof DEFAULT_SCRIPT_DRAFT>>;
+  musicDraft: typeof DEFAULT_MUSIC_DRAFT;
+  setMusicDraft: Dispatch<SetStateAction<typeof DEFAULT_MUSIC_DRAFT>>;
+  poolRate: number; setPoolRate: (rate: number) => void;
+  sequenceSoundtrack: string; setSequenceSoundtrack: (id: string) => void;
+  studioBusy: boolean; setStudioBusy: (busy: boolean) => void;
+  sequenceBusy: boolean; setSequenceBusy: (busy: boolean) => void;
   studioClips: StudioShot[];
   setStudioClips: React.Dispatch<React.SetStateAction<StudioShot[]>>;
   studioSequence: StudioSequence | null;
@@ -158,8 +170,15 @@ const readSavedProject = (): Partial<ProjectState> => {
   }
 };
 
-export const ProjectProvider = ({ children }: { children: ReactNode }) => {
+export const ProjectProvider = ({ children }: { children: ReactNode, Dispatch, SetStateAction }) => {
   const saved = useMemo(readSavedProject, []);
+  const [studioDraft, setStudioDraft] = useState({ ...DEFAULT_STUDIO_DRAFT, ...saved.studioDraft });
+  const [scriptDraft, setScriptDraft] = useState({ ...DEFAULT_SCRIPT_DRAFT, ...saved.scriptDraft });
+  const [musicDraft, setMusicDraft] = useState({ ...DEFAULT_MUSIC_DRAFT, ...saved.musicDraft });
+  const [poolRate, setPoolRate] = useState(saved.poolRate ?? 2.5);
+  const [sequenceSoundtrack, setSequenceSoundtrack] = useState(saved.sequenceSoundtrack ?? "");
+  const [studioBusy, setStudioBusy] = useState(false);
+  const [sequenceBusy, setSequenceBusy] = useState(false);
   const [topic, setTopic] = useState(saved.topic ?? "");
   const [customTitle, setCustomTitle] = useState(saved.customTitle ?? "");
   const [titles, setTitles] = useState<TitleCandidate[]>(saved.titles ?? []);
@@ -191,6 +210,8 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [resetNonce, setResetNonce] = useState(0);
 
   const resetProject = () => {
+    setStudioDraft(DEFAULT_STUDIO_DRAFT); setScriptDraft(DEFAULT_SCRIPT_DRAFT); setMusicDraft(DEFAULT_MUSIC_DRAFT);
+    setPoolRate(2.5); setSequenceSoundtrack("");
     setTopic("");
     setCustomTitle("");
     setTitles([]);
@@ -223,16 +244,19 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      studioDraft, scriptDraft, musicDraft, poolRate, sequenceSoundtrack,
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
       visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
       visualAmbiance, visualCamera, visualEngine, visualPalette,
       imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
       audioDuration, studioClips, studioSequence,
     }));
-  }, [topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration, studioClips, studioSequence]);
+  }, [studioDraft, scriptDraft, musicDraft, poolRate, sequenceSoundtrack, topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration, studioClips, studioSequence]);
 
   return (
     <Ctx.Provider value={{
+      studioDraft, setStudioDraft, scriptDraft, setScriptDraft, musicDraft, setMusicDraft, poolRate, setPoolRate,
+      sequenceSoundtrack, setSequenceSoundtrack, studioBusy, setStudioBusy, sequenceBusy, setSequenceBusy,
       studioClips, setStudioClips, studioSequence, setStudioSequence,
       topic, setTopic, customTitle, setCustomTitle, titles, setTitles, seo, setSeo,
       selectedTitle, setSelectedTitle,
@@ -258,3 +282,7 @@ export const useProject = () => {
   if (!v) throw new Error("useProject must be used within ProjectProvider");
   return v;
 };
+/** Editable drafts survive route changes and reloads; transient activity is not persisted. */
+export function useDraftField<T, K extends keyof T>(draft: T, setDraft: Dispatch<SetStateAction<T>>, key: K): [T[K], Dispatch<SetStateAction<T[K]>>] {
+  return [draft[key], (value) => setDraft((previous) => ({ ...previous, [key]: typeof value === "function" ? (value as (old: T[K]) => T[K])(previous[key]) : value }))];
+}
