@@ -1,15 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const TOGETHER_API_KEY = Deno.env.get("TOGETHER_API_KEY") || "tgp_v1_BfPNWsyln0I2bD9bSbrMNhpFXmnKj93uzHwt_1jEJ5M";
-const TOGETHER_MODEL = "black-forest-labs/FLUX.2-dev";
+import { generateAndStore } from "../_shared/openai-image.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    if (!TOGETHER_API_KEY) {
-      return json({ error: "Image generation backend is not configured" }, 500);
-    }
 
     const body = await req.json().catch(() => ({}));
     const prompt = String(body.prompt ?? "").trim();
@@ -72,36 +68,11 @@ Deno.serve(async (req) => {
       : "";
     const negativePrompt = [UNIVERSAL_NEGATIVE, bibleNegatives, extraNegative].filter(Boolean).join(", ");
 
-    // call together ai flux.2-dev with exponential backoff on 429s
-    const maxAttempts = 6;
-    let r: Response | null = null;
-    let data: any = {};
-    let lastErr = "Image generation failed";
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      r = await fetch("https://api.together.xyz/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${TOGETHER_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: TOGETHER_MODEL,
-          prompt: finalPrompt,
-          negative_prompt: negativePrompt,
-          width: dims.width,
-          height: dims.height,
-          n: 1,
-          steps: 28,
-        }),
-      });
+    const gen = await generateAndStore(`${finalPrompt}\nAbsolutely no text, letters, words, logos or watermarks. Avoid: ${negativePrompt}`, aspectRatio, "visuals", "generated");
+    if (!gen.ok) return json({ error: gen.error }, gen.status === 402 || gen.status === 403 || gen.status === 429 ? gen.status : 502);
+    const imageUrl = gen.url;
 
-      data = await r.json().catch(() => ({}));
-      if (r.ok && !data?.error) break;
-
-      lastErr = data?.error?.message || data?.error || `HTTP ${r.status}`;
-      const isRate = r.status === 429 || /rate|too many/i.test(String(lastErr));
-      if (!isRate || attempt === maxAttempts - 1) {
-        return json({ error: lastErr }, 502);
+    return json({ error: lastErr }, 502);
       }
       const resetHeader = Number(r.headers.get("x-ratelimit-reset")) || 0;
       const base = Math.max(resetHeader * 1000, 1500 * Math.pow(2, attempt));
