@@ -1,4 +1,4 @@
-import { validateFirstFrame } from "./studioClipUtils";
+import { validateFrameUrl } from "./studioClipUtils";
 
 export function sequenceVideoUrl(value: unknown): string {
   if (!value || typeof value !== "object") throw new Error("Stitch finished without a video URL");
@@ -7,7 +7,7 @@ export function sequenceVideoUrl(value: unknown): string {
   if (output.output) return sequenceVideoUrl(output.output);
   const raw = output.final_video_url ?? output.video_url ?? output.url;
   if (typeof raw !== "string") throw new Error("Stitch finished without a video URL");
-  const url = validateFirstFrame(raw);
+  const url = validateFrameUrl(raw, "Sequence video");
   if (!url) throw new Error("Stitch finished without a video URL");
   return url;
 }
