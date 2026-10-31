@@ -1,30 +1,15 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
+import { buildSchemas } from "./contract.ts";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
-// Phase 1: LTX-2.5 primary, LTX-2.3 backup (manual fallback only).
+// LTX-2.5 primary, LTX-2.3 backup (auto-failover only). Both frames are mandatory.
 const ENDPOINTS = {
   primary: { id: "brzqdegz3rq3gg", model: "ltx-2.5" },
   backup: { id: "7kiw6ag212y7mh", model: "ltx-2.3" },
 } as const;
 
-const Submit = z.object({
-  action: z.literal("submit"),
-  tier: z.enum(["primary", "backup"]).default("primary"),
-  prompt: z.string().min(1).max(4000),
-  dialogue: z.string().max(1000).optional(),
-  duration_seconds: z.number().min(2).max(30).default(10),
-  resolution: z.enum(["720p", "1080p"]).default("720p"),
-  aspect_ratio: z.enum(["16:9", "9:16"]).default("16:9"),
-  camera_motion: z.string().max(100).optional(),
-  seed: z.number().int().optional(),
-  first_frame_url: z.string().url().optional(),
-});
-const Status = z.object({
-  action: z.literal("status"),
-  tier: z.enum(["primary", "backup"]),
-  job_id: z.string().min(1).max(200),
-});
+const { Submit, Status } = buildSchemas(z);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

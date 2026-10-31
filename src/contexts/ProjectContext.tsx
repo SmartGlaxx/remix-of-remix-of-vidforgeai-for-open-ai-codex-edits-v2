@@ -72,12 +72,22 @@ export type SoundtrackTrack = {
 };
 
 export type StudioFailover = { primaryJobId?: string; primaryError: string; backupJobId: string; at: number };
-export type StudioClip = { videoUrl: string; lastFrame: string | null; tier: "primary" | "backup"; saved: boolean; jobId?: string; failover?: StudioFailover };
+export type QCStatus = "passed" | "needs_review" | "failed";
+export type StudioTake = {
+  videoUrl: string | null; lastFrame: string | null; tier: "primary" | "backup"; saved: boolean;
+  jobId?: string; failover?: StudioFailover; status: QCStatus; rejected?: boolean; error?: string;
+  generationSeconds?: number; seed: number; createdAt: number;
+};
+export type StudioShot = {
+  id: string; prompt: string; dialogue?: string; firstFrame: string; lastFrame: string;
+  durationSeconds: number; resolution: "720p" | "1080p"; aspectRatio: "16:9" | "9:16"; cameraMotion?: string;
+  activeTakeIndex: number; takes: StudioTake[];
+};
 export type StudioSequence = { videoUrl: string; saved: boolean };
 
 type ProjectState = {
-  studioClips: StudioClip[];
-  setStudioClips: React.Dispatch<React.SetStateAction<StudioClip[]>>;
+  studioClips: StudioShot[];
+  setStudioClips: React.Dispatch<React.SetStateAction<StudioShot[]>>;
   studioSequence: StudioSequence | null;
   setStudioSequence: (sequence: StudioSequence | null) => void;
   // Title step
@@ -172,7 +182,9 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [musicPrompt, setMusicPrompt] = useState(saved.musicPrompt ?? "Cinematic ambient background music, soft and atmospheric");
   const [voice, setVoice] = useState(saved.voice ?? "af_heart");
   const [videoUrl, setVideoUrl] = useState<string | null>(saved.videoUrl ?? null);
-  const [studioClips, setStudioClips] = useState<StudioClip[]>(saved.studioClips ?? []);
+  // Older single-clip records have no takes; drop them rather than crash.
+  const [studioClips, setStudioClips] = useState<StudioShot[]>(
+    (saved.studioClips ?? []).filter((s: Partial<StudioShot>) => Array.isArray(s?.takes)));
   const [studioSequence, setStudioSequence] = useState<StudioSequence | null>(saved.studioSequence ?? null);
   const [soundtrackTracks, setSoundtrackTracks] = useState<SoundtrackTrack[]>(saved.soundtrackTracks ?? []);
   const [audioDuration, setAudioDuration] = useState<number>(saved.audioDuration ?? 0);
