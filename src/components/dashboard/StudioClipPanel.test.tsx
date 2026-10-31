@@ -1,25 +1,19 @@
-import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
+import { fireEvent, render as renderUI, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StudioClipPanel, { COLD_START_BUDGET_MS } from "./StudioClipPanel";
 import { approveTake, firstFrameIgnored, sequenceSummary, validateFrameUrl } from "./studioClipUtils";
-import type { StudioShot, StudioTake } from "@/contexts/ProjectContext";
+import { ProjectProvider, type StudioShot, type StudioTake } from "@/contexts/ProjectContext";
 
 const { invoke, tracks } = vi.hoisted(() => ({ invoke: vi.fn(), tracks: [{ id: "music", segment: "Music tab track", status: "done", url: "https://example.com/music.mp3" }] }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke } } }));
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
-vi.mock("@/contexts/ProjectContext", async () => {
-  const { useState } = await import("react");
-  return { useProject: () => {
-    const [studioClips, setStudioClips] = useState<unknown[]>([]);
-    const [studioSequence, setStudioSequence] = useState(null);
-    return { visualScenes: [{ imageUrl: "https://example.com/start.png" }, { imageUrl: "https://example.com/end.png" }],
-      soundtrackTracks: tracks, studioClips, setStudioClips, studioSequence, setStudioSequence };
-  } };
-});
+const render = (ui: React.ReactNode) => renderUI(<ProjectProvider>{ui}</ProjectProvider>);
 
 const START = "https://example.com/start.png";
 const END = "https://example.com/end.png";
 beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem("vidforge_project_state_v1", JSON.stringify({ visualScenes: [{ imageUrl: START }, { imageUrl: END }], soundtrackTracks: tracks }));
   const original = window.setTimeout.bind(window);
   vi.spyOn(window, "setTimeout").mockImplementation(((h: TimerHandler, t?: number, ...a: unknown[]) => original(h, t === 5000 ? 0 : t, ...a)) as typeof window.setTimeout);
 });
@@ -202,6 +196,8 @@ describe("Stitching", () => {
       { url: "https://example.com/saved-one.mp4", shot_index: 0 },
       { url: "https://example.com/saved-two.mp4", shot_index: 1 },
     ], soundtrack_url: "https://example.com/music.mp3" } }]);
+    expect(screen.getByText("Job stitch")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("vidforge_project_state_v1") || "{}").studioSequence.jobId).toBe("stitch");
     expect(screen.getByLabelText("Final sequence")).toHaveAttribute("src", saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4");
   });
   it.each(["fallback", "error", "throw"])("retains a completed take when storage returns %s", async (failure) => {
