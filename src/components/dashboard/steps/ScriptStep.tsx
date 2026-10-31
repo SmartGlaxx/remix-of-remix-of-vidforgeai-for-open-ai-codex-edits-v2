@@ -3,39 +3,43 @@ import {
   Wand2, BookOpen, Clock, Hash, Sparkles, RotateCw,
   Copy, Download, AlertCircle, Lightbulb, Loader2,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useProject } from "@/contexts/ProjectContext";
+import { useProject, useDraftField } from "@/contexts/ProjectContext";
 
 const tones = [
-  { label: "Engaging & Dramatic", emoji: "🎭", desc: "High retention" },
-  { label: "Educational", emoji: "📚", desc: "Authority building" },
-  { label: "Comedy", emoji: "😂", desc: "Shareable" },
+  { label: "Engaging & Dramatic", emoji: "🎭", desc: "Dramatic" },
+  { label: "Educational", emoji: "📚", desc: "Informative" },
+  { label: "Comedy", emoji: "😂", desc: "Lighthearted" },
   { label: "Documentary", emoji: "🎬", desc: "Long-form" },
   { label: "Storytelling", emoji: "📖", desc: "Narrative arc" },
-  { label: "Controversial", emoji: "🔥", desc: "High engagement" },
+  { label: "Controversial", emoji: "🔥", desc: "Provocative" },
 ];
 
 const ScriptStep = () => {
-  const [selectedTone, setSelectedTone] = useState(0);
-  const [duration, setDuration] = useState("8-10 min");
-  const [hook, setHook] = useState("Shocking Fact");
-  const [language, setLanguage] = useState("English");
+  const { topic, setTopic, selectedTitle, setSelectedTitle, scriptSections, setScriptSections, scriptMeta, setScriptMeta,
+    scriptDraft, setScriptDraft } = useProject();
+  const [selectedTone, setSelectedTone] = useDraftField(scriptDraft, setScriptDraft, "selectedTone");
+  const [duration, setDuration] = useDraftField(scriptDraft, setScriptDraft, "duration");
+  const [hook, setHook] = useDraftField(scriptDraft, setScriptDraft, "hook");
+  const [language, setLanguage] = useDraftField(scriptDraft, setScriptDraft, "language");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { selectedTitle, scriptSections, setScriptSections, scriptMeta, setScriptMeta } = useProject();
+  const title = topic.trim() || selectedTitle || "";
 
   const generate = async () => {
-    if (!selectedTitle) {
-      toast({ title: "No title selected", description: "Pick a title in the previous step first.", variant: "destructive" });
+    if (!title) {
+      toast({ title: "Title or topic required", description: "Enter a title or topic above.", variant: "destructive" });
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const { data, error } = await supabase.functions.invoke("generate-script", {
-        body: { title: selectedTitle, tone: tones[selectedTone].label, duration, hook, language },
+        body: { title, tone: tones[selectedTone].label, duration, hook, language },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
@@ -68,33 +72,28 @@ const ScriptStep = () => {
   return (
     <div className="space-y-6">
       {/* Script config */}
-      <div className="glass-card p-6">
+      <section className="space-y-4">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center border border-primary/20">
             <BookOpen className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h3 className="font-display font-semibold text-foreground">Script Engine</h3>
-            <p className="text-xs text-muted-foreground">AI-powered scriptwriting with retention optimization</p>
+            <p className="text-xs text-muted-foreground">Story and scene direction</p>
           </div>
         </div>
 
-        {/* Selected title */}
-        <div className="bg-secondary/40 rounded-xl p-4 mb-5 border border-border">
-          <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block font-semibold">Selected Title</label>
-          <div className="text-sm text-foreground font-medium">
-            {selectedTitle ?? <span className="text-muted-foreground italic">No title selected — pick one in the Title step.</span>}
-          </div>
-        </div>
+        <label htmlFor="project-topic" className="text-xs text-muted-foreground block mb-2">Title / topic</label>
+        <Input id="project-topic" value={topic || selectedTitle || ""} onChange={(e) => { setTopic(e.target.value); setSelectedTitle(e.target.value || null); }} placeholder="Your film title or story idea" className="mb-5" />
 
         {/* Tone selector */}
         <label className="text-xs text-muted-foreground mb-2 block font-medium">Writing Tone</label>
         <div className="grid grid-cols-3 gap-2 mb-5">
           {tones.map((tone, i) => (
-            <button
+            <Button variant="outline"
               key={tone.label}
               onClick={() => setSelectedTone(i)}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`h-auto whitespace-normal p-3 rounded-md border text-left block transition-all ${
                 selectedTone === i
                   ? "border-primary/40 bg-primary/8 shadow-md shadow-primary/5"
                   : "border-border hover:border-primary/20 hover:bg-secondary/30"
@@ -103,12 +102,12 @@ const ScriptStep = () => {
               <span className="text-lg mb-1 block">{tone.emoji}</span>
               <span className="text-xs font-medium text-foreground block">{tone.label}</span>
               <span className="text-[10px] text-muted-foreground">{tone.desc}</span>
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Parameters */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block font-medium">Duration</label>
             <select value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full bg-background/80 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:ring-2 focus:ring-primary/40">
@@ -136,7 +135,7 @@ const ScriptStep = () => {
           </div>
         </div>
 
-        <Button className="w-full glow-sm h-11" onClick={generate} disabled={loading || !selectedTitle}>
+        <Button className="w-full glow-sm h-11" onClick={generate} disabled={loading || !title}>
           {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
           {loading ? "Generating…" : scriptSections.length ? "Regenerate Script" : "Generate Script"}
         </Button>
@@ -146,11 +145,11 @@ const ScriptStep = () => {
             <span>{error}</span>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Generated Script */}
       {(loading || scriptSections.length > 0) && (
-      <div className="glass-card p-6">
+      <section className="space-y-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-semibold text-foreground">Generated Script</h3>
           <div className="flex items-center gap-1.5">
@@ -172,15 +171,15 @@ const ScriptStep = () => {
             ? [0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-24 rounded-xl border border-border bg-secondary/30 animate-pulse" />
               ))
-            : scriptSections.map((block) => (
+            : scriptSections.map((block, index) => (
             <div key={block.section} className="group">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-primary/60" />
                 <span className="text-[10px] font-semibold text-primary/80 uppercase tracking-wider">{block.section}</span>
               </div>
-              <div className="bg-background/60 rounded-xl p-4 text-sm text-secondary-foreground leading-relaxed border border-border/50 group-hover:border-primary/10 transition-colors">
-                {block.text}
-              </div>
+              <Textarea aria-label={`Script section ${index + 1}`} value={block.text}
+                onChange={(e) => setScriptSections(scriptSections.map((item, i) => i === index ? { ...item, text: e.target.value } : item))}
+                className="min-h-32 text-sm leading-relaxed" />
             </div>
           ))}
         </div>
@@ -193,23 +192,10 @@ const ScriptStep = () => {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Sparkles className="w-3 h-3" /> {scriptMeta.retention}% retention score</div>
           </div>
         )}
-      </div>
+      </section>
       )}
 
-      {/* AI Suggestions */}
-      <div className="glass-card p-4 border-accent/20">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
-            <Lightbulb className="w-4 h-4 text-accent" />
-          </div>
-          <div>
-            <h4 className="text-xs font-display font-semibold text-foreground mb-1">AI Suggestion</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Consider adding a personal anecdote in the hook section. Scripts with personal stories in the first 30 seconds show 23% higher retention on average.
-            </p>
-          </div>
-        </div>
-      </div>
+
     </div>
   );
 };
