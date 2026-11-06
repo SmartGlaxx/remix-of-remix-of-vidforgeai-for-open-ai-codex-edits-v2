@@ -183,22 +183,24 @@ describe("Stitching", () => {
       { data: { status: "COMPLETED", output: { output: { url: "https://example.com/final.mp4" } } } },
       { data: { rehosted: saved, url: saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4" } });
     render(<StudioClipPanel />);
-    expect(screen.getByText("Stitch Sequence")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stitch final cut" })).toBeDisabled();
     fillShot();
     fireEvent.click(screen.getByText("Generate clip"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1 take 1")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Approve take 1"));
     fireEvent.click(screen.getByText("Generate clip"));
     await waitFor(() => expect(screen.getByLabelText("Shot 2 take 1")).toBeInTheDocument());
+    fireEvent.click(screen.getAllByText("Approve take 1").at(-1)!);
     fireEvent.change(screen.getByLabelText("Sequence soundtrack"), { target: { value: "music" } });
-    fireEvent.click(screen.getByText("Stitch Sequence"));
-    await waitFor(() => expect(screen.getByLabelText("Final sequence")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Stitch final cut" }));
+    await waitFor(() => expect(screen.getByLabelText("Finished video")).toBeInTheDocument());
     expect(invoke.mock.calls[6]).toEqual(["studio-stitch", { body: { action: "submit", video_clips: [
       { url: "https://example.com/saved-one.mp4", shot_index: 0 },
       { url: "https://example.com/saved-two.mp4", shot_index: 1 },
     ], soundtrack_url: "https://example.com/music.mp3" } }]);
-    expect(screen.getByText("Job stitch")).toBeInTheDocument();
+    expect(screen.getByText("Stitch job · stitch")).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("vidforge_project_state_v1") || "{}").studioSequence.jobId).toBe("stitch");
-    expect(screen.getByLabelText("Final sequence")).toHaveAttribute("src", saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4");
+    expect(screen.getByLabelText("Finished video")).toHaveAttribute("src", saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4");
   });
   it.each(["fallback", "error", "throw"])("retains a completed take when storage returns %s", async (failure) => {
     queue({ data: { job_id: "one" } }, { data: { status: "COMPLETED", output: { video_url: "https://example.com/one.mp4" } } });

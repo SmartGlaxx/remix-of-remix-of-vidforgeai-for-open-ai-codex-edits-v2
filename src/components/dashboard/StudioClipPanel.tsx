@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown } from "lucide-react";
+import { Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -228,6 +228,7 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
 
   return (
     <div className="space-y-4">
+      <section className="workspace-card space-y-4">
       <div className="flex items-center gap-2">
         <Clapperboard className="w-5 h-5 text-primary" />
         <div>
@@ -304,15 +305,17 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
       )}
 
       {warning && <div role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{warning}</span></div>}
+      </section>
 
       {shots.map((shot, index) => {
         const active = activeTake(shot);
         const shotCost = shot.takes.reduce((sum, k) => sum + takeCost(k.generationSeconds, rate), 0);
         return (
-          <section key={shot.id} aria-label={`Shot ${index + 1} card`} className="space-y-3 border-t border-border pt-4">
+          <section key={shot.id} aria-label={`Shot ${index + 1} card`} className="workspace-card space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-medium">Shot {index + 1} · {shot.takes.length} take{shot.takes.length === 1 ? "" : "s"} · {usd(shotCost)}</h4>
               <div className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="sm"><a href="/dashboard/shot-lab">Review it in Shot Lab <Link className="ml-1 h-4 w-4" /></a></Button>
                 {active && <Badge variant={active.status === "passed" ? "default" : active.status === "failed" ? "destructive" : "secondary"}
                   aria-label={`Shot ${index + 1} QC`}>{QC_LABEL[active.status]}</Badge>}
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => retake(index)}><RotateCcw className="w-4 h-4" /> Retake (new seed)</Button>
@@ -346,6 +349,27 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
           </section>
         );
       })}
+
+      {shots.length > 0 && <section aria-label="Director shot timeline" className="workspace-card space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div className="flex items-center gap-2"><Film className="h-4 w-4 text-primary" /><div>
+            <h3 className="font-semibold">Shot timeline</h3>
+            <p className="text-xs text-muted-foreground">Overview of generated shots in story order</p>
+          </div></div>
+          <span className="text-xs tabular-nums text-muted-foreground">{shots.length} shots · {shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)} sec</span>
+        </div>
+        <div className="director-filmstrip" role="list" aria-label="Shots in chronological order">
+          {shots.map((shot, index) => {
+            const take = activeTake(shot);
+            return <article key={shot.id} role="listitem" className="director-filmstrip-shot">
+              <div className="director-filmstrip-image">{shot.firstFrame && <img src={shot.firstFrame} alt={`Shot ${index + 1} start frame`} loading="lazy" />}
+                <span className="director-filmstrip-duration">{shot.durationSeconds}s</span></div>
+              <div className="flex items-center justify-between gap-2 px-3 py-2.5"><span className="truncate text-xs font-semibold">Shot {String(index + 1).padStart(2, "0")}</span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${take?.status === "passed" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>{take?.status === "passed" ? `Take ${shot.activeTakeIndex + 1} approved` : take?.status === "failed" ? "Needs retake" : "In review"}</span></div>
+            </article>;
+          })}
+        </div>
+      </section>}
 
 
       {includeSequence && <StudioSequencePanel />}
