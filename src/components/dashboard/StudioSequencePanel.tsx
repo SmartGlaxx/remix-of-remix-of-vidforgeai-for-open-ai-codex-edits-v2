@@ -103,11 +103,11 @@ export default function StudioSequencePanel() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6"><div className="workspace-page-head"><div><h2>Final cut</h2><p>Approved takes appear automatically in shot order. Change the order or remove a shot only when you choose to.</p></div></div>
       <section className="workspace-card space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary">Final cut</p>
-            <h2 className="mt-1 text-xl font-semibold">Approved shots · chronological order</h2>
+          <div>
+            <h2 className="mt-1 text-xl font-semibold">Shot order</h2>
             <p className="mt-1 text-sm text-muted-foreground">Approved takes are placed here automatically. Adjust the order only if you choose.</p></div>
           <span className="rounded-full border border-border bg-background/60 px-3 py-1 text-xs text-muted-foreground">{cut.length} in cut</span>
         </div>
@@ -135,7 +135,7 @@ export default function StudioSequencePanel() {
 
       <section className="workspace-card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Stitch final cut</h3><p className="mt-1 text-sm text-muted-foreground">Join this ordered list into one finished video.</p></div>
-          <Button onClick={stitch} disabled={busy || cut.length < 2} size="lg" className="min-w-44">
+          <Button onClick={stitch} disabled={busy || cut.length < 2} size="lg" className="min-w-44 workspace-export">
             {stitching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}{stitching ? "Stitching…" : "Stitch final cut"}
           </Button>
         </div>
@@ -148,7 +148,14 @@ export default function StudioSequencePanel() {
         </div>}
       </section>
 
-      <details className="rounded-xl border border-border bg-card/40 px-4 py-3">
+      <section className="workspace-card space-y-2">
+        <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted-foreground">Optional</p><h3 className="mt-1 font-semibold">Background music</h3></div>
+        <label className="block max-w-xl space-y-1 text-sm"><span className="text-xs text-muted-foreground">Choose an existing saved track</span>
+          <select aria-label="Sequence soundtrack" value={soundtrack} disabled={busy} onChange={(event) => setSoundtrack(event.target.value)} className="w-full rounded-lg border border-border bg-background p-3">
+            <option value="">No added music</option>{musicTracks.map((track) => <option key={track.id} value={track.id}>{track.segment}</option>)}
+          </select>
+        </label>
+      </section>      <details className="rounded-xl border border-border bg-card/40 px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium">Production cost summary</summary>
         <div className="mt-4 grid gap-4 text-xs sm:grid-cols-2 lg:grid-cols-4" aria-label="Cost summary">
           <label className="space-y-1"><span className="text-muted-foreground">GPU pool rate ($/hr)</span>
@@ -159,14 +166,7 @@ export default function StudioSequencePanel() {
         </div>
       </details>
 
-      <section className="workspace-card space-y-2">
-        <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted-foreground">Optional</p><h3 className="mt-1 font-semibold">Background music</h3></div>
-        <label className="block max-w-xl space-y-1 text-sm"><span className="text-xs text-muted-foreground">Choose an existing saved track</span>
-          <select aria-label="Sequence soundtrack" value={soundtrack} disabled={busy} onChange={(event) => setSoundtrack(event.target.value)} className="w-full rounded-lg border border-border bg-background p-3">
-            <option value="">No added music</option>{musicTracks.map((track) => <option key={track.id} value={track.id}>{track.segment}</option>)}
-          </select>
-        </label>
-      </section>
+
     </div>
   );
 }

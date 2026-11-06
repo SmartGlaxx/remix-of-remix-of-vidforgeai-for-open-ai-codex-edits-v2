@@ -2,15 +2,15 @@ import { useRef, useState } from "react";
 import { AlertCircle, Download, ExternalLink, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Props = { videoUrl: string; shot?: number; take?: number; saved: boolean; label?: string };
+type Props = { videoUrl: string; shot?: number; take?: number; saved: boolean; label?: string; poster?: string };
 
-export default function StudioClipPlayer({ videoUrl, shot, take, saved, label }: Props) {
+export default function StudioClipPlayer({ videoUrl, shot, take, saved, label, poster }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackFailed, setPlaybackFailed] = useState(false);
 
   return (
     <>
-      <video ref={videoRef} aria-label={label ?? `Shot ${shot}${take ? ` take ${take}` : ""}`} src={videoUrl} controls preload="metadata"
+      <video ref={videoRef} aria-label={label ?? `Shot ${shot}${take ? ` take ${take}` : ""}`} src={videoUrl} poster={poster} controls preload="metadata"
         onError={() => setPlaybackFailed(true)} onLoadedData={() => setPlaybackFailed(false)}
         className="w-full aspect-video rounded-lg bg-muted" />
       {!saved && <p role="status" className="text-sm text-muted-foreground">Could not save this clip to app storage. The original video link is still available.</p>}

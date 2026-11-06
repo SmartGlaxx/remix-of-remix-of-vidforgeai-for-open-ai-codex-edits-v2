@@ -71,8 +71,56 @@ const ScriptStep = () => {
 
   return (
     <div className="space-y-6">
-      {/* Script config */}
+      {/* Script draft */}
+      {(loading || scriptSections.length > 0) && (
       <section className="space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display font-semibold text-foreground">Script draft</h3>
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={generate} disabled={loading}>
+              <RotateCw className="w-3 h-3 mr-1" /> Regenerate
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={copyAll}>
+              <Copy className="w-3 h-3 mr-1" /> Copy
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={downloadTxt}>
+              <Download className="w-3 h-3 mr-1" /> Export
+            </Button>
+          </div>
+        </div>
+
+        {/* Script sections */}
+        <div className="space-y-4 script-document">
+          {loading && scriptSections.length === 0
+            ? [0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-24 rounded-xl border border-border bg-secondary/30 animate-pulse" />
+              ))
+            : scriptSections.map((block, index) => (
+            <div key={block.section} className="group">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-primary/60" />
+                <span className="text-[10px] font-semibold text-primary/80 uppercase tracking-wider">{block.section}</span>
+              </div>
+              <Textarea aria-label={`Script section ${index + 1}`} value={block.text}
+                onChange={(e) => setScriptSections(scriptSections.map((item, i) => i === index ? { ...item, text: e.target.value } : item))}
+                className="script-scene-text min-h-32 text-sm leading-relaxed" />
+            </div>
+          ))}
+        </div>
+
+        {/* Stats bar */}
+        {scriptMeta && (
+          <div className="flex items-center gap-6 mt-4 pt-4 border-t border-border">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Hash className="w-3 h-3" /> {scriptMeta.words?.toLocaleString()} words</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock className="w-3 h-3" /> ~{scriptMeta.minutes} min read</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Sparkles className="w-3 h-3" /> {scriptMeta.retention}% retention score</div>
+          </div>
+        )}
+      </section>
+      )}
+      <Button variant="outline" onClick={() => setScriptSections([...scriptSections, { section: `Scene ${scriptSections.length + 1}`, text: "" }])}>+ Add scene</Button>
+      {/* Script config */}
+      <details className="space-y-4" open={!scriptSections.length}><summary className="cursor-pointer text-sm font-bold">Writing assistant</summary>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center border border-primary/20">
             <BookOpen className="w-5 h-5 text-primary" />
@@ -145,55 +193,9 @@ const ScriptStep = () => {
             <span>{error}</span>
           </div>
         )}
-      </section>
+      </details>
 
-      {/* Generated Script */}
-      {(loading || scriptSections.length > 0) && (
-      <section className="space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-semibold text-foreground">Generated Script</h3>
-          <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={generate} disabled={loading}>
-              <RotateCw className="w-3 h-3 mr-1" /> Regenerate
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={copyAll}>
-              <Copy className="w-3 h-3 mr-1" /> Copy
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={downloadTxt}>
-              <Download className="w-3 h-3 mr-1" /> Export
-            </Button>
-          </div>
-        </div>
 
-        {/* Script sections */}
-        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-          {loading && scriptSections.length === 0
-            ? [0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-24 rounded-xl border border-border bg-secondary/30 animate-pulse" />
-              ))
-            : scriptSections.map((block, index) => (
-            <div key={block.section} className="group">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-primary/60" />
-                <span className="text-[10px] font-semibold text-primary/80 uppercase tracking-wider">{block.section}</span>
-              </div>
-              <Textarea aria-label={`Script section ${index + 1}`} value={block.text}
-                onChange={(e) => setScriptSections(scriptSections.map((item, i) => i === index ? { ...item, text: e.target.value } : item))}
-                className="min-h-32 text-sm leading-relaxed" />
-            </div>
-          ))}
-        </div>
-
-        {/* Stats bar */}
-        {scriptMeta && (
-          <div className="flex items-center gap-6 mt-4 pt-4 border-t border-border">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Hash className="w-3 h-3" /> {scriptMeta.words?.toLocaleString()} words</div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock className="w-3 h-3" /> ~{scriptMeta.minutes} min read</div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Sparkles className="w-3 h-3" /> {scriptMeta.retention}% retention score</div>
-          </div>
-        )}
-      </section>
-      )}
 
 
     </div>

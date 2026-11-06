@@ -1,5 +1,6 @@
+import WorkspaceLink from "./WorkspaceLink";
 import { useEffect, useRef, useState } from "react";
-import { Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film } from "lucide-react";
+import { Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,7 +40,7 @@ const payloadFor = (shot: StudioShot, seed: number) => ({
   duration_seconds: shot.durationSeconds,
 });
 
-const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean }) => {
+const StudioClipPanel = ({ includeSequence = true, requestedShotId }: { includeSequence?: boolean; requestedShotId?: string | null }) => {
   const { visualScenes, studioClips: shots, setStudioClips: setShots,
     studioDraft, setStudioDraft, poolRate: rate, setStudioBusy, sequenceBusy } = useProject();
   const storyboardImages = visualScenes.map((s) => s.imageUrl).filter((u): u is string => !!u);
@@ -55,6 +56,14 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
   const [camera, setCamera] = useDraftField(studioDraft, setStudioDraft, "camera");
   const [tier, setTier] = useState<Tier>("primary");
 
+  const [selectedShot, setSelectedShot] = useState(0);
+  useEffect(() => { if (requestedShotId) { const index = shots.findIndex((shot) => shot.id === requestedShotId); if (index >= 0) setSelectedShot(index); } }, [requestedShotId, shots.length]);
+  const [previewTakes, setPreviewTakes] = useState<Record<string, number>>({});
+  const previousShotCount = useRef(shots.length);
+  useEffect(() => {
+    if (shots.length > previousShotCount.current) setSelectedShot(shots.length - 1);
+    previousShotCount.current = shots.length;
+  }, [shots.length]);
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState("");
   const [startedAt, setStartedAt] = useState(0);
@@ -207,6 +216,12 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
     return null as never;
   };
 
+  const selectShot = (index: number) => {
+    setSelectedShot(index);
+    const shot = shots[index];
+    if (shot && !running) setStudioDraft((draft) => ({ ...draft, prompt: shot.prompt, dialogue: shot.dialogue || "", startFrame: shot.firstFrame, endFrame: shot.lastFrame, duration: shot.durationSeconds, resolution: shot.resolution, aspect: shot.aspectRatio, camera: shot.cameraMotion || "static" }));
+  };
+
   const chainNext = () => {
     // Next shot's start IS this shot's end — same asset, no render wait. Keep the scene prompt, new line only.
     setStartFrame(endFrame); setEndFrame(""); setDialogue(""); setTier("primary");
@@ -228,21 +243,91 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
 
   return (
     <div className="space-y-4">
-      <section className="workspace-card space-y-4">
-      <div className="flex items-center gap-2">
-        <Clapperboard className="w-5 h-5 text-primary" />
+      <div className="director-workspace-grid">
+      <aside className="director-library" aria-label="Shot library">
+        <div className="library-tabs"><span className="is-active">Shots</span><WorkspaceLink href="/dashboard/assets">Assets</WorkspaceLink><WorkspaceLink href="/dashboard/shot-lab">Approved</WorkspaceLink></div>
+        <div className="library-heading"><h2>Shot library <span>({shots.length})</span></h2><button onClick={() => { setSelectedShot(-1); promptRef.current?.focus(); }} aria-label="New shot"><Plus size={18} /></button></div>
+        <div className="library-shots">
+          {shots.map((shot, index) => <button type="button" key={shot.id} className={`library-shot ${selectedShot === index ? "is-selected" : ""}`} onClick={() => selectShot(index)}>
+            <div className="library-shot-image"><img src={shot.firstFrame} alt={`Shot ${index + 1}`} /><span>{shot.durationSeconds}.0 s</span>{activeTake(shot)?.status === "passed" && <Check className="shot-check" size={22} />}</div>
+            <div className="library-shot-copy"><strong>Shot {String(index + 1).padStart(2, "0")}</strong><span>{shot.takes.length} takes</span><p>{shot.cameraMotion || "Static"} · {shot.resolution}</p></div>
+          </button>)}
+          {!shots.length && <div className="library-empty"><div className="empty-thumbnail"><Film size={32} strokeWidth={1} /></div><h3>Your first shot starts here</h3><p>Add both storyboard frames and describe the shot to generate your first take.</p><WorkspaceLink href="/dashboard/storyboard">Open Storyboard →</WorkspaceLink></div>}
+        </div>
+      </aside>
+      <section className="director-monitor" aria-label="Shot preview">
+        {(!shots.length || selectedShot === -1) && <div className="draft-preview">
+          <div className="preview-title"><span>New shot</span><span>{resolution} · {aspect}</span></div>
+          <div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><span className="preview-play"><Play size={26} /></span><h2>Your story, in motion</h2><p>Choose a start and end frame to bring your next shot to life.</p></div>}</div>
+          <div className="draft-frame-pair">{[["Start frame", startFrame], ["End frame", endFrame]].map(([label, url]) => <div key={label}>{isValidFrameUrl(url) ? <img src={url} alt={label} /> : <Image size={18} />}<span>{label}<small>{isValidFrameUrl(url) ? "Ready" : "Required"}</small></span></div>)}</div>
+          <div className="empty-takes"><Film size={18} /><span>Generated takes will appear here for review.</span></div>
+        </div>}
+
+      {shots.map((shot, index) => {
+        const active = activeTake(shot);
+        const shotCost = shot.takes.reduce((sum, k) => sum + takeCost(k.generationSeconds, rate), 0);
+        return (
+          <section key={shot.id} aria-label={`Shot ${index + 1} card`} hidden={index !== selectedShot} className="director-preview-shot space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-medium">Shot {index + 1} · {shot.takes.length} take{shot.takes.length === 1 ? "" : "s"} · {usd(shotCost)}</h4>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="sm"><WorkspaceLink href={`/dashboard/shot-lab?shot=${encodeURIComponent(shot.id)}`}>Review it in Shot Lab <Link className="ml-1 h-4 w-4" /></WorkspaceLink></Button>
+                {active && <Badge variant={active.status === "passed" ? "default" : active.status === "failed" ? "destructive" : "secondary"}
+                  aria-label={`Shot ${index + 1} QC`}>{QC_LABEL[active.status]}</Badge>}
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => retake(index)}><RotateCcw className="w-4 h-4" /> Retake (new seed)</Button>
+              </div>
+            </div>
+            <div className="preview-take-stack">
+              {shot.takes.map((take, t) => (
+                <div key={`${take.jobId}-${t}`} hidden={t !== (previewTakes[shot.id] ?? shot.takes.length - 1)} className="preview-take space-y-3">
+                  {take.videoUrl
+                    ? <StudioClipPlayer videoUrl={take.videoUrl} poster={shot.firstFrame} shot={index + 1} take={t + 1} saved={take.saved} />
+                    : <p className="text-xs text-destructive">No video — {take.error ?? "generation failed"}</p>}
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-medium">Take {t + 1}{t === shot.activeTakeIndex && take.status === "passed" ? " · selected for cut" : ""}</span>
+                    <Badge variant="outline">{take.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}{take.failover ? " · auto-backup" : ""}</Badge>
+                    <Badge variant={take.status === "passed" ? "default" : take.status === "failed" ? "destructive" : "secondary"}>{take.rejected ? "rejected" : QC_LABEL[take.status]}</Badge>
+                  </div>
+                  {take.failover && <p className="text-xs text-muted-foreground">Main engine failed (job {take.failover.primaryJobId ?? "not started"}: {take.failover.primaryError}). Rendered on backup, job {take.failover.backupJobId}.</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Job {take.jobId ?? "—"} · seed {take.seed} · {take.generationSeconds != null ? `${take.generationSeconds.toFixed(1)}s GPU` : "GPU time n/a"} · {usd(takeCost(take.generationSeconds, rate))}
+                  </p>
+                  {take.videoUrl && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" disabled={busy || take.status === "passed"} onClick={() => setShots((s) => approveTake(s, index, t))}><Check className="w-4 h-4" /> Approve take {t + 1}</Button>
+                      <Button size="sm" variant="outline" disabled={busy || take.status !== "needs_review"} onClick={() => setShots((s) => rejectTake(s, index, t))}><ThumbsDown className="w-4 h-4" /> Reject take {t + 1}</Button>
+                      {take.lastFrame && <Button asChild variant="ghost" size="sm"><a href={take.lastFrame} target="_blank" rel="noreferrer">View last frame</a></Button>}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="director-take-strip" aria-label={`Shot ${index + 1} takes`}>
+              {shot.takes.map((take, t) => <button key={t} type="button" aria-pressed={t === (previewTakes[shot.id] ?? shot.takes.length - 1)} onClick={() => setPreviewTakes((prev) => ({ ...prev, [shot.id]: t }))} className="director-take-thumb">
+                <img src={shot.firstFrame} alt="" /><span>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</span>
+              </button>)}
+            </div>
+          </section>
+        );
+      })}
+
+      </section>
+      <section className="director-inspector" aria-label="Shot prompt">
+      <div className="inspector-heading flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-primary" />
         <div>
-          <h3 className="font-display text-lg font-bold text-foreground">Studio Clip (LTX-2, with sound)</h3>
-          <p className="text-xs text-muted-foreground">Each shot renders between a start and an end image. Main engine: LTX-2.5 · Backup: LTX-2.3</p>
+          <h3 className="font-display text-lg font-bold text-foreground">Prompt</h3>
+          <p className="text-xs text-muted-foreground">LTX-2.5 · Automatic backup with LTX-2.3</p>
         </div>
       </div>
 
+      <div className="inspector-fields">
       <Textarea ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
          placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" />
       <Textarea aria-label="Dialogue" value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
         placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" />
 
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="grid gap-3">
         {frameField("studio-start-frame", "Start frame", startFrame, setStartFrame)}
         {frameField("studio-end-frame", "End frame", endFrame, setEndFrame)}
       </div>
@@ -252,7 +337,7 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
         <Button variant="outline" size="sm" disabled={running || !previousEnd} onClick={() => setStartFrame(previousEnd ?? "")}><Link className="w-4 h-4" /> Start: previous shot's end</Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+      <div className="grid grid-cols-2 gap-3 text-sm">
         <label className="space-y-1"><span className="text-xs text-muted-foreground">Length</span>
           <select className="w-full rounded-md border border-border bg-background p-2" value={duration}
             disabled={running} onChange={(e) => setDuration(Number(e.target.value))}>
@@ -275,9 +360,10 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
           </select></label>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => generate("primary")} disabled={!canGenerate}>
-          {running && tier === "primary" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Generate clip
+      </div>
+      <div className="inspector-actions">
+        <Button className="generate-take" onClick={() => generate("primary")} disabled={!canGenerate}>
+          {running && tier === "primary" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} <Sparkles className="h-4 w-4" /> Generate take
         </Button>
         <Button variant="outline" onClick={() => generate("backup")} disabled={!canGenerate}>
           {running && tier === "backup" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Use backup engine
@@ -286,6 +372,7 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
           <Link className="w-4 h-4" /> Chain next shot
         </Button>
       </div>
+      <WorkspaceLink className="review-link" href={shots[selectedShot] ? `/dashboard/shot-lab?shot=${encodeURIComponent(shots[selectedShot].id)}` : "/dashboard/shot-lab"}>Review it in Shot Lab →</WorkspaceLink>
       {!framesValid && <p className="text-xs text-muted-foreground">Set both a start and an end image (public HTTPS links) to generate.</p>}
 
       {running && (
@@ -307,66 +394,27 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
       {warning && <div role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{warning}</span></div>}
       </section>
 
-      {shots.map((shot, index) => {
-        const active = activeTake(shot);
-        const shotCost = shot.takes.reduce((sum, k) => sum + takeCost(k.generationSeconds, rate), 0);
-        return (
-          <section key={shot.id} aria-label={`Shot ${index + 1} card`} className="workspace-card space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-medium">Shot {index + 1} · {shot.takes.length} take{shot.takes.length === 1 ? "" : "s"} · {usd(shotCost)}</h4>
-              <div className="flex items-center gap-2">
-                <Button asChild variant="ghost" size="sm"><a href="/dashboard/shot-lab">Review it in Shot Lab <Link className="ml-1 h-4 w-4" /></a></Button>
-                {active && <Badge variant={active.status === "passed" ? "default" : active.status === "failed" ? "destructive" : "secondary"}
-                  aria-label={`Shot ${index + 1} QC`}>{QC_LABEL[active.status]}</Badge>}
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => retake(index)}><RotateCcw className="w-4 h-4" /> Retake (new seed)</Button>
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {shot.takes.map((take, t) => (
-                <div key={`${take.jobId}-${t}`} className={`space-y-2 rounded-md border p-2 ${t === shot.activeTakeIndex ? "border-primary" : "border-border"}`}>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-medium">Take {t + 1}{t === shot.activeTakeIndex ? " · in sequence" : ""}</span>
-                    <Badge variant="outline">{take.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}{take.failover ? " · auto-backup" : ""}</Badge>
-                    <Badge variant={take.status === "passed" ? "default" : take.status === "failed" ? "destructive" : "secondary"}>{take.rejected ? "rejected" : QC_LABEL[take.status]}</Badge>
-                  </div>
-                  {take.failover && <p className="text-xs text-muted-foreground">Main engine failed (job {take.failover.primaryJobId ?? "not started"}: {take.failover.primaryError}). Rendered on backup, job {take.failover.backupJobId}.</p>}
-                  {take.videoUrl
-                    ? <StudioClipPlayer videoUrl={take.videoUrl} shot={index + 1} take={t + 1} saved={take.saved} />
-                    : <p className="text-xs text-destructive">No video — {take.error ?? "generation failed"}</p>}
-                  <p className="text-xs text-muted-foreground">
-                    Job {take.jobId ?? "—"} · seed {take.seed} · {take.generationSeconds != null ? `${take.generationSeconds.toFixed(1)}s GPU` : "GPU time n/a"} · {usd(takeCost(take.generationSeconds, rate))}
-                  </p>
-                  {take.videoUrl && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" disabled={busy || take.status === "passed"} onClick={() => setShots((s) => approveTake(s, index, t))}><Check className="w-4 h-4" /> Approve take {t + 1}</Button>
-                      <Button size="sm" variant="outline" disabled={busy || take.status !== "needs_review"} onClick={() => setShots((s) => rejectTake(s, index, t))}><ThumbsDown className="w-4 h-4" /> Reject take {t + 1}</Button>
-                      {take.lastFrame && <Button asChild variant="ghost" size="sm"><a href={take.lastFrame} target="_blank" rel="noreferrer">View last frame</a></Button>}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      </div>
 
-      {shots.length > 0 && <section aria-label="Director shot timeline" className="workspace-card space-y-4">
+      {<section aria-label="Director shot timeline" className="workspace-card director-overview space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex items-center gap-2"><Film className="h-4 w-4 text-primary" /><div>
             <h3 className="font-semibold">Shot timeline</h3>
             <p className="text-xs text-muted-foreground">Overview of generated shots in story order</p>
           </div></div>
+          <WorkspaceLink href="/dashboard/final-cut" className="overview-link">Open Final cut →</WorkspaceLink>
           <span className="text-xs tabular-nums text-muted-foreground">{shots.length} shots · {shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)} sec</span>
         </div>
+        {!shots.length && <div className="timeline-empty"><Film className="h-5 w-5" /><span>Your shots appear here in story order as you generate them.</span></div>}
         <div className="director-filmstrip" role="list" aria-label="Shots in chronological order">
           {shots.map((shot, index) => {
             const take = activeTake(shot);
-            return <article key={shot.id} role="listitem" className="director-filmstrip-shot">
+            return <article key={shot.id} role="listitem" className="director-filmstrip-shot"><button className="w-full text-left" onClick={() => selectShot(index)} aria-label={`Preview shot ${index + 1}`}>
               <div className="director-filmstrip-image">{shot.firstFrame && <img src={shot.firstFrame} alt={`Shot ${index + 1} start frame`} loading="lazy" />}
                 <span className="director-filmstrip-duration">{shot.durationSeconds}s</span></div>
               <div className="flex items-center justify-between gap-2 px-3 py-2.5"><span className="truncate text-xs font-semibold">Shot {String(index + 1).padStart(2, "0")}</span>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${take?.status === "passed" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>{take?.status === "passed" ? `Take ${shot.activeTakeIndex + 1} approved` : take?.status === "failed" ? "Needs retake" : "In review"}</span></div>
-            </article>;
+            </button></article>;
           })}
         </div>
       </section>}
