@@ -41,3 +41,26 @@ it("opens Script without the retired Title step and persists script edits", asyn
   expect(await screen.findByLabelText("Title / topic")).toHaveValue("A journey home");
   expect(screen.getByLabelText("Script section 1")).toHaveValue("The traveler arrives at dawn.");
 });
+
+it.each([
+  ["projects", "Projects"], ["script", "Script"], ["story-canvas", "Story Canvas"],
+  ["storyboard", "Storyboard"], ["shot-lab", "Shot Lab"], ["final-cut", "Final cut"],
+  ["export", "Export"], ["assets", "Assets"], ["production", "Production"], ["settings", "Settings"],
+])("renders the %s page with the shared workflow navigation", async (path, title) => {
+  render(<MemoryRouter initialEntries={[`/dashboard/${path}`]}><Dashboard /></MemoryRouter>);
+  expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+  expect(screen.getByRole("navigation", { name: "Production steps" }).querySelectorAll("a")).toHaveLength(8);
+  expect(screen.queryByRole("link", { name: "Sequence" })).not.toBeInTheDocument();
+});
+
+it("applies the selected accent across pages and retains it on reload", async () => {
+  const first = render(<MemoryRouter initialEntries={["/dashboard/settings"]}><Dashboard /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "Cyan Ocean blue" }));
+  expect(document.querySelector(".director-shell")).toHaveAttribute("data-accent", "cyan");
+  fireEvent.click(screen.getAllByRole("link", { name: "Projects" })[0]);
+  expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
+  expect(document.querySelector(".director-shell")).toHaveAttribute("data-accent", "cyan");
+  first.unmount();
+  render(<MemoryRouter initialEntries={["/dashboard/director"]}><Dashboard /></MemoryRouter>);
+  expect(document.querySelector(".director-shell")).toHaveAttribute("data-accent", "cyan");
+});

@@ -47,15 +47,15 @@ describe("Frame validation", () => {
     render(<StudioClipPanel />);
     fireEvent.change(screen.getByLabelText("Shot description"), { target: { value: "Shot" } });
     fireEvent.change(screen.getByLabelText("Start frame (required)"), { target: { value: START } });
-    expect(screen.getByText("Generate clip")).toBeDisabled();
+    expect(screen.getByText("Generate take")).toBeDisabled();
     expect(screen.getByText("Use backup engine")).toBeDisabled();
     fireEvent.change(screen.getByLabelText("End frame (required)"), { target: { value: "data:image/png;base64,abc" } });
-    expect(screen.getByText("Generate clip")).toBeDisabled();
+    expect(screen.getByText("Generate take")).toBeDisabled();
     expect(screen.getByText("End frame must be a public HTTPS image URL.")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("End frame (required)"), { target: { value: END } });
-    expect(screen.getByText("Generate clip")).toBeEnabled();
+    expect(screen.getByText("Generate take")).toBeEnabled();
     expect(screen.getByText("Use backup engine")).toBeEnabled();
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     expect(invoke.mock.calls[0][1].body).toMatchObject({ first_frame_url: START, last_frame_url: END });
   });
 });
@@ -80,7 +80,7 @@ describe("Automatic failover", () => {
     render(<StudioClipPanel />);
     fillShot();
     fireEvent.change(screen.getByLabelText("Dialogue"), { target: { value: "Line" } });
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1 take 1")).toBeInTheDocument());
     const { action: a1, tier: t1, ...primary } = invoke.mock.calls[0][1].body;
     const { action: a2, tier: t2, ...backup } = invoke.mock.calls[2][1].body;
@@ -96,7 +96,7 @@ describe("Automatic failover", () => {
     queue({ error: new Error("endpoint paused") }, ok("b2"));
     render(<StudioClipPanel />);
     fillShot();
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByText(/job not started: endpoint paused/)).toBeInTheDocument());
   });
   it("never retries a manual backup failure, and records the billed failed take without a video", async () => {
@@ -116,7 +116,7 @@ describe("QC + retake loop", () => {
     queue(ok("one", { last_frame_url: "https://example.com/one-last.png" }), ok("two", { last_frame_url: "https://example.com/two-last.png" }));
     render(<StudioClipPanel />);
     fillShot();
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1 take 1")).toBeInTheDocument());
     expect(screen.getByLabelText("Shot 1 QC")).toHaveTextContent("needs review");
     fireEvent.click(screen.getByText("Reject take 1"));
@@ -185,10 +185,10 @@ describe("Stitching", () => {
     render(<StudioClipPanel />);
     expect(screen.getByRole("button", { name: "Stitch final cut" })).toBeDisabled();
     fillShot();
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1 take 1")).toBeInTheDocument());
     fireEvent.click(screen.getByText("Approve take 1"));
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByLabelText("Shot 2 take 1")).toBeInTheDocument());
     fireEvent.click(screen.getAllByText("Approve take 1").at(-1)!);
     fireEvent.change(screen.getByLabelText("Sequence soundtrack"), { target: { value: "music" } });
@@ -208,7 +208,7 @@ describe("Stitching", () => {
     else invoke.mockResolvedValueOnce(failure === "error" ? { error: new Error("Storage unavailable") } : { data: { rehosted: false, url: "https://example.com/one.mp4" } });
     render(<StudioClipPanel />);
     fillShot();
-    fireEvent.click(screen.getByText("Generate clip"));
+    fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1 take 1")).toHaveAttribute("src", "https://example.com/one.mp4"));
     expect(screen.getByRole("link", { name: "Open video in new tab" })).toHaveAttribute("href", "https://example.com/one.mp4");
   });
