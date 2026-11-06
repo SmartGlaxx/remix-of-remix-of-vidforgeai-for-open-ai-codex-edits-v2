@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Image, Sparkles, RefreshCw, Trash2, Loader2, AlertCircle, Scissors, Wand2, BookOpen,
   Settings2, ChevronLeft, ChevronRight, X,
@@ -94,6 +95,7 @@ async function pollVisualJob(endpointId: string, jobId: string, timeoutMs = 600_
 }
 
 const VisualsStep = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     selectedTitle, scriptSections, scriptMeta,
     visualScenes, setVisualScenes,
@@ -147,6 +149,13 @@ const VisualsStep = () => {
   // No more arithmetic scene plan — the AI determines idea-based segments.
   const scenesToShow = visualScenes;
   const completed = scenesToShow.filter((scene) => scene.status === "done" && scene.imageUrl).length;
+  useEffect(() => {
+    const scene = searchParams.get("scene");
+    if (scene === null || !scenesToShow.length) return;
+    const index = Number(scene);
+    if (Number.isInteger(index) && index >= 0 && index < scenesToShow.length) setModalIndex(index);
+    setSearchParams({}, { replace: true });
+  }, [scenesToShow.length, searchParams, setSearchParams]);
 
   const updateScene = (scenes: VisualScene[], index: number, patch: Partial<VisualScene>) => {
     scenes[index] = { ...scenes[index], ...patch };

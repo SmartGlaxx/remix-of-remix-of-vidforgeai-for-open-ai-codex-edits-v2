@@ -33,7 +33,7 @@ it("retains the Director draft through navigation and a fresh page load", async 
 
 it("opens Script without the retired Title step and persists script edits", async () => {
   localStorage.setItem("vidforge_project_state_v1", JSON.stringify({ scriptSections: [{ section: "Opening", text: "Old scene" }] }));
-  const first = render(<MemoryRouter initialEntries={["/dashboard"]}><Dashboard /></MemoryRouter>);
+  const first = render(<MemoryRouter initialEntries={["/dashboard/script"]}><Dashboard /></MemoryRouter>);
   fireEvent.change(await screen.findByLabelText("Title / topic"), { target: { value: "A journey home" } });
   fireEvent.change(screen.getByLabelText("Script section 1"), { target: { value: "The traveler arrives at dawn." } });
   first.unmount();

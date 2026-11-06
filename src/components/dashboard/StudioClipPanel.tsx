@@ -315,6 +315,7 @@ const StudioClipPanel = ({ includeSequence = true }: { includeSequence?: boolean
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-medium">Shot {index + 1} · {shot.takes.length} take{shot.takes.length === 1 ? "" : "s"} · {usd(shotCost)}</h4>
               <div className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="sm"><a href="/dashboard/shot-lab">Review it in Shot Lab <Link className="ml-1 h-4 w-4" /></a></Button>
                 {active && <Badge variant={active.status === "passed" ? "default" : active.status === "failed" ? "destructive" : "secondary"}
                   aria-label={`Shot ${index + 1} QC`}>{QC_LABEL[active.status]}</Badge>}
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => retake(index)}><RotateCcw className="w-4 h-4" /> Retake (new seed)</Button>
