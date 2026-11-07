@@ -207,7 +207,6 @@
 }
 @media (min-width: 1024px) {
   .director-workspace-grid {
-    height: clamp(310px, calc(100dvh - 395px), 700px);
     grid-template: minmax(0, 1fr) / clamp(175px, 17vw, 310px) minmax(0, 1fr) clamp(230px, 21vw, 390px);
   }
   .director-library, .director-inspector, .director-monitor { min-height: 0; max-height: none; }
@@ -216,6 +215,59 @@
 }
 @media (max-width: 1023px) {
   .director-workspace-grid { display: contents; }
-  .director-monitor { grid-row: 1; max-height: 52dvh; }
+  .director-monitor { grid-row: 1; overflow: visible; }
   .director-overview { grid-row: 2; }
+}
+
+.take-picker, .timeline-pages { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.take-picker select, .timeline-pages button { border: 1px solid hsl(var(--input)); border-radius: 6px; padding: 3px 9px; }
+.timeline-pages button:disabled { opacity: .4; }
+.take-inspector-details { overflow-wrap: anywhere; }
+
+@media (min-width: 1024px) {
+  .director-shell .workspace-scroll[data-page="director"] { min-height: 0; padding: 16px; overflow: clip; }
+  [data-page="director"] > div, .director-page, .director-editing-layout { height: 100%; }
+  .director-editing-layout { grid-template-rows: minmax(0, 1fr) auto; }
+  .director-workspace-grid { height: auto; min-height: 0; }
+  .director-monitor { display: flex; flex-direction: column; overflow: visible; padding: 12px; }
+  .director-preview-shot, .draft-preview, .preview-take-stack, .preview-take, .director-player {
+    flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px;
+  }
+  .director-preview-shot > *, .preview-take > * { margin-block: 0 !important; }
+  .director-player { gap: 0; background: hsl(var(--card)); }
+  .director-player .director-video-surface, .director-player .draft-viewport {
+    display: block; background: #05090d; flex: 1 1 0; min-height: 0; height: 0; max-height: none;
+  }
+  .director-player .draft-viewport { display: grid; }
+  .director-player .director-playback-controls {
+    flex: none; height: 60px; padding: 6px 12px; justify-content: space-evenly;
+    background: hsl(var(--secondary) / .76); backdrop-filter: blur(10px);
+    border-top: 1px solid hsl(var(--foreground) / .12);
+    overflow: clip; transition: height .16s ease, background-color .16s ease;
+  }
+  .director-player .director-playback-controls > input { flex: none; }
+  .director-take-strip { flex: none; overflow: visible; padding-top: 6px; }
+  .director-take-thumb { flex: 0 1 86px; min-width: 0; }
+  .director-take-thumb img { width: 100%; height: clamp(32px, 5vh, 56px); }
+  .draft-frame-pair { margin: 0; }
+  .draft-frame-pair > div { min-height: 44px; padding: 6px; }
+  .empty-takes { padding: 6px; }
+  .director-overview { padding: 12px !important; }
+  .director-overview .director-filmstrip { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); overflow: visible; padding: 0; margin-top: 8px; }
+  .director-overview .director-filmstrip:empty { display: none; }
+  .director-filmstrip-shot { width: 100%; min-width: 0; }
+  .director-filmstrip-image { height: clamp(40px, 9dvh, 120px); }
+  .director-filmstrip-shot button > div:last-child { padding: 4px 8px; }
+}
+@media (min-width: 1024px) and (hover: hover) {
+  .director-player:not(:hover):not(:focus-within) .director-playback-controls {
+    height: 24px; justify-content: center; background: hsl(var(--secondary) / .5);
+  }
+  .director-player:not(:hover):not(:focus-within) .director-transport-row {
+    height: 0; opacity: 0; pointer-events: none; overflow: hidden;
+  }
+}
+@container (max-width: 520px) {
+  .director-preview-shot > div:first-child a[href*="/shot-lab"] { display: none; }
+  .director-preview-shot > div:first-child { gap: 4px; }
 }

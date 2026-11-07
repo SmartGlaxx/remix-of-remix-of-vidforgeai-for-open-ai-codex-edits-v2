@@ -65,7 +65,7 @@ function DashboardInner() {
 
           </div>
         </header>
-        <div ref={scroll} className="workspace-scroll flex-1 overflow-y-auto px-4 py-5 pb-24 md:px-5 md:py-5 lg:pb-7" data-workspace-scroll>
+        <div ref={scroll} className="workspace-scroll flex-1 overflow-y-auto px-4 py-5 pb-24 md:px-5 md:py-5 lg:pb-7" data-workspace-scroll data-page={page.id}>
           <div className="mx-auto w-full">
             {/* Keep visited tools mounted so navigation cannot interrupt in-flight work. */}
             {visited.includes("script") && <div hidden={page.id !== "script"}>
@@ -81,7 +81,7 @@ function DashboardInner() {
                 {visualScenes.length > 1 ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visualScenes.slice(0, -1).map((scene, index) => { const end = visualScenes[index + 1]; return <article key={scene.id} className="rounded-xl border border-border bg-background/40 p-3"><div className="grid grid-cols-2 gap-2"><div><span className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">Start frame</span><div className="aspect-video overflow-hidden rounded-lg bg-muted">{scene.imageUrl && <img src={scene.imageUrl} alt={`Shot ${index + 1} start frame`} className="h-full w-full object-cover" />}</div></div><div><span className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">End frame</span><div className="aspect-video overflow-hidden rounded-lg bg-muted">{end.imageUrl && <img src={end.imageUrl} alt={`Shot ${index + 1} end frame`} className="h-full w-full object-cover" />}</div></div></div><p className="my-2 truncate text-xs font-medium">Shot {String(index + 1).padStart(2, "0")} · {scene.section}</p><Button size="sm" variant="outline" className="w-full" onClick={() => { setStudioDraft((draft) => ({ ...draft, startFrame: scene.imageUrl || "", endFrame: end.imageUrl || "", prompt: scene.prompt || scene.text })); navigate("/dashboard/director"); }}>Direct this shot</Button></article>; })}</div> : <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">Generate at least two storyboard frames to create a start/end pair for a shot.</p>}
               </section><details className="workspace-card" open={visualScenes.length < 2}><summary className="cursor-pointer font-bold">Create and manage storyboard frames</summary><div className="mt-5"><VisualsStep /></div></details>
             </div>}
-            {visited.includes("director") && <div hidden={page.id !== "director"}><StudioClipPanel visible={page.id === "director"} includeSequence={false} requestedShotId={new URLSearchParams(search).get("shot")} /></div>}
+            {visited.includes("director") && <div className="director-page" hidden={page.id !== "director"}><StudioClipPanel visible={page.id === "director"} includeSequence={false} requestedShotId={new URLSearchParams(search).get("shot")} /></div>}
             {page.id === "shot-lab" && <ShotLabPage />}
             {visited.includes("final-cut") && <div hidden={page.id !== "final-cut"}>
               <StudioSequencePanel />
