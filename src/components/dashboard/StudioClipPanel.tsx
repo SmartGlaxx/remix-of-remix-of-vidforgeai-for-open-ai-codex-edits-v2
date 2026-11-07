@@ -241,7 +241,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
 
   const frameField = (id: string, label: string, value: string, set: (v: string) => void) => (
     <div className="space-y-1">
-      <label htmlFor={id} className="text-xs text-muted-foreground">{label} (required)</label>
+      <label className="frame-input-label" htmlFor={id}>{isValidFrameUrl(value) ? <img src={value} alt="" /> : <Image size={18} />}<span>{label}<span className="sr-only"> (required)</span></span></label>
       <div className="flex items-center gap-2">
         <Input id={id} type="url" value={value} disabled={running} onChange={(e) => set(e.target.value)}
           placeholder="https://…" aria-invalid={!!value && !isValidFrameUrl(value)} />
@@ -268,14 +268,24 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       <section className="director-monitor" aria-label="Shot preview">
         {(!shots.length || selectedShot === -1) && <div className="draft-preview">
           <div className="preview-title"><span>New shot</span><span>{resolution} · {aspect}</span></div>
-          <div className="director-player"><div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><h2>Your story, in motion</h2><p>Choose a start and end frame to bring your next shot to life.</p></div>}</div><PlaybackControls /></div>
+          <div className="director-player">{isValidFrameUrl(startFrame) && <img className="player-glass-backdrop" src={startFrame} aria-hidden="true" alt="" />}<div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><h2>Shot preview</h2><p>Add your start and end frames in the inspector.</p></div>}</div><PlaybackControls summary="No takes yet">
           <div className="draft-frame-pair">{[["Start frame", startFrame], ["End frame", endFrame]].map(([label, url]) => <div key={label}>{isValidFrameUrl(url) ? <img src={url} alt={label} /> : <Image size={18} />}<span>{label}<small>{isValidFrameUrl(url) ? "Ready" : "Required"}</small></span></div>)}</div>
           <div className="empty-takes"><Film size={18} /><span>Generated takes will appear here for review.</span></div>
+          </PlaybackControls></div>
         </div>}
 
       {shots.map((shot, index) => {
         const active = activeTake(shot);
         const shotCost = shot.takes.reduce((sum, k) => sum + takeCost(k.generationSeconds, rate), 0);
+        const takeStrip = (
+            <div className="director-take-strip" aria-label={`Shot ${index + 1} takes`}>
+              {shot.takes.length > 3 ? <label className="take-picker">Preview take <select value={previewTakes[shot.id] ?? shot.takes.length - 1} onChange={(event) => setPreviewTakes((prev) => ({ ...prev, [shot.id]: Number(event.target.value) }))}>
+                {shot.takes.map((take, t) => <option key={t} value={t}>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</option>)}
+              </select></label> : shot.takes.map((take, t) => <button key={t} type="button" aria-pressed={t === (previewTakes[shot.id] ?? shot.takes.length - 1)} onClick={() => setPreviewTakes((prev) => ({ ...prev, [shot.id]: t }))} className="director-take-thumb">
+                <img src={shot.firstFrame} alt="" /><span>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</span>
+              </button>)}
+            </div>
+        );
         return (
           <section key={shot.id} aria-label={`Shot ${index + 1} card`} hidden={index !== selectedShot} className="director-preview-shot space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -291,19 +301,13 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
               {shot.takes.map((take, t) => (
                 <div key={`${take.jobId}-${t}`} hidden={t !== (previewTakes[shot.id] ?? shot.takes.length - 1)} className="preview-take space-y-3">
                   {take.videoUrl
-                    ? <StudioClipPlayer director active={visible && selectedShot === index && t === (previewTakes[shot.id] ?? shot.takes.length - 1)} videoUrl={take.videoUrl} poster={shot.firstFrame} shot={index + 1} take={t + 1} saved={take.saved} />
-                    : <p className="text-xs text-destructive">No video — {take.error ?? "generation failed"}</p>}
+                    ? <StudioClipPlayer director active={visible && selectedShot === index && t === (previewTakes[shot.id] ?? shot.takes.length - 1)} videoUrl={take.videoUrl} poster={shot.firstFrame} shot={index + 1} take={t + 1} saved={take.saved} dockContent={visible && index === selectedShot && t === takeIndex ? takeStrip : null} />
+                    : <><p className="text-xs text-destructive">No video — {take.error ?? "generation failed"}</p>{takeStrip}</>}
 
                 </div>
               ))}
             </div>
-            <div className="director-take-strip" aria-label={`Shot ${index + 1} takes`}>
-              {shot.takes.length > 3 ? <label className="take-picker">Preview take <select value={previewTakes[shot.id] ?? shot.takes.length - 1} onChange={(event) => setPreviewTakes((prev) => ({ ...prev, [shot.id]: Number(event.target.value) }))}>
-                {shot.takes.map((take, t) => <option key={t} value={t}>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</option>)}
-              </select></label> : shot.takes.map((take, t) => <button key={t} type="button" aria-pressed={t === (previewTakes[shot.id] ?? shot.takes.length - 1)} onClick={() => setPreviewTakes((prev) => ({ ...prev, [shot.id]: t }))} className="director-take-thumb">
-                <img src={shot.firstFrame} alt="" /><span>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</span>
-              </button>)}
-            </div>
+
           </section>
         );
       })}
@@ -313,28 +317,30 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       <div className="inspector-heading flex items-center gap-2">
         <Sparkles className="w-5 h-5 text-primary" />
         <div>
-          <h3 className="font-display text-lg font-bold text-foreground">Prompt</h3>
-          <p className="text-xs text-muted-foreground">LTX-2.5 · Automatic backup with LTX-2.3</p>
+          <h3 className="font-display text-lg font-bold text-foreground">Shot direction</h3>
+          <p className="text-xs text-muted-foreground">LTX-2.5 · Auto-backup LTX-2.3</p>
         </div>
       </div>
 
       <div className="inspector-fields">
-      <Textarea ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
-         placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" />
-      <Textarea aria-label="Dialogue" value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
-        placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" />
+      <div className="direction-composer"><label htmlFor="shot-direction">Shot description</label>
+      <Textarea id="shot-direction" ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
+         placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" /></div>
+      <details className="direction-disclosure"><summary>Dialogue <small>Optional</small></summary><Textarea aria-label="Dialogue" value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
+        placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" /></details>
 
-      <div className="grid gap-3">
+      <div className="frame-section"><div className="frame-heading"><strong>Frame pair</strong><span>{Number(isValidFrameUrl(startFrame)) + Number(isValidFrameUrl(endFrame))} / 2 ready</span></div><div className="inspector-frame-pair">
         {frameField("studio-start-frame", "Start frame", startFrame, setStartFrame)}
         {frameField("studio-end-frame", "End frame", endFrame, setEndFrame)}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <details className="direction-disclosure frame-sources"><summary>Use existing frames</summary><div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={running || !storyboardImages[0]} onClick={() => setStartFrame(storyboardImages[0] ?? "")}><Image className="w-4 h-4" /> Start: first storyboard image</Button>
         <Button variant="outline" size="sm" disabled={running || !storyboardImages[1]} onClick={() => setEndFrame(storyboardImages[1] ?? "")}><Image className="w-4 h-4" /> End: next storyboard image</Button>
         <Button variant="outline" size="sm" disabled={running || !previousEnd} onClick={() => setStartFrame(previousEnd ?? "")}><Link className="w-4 h-4" /> Start: previous shot's end</Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      </details></div>
+      <details className="direction-disclosure"><summary>Shot settings <small>{duration}s · {resolution}</small></summary><div className="grid grid-cols-2 gap-3 text-sm">
         <label className="space-y-1"><span className="text-xs text-muted-foreground">Length</span>
           <select className="w-full rounded-md border border-border bg-background p-2" value={duration}
             disabled={running} onChange={(e) => setDuration(Number(e.target.value))}>
@@ -357,6 +363,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
           </select></label>
       </div>
 
+      </details>
       {currentShot && currentTake && <section className="take-inspector-details space-y-2" aria-label="Selected take">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-medium">Take {takeIndex + 1}{takeIndex === currentShot.activeTakeIndex && currentTake.status === "passed" ? " · selected for cut" : ""}</span>
@@ -388,7 +395,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
         </Button>
       </div>
       <WorkspaceLink className="review-link" href={shots[selectedShot] ? `/dashboard/shot-lab?shot=${encodeURIComponent(shots[selectedShot].id)}` : "/dashboard/shot-lab"}>Review it in Shot Lab →</WorkspaceLink>
-      {!framesValid && <p className="text-xs text-muted-foreground">Set both a start and an end image (public HTTPS links) to generate.</p>}
+      {!framesValid && <p className="frame-requirement">Both frames require an HTTPS image URL.</p>}
 
       {running && (
         <div className="space-y-2">
