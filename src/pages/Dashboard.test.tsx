@@ -46,10 +46,11 @@ it.each([
   ["projects", "Projects"], ["script", "Script"], ["story-canvas", "Story Canvas"],
   ["storyboard", "Storyboard"], ["shot-lab", "Shot Lab"], ["final-cut", "Final cut"],
   ["export", "Export"], ["assets", "Assets"], ["production", "Production"], ["settings", "Settings"],
-])("renders the %s page with the shared workflow navigation", async (path, title) => {
+])("renders the %s page without duplicate top navigation", async (path, title) => {
   render(<MemoryRouter initialEntries={[`/dashboard/${path}`]}><Dashboard /></MemoryRouter>);
   expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
-  expect(screen.getByRole("navigation", { name: "Production steps" }).querySelectorAll("a")).toHaveLength(8);
+  expect(screen.queryByRole("navigation", { name: "Production steps" })).not.toBeInTheDocument();
+  expect(screen.getByRole("navigation", { name: "Director sidebar" })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Sequence" })).not.toBeInTheDocument();
 });
 

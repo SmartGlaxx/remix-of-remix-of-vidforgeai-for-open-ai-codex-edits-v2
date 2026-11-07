@@ -1,6 +1,7 @@
+import PlaybackControls from "./PlaybackControls";
 import WorkspaceLink from "./WorkspaceLink";
 import { useEffect, useRef, useState } from "react";
-import { Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Play, Sparkles } from "lucide-react";
+import { Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,7 +41,7 @@ const payloadFor = (shot: StudioShot, seed: number) => ({
   duration_seconds: shot.durationSeconds,
 });
 
-const StudioClipPanel = ({ includeSequence = true, requestedShotId }: { includeSequence?: boolean; requestedShotId?: string | null }) => {
+const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = true }: { includeSequence?: boolean; requestedShotId?: string | null; visible?: boolean }) => {
   const { visualScenes, studioClips: shots, setStudioClips: setShots,
     studioDraft, setStudioDraft, poolRate: rate, setStudioBusy, sequenceBusy } = useProject();
   const storyboardImages = visualScenes.map((s) => s.imageUrl).filter((u): u is string => !!u);
@@ -242,7 +243,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId }: { includeS
   );
 
   return (
-    <div className="space-y-4">
+    <div className="director-editing-layout">
       <div className="director-workspace-grid">
       <aside className="director-library" aria-label="Shot library">
         <div className="library-tabs"><span className="is-active">Shots</span><WorkspaceLink href="/dashboard/assets">Assets</WorkspaceLink><WorkspaceLink href="/dashboard/shot-lab">Approved</WorkspaceLink></div>
@@ -258,7 +259,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId }: { includeS
       <section className="director-monitor" aria-label="Shot preview">
         {(!shots.length || selectedShot === -1) && <div className="draft-preview">
           <div className="preview-title"><span>New shot</span><span>{resolution} · {aspect}</span></div>
-          <div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><span className="preview-play"><Play size={26} /></span><h2>Your story, in motion</h2><p>Choose a start and end frame to bring your next shot to life.</p></div>}</div>
+          <div className="director-player"><div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><h2>Your story, in motion</h2><p>Choose a start and end frame to bring your next shot to life.</p></div>}</div><PlaybackControls /></div>
           <div className="draft-frame-pair">{[["Start frame", startFrame], ["End frame", endFrame]].map(([label, url]) => <div key={label}>{isValidFrameUrl(url) ? <img src={url} alt={label} /> : <Image size={18} />}<span>{label}<small>{isValidFrameUrl(url) ? "Ready" : "Required"}</small></span></div>)}</div>
           <div className="empty-takes"><Film size={18} /><span>Generated takes will appear here for review.</span></div>
         </div>}
@@ -281,7 +282,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId }: { includeS
               {shot.takes.map((take, t) => (
                 <div key={`${take.jobId}-${t}`} hidden={t !== (previewTakes[shot.id] ?? shot.takes.length - 1)} className="preview-take space-y-3">
                   {take.videoUrl
-                    ? <StudioClipPlayer videoUrl={take.videoUrl} poster={shot.firstFrame} shot={index + 1} take={t + 1} saved={take.saved} />
+                    ? <StudioClipPlayer director active={visible && selectedShot === index && t === (previewTakes[shot.id] ?? shot.takes.length - 1)} videoUrl={take.videoUrl} poster={shot.firstFrame} shot={index + 1} take={t + 1} saved={take.saved} />
                     : <p className="text-xs text-destructive">No video — {take.error ?? "generation failed"}</p>}
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium">Take {t + 1}{t === shot.activeTakeIndex && take.status === "passed" ? " · selected for cut" : ""}</span>
