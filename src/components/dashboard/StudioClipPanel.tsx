@@ -376,7 +376,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       <div className="inspector-fields">
       <div className="direction-composer"><label className="sr-only" htmlFor="shot-direction">Shot description</label>
       <Textarea id="shot-direction" ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
-         placeholder="Describe what happens between your start and end frames. Include the subject’s movement, camera direction, and how the light or mood changes." className="min-h-[90px]" /><small>{prompt.length} characters</small></div>
+         placeholder="Enter prompt here" className="min-h-[90px]" /><small>{prompt.length} characters</small></div>
 <div className="shot-settings-rows">
         <label className="space-y-1"><span className="text-xs text-muted-foreground"><Timer size={15}/> Duration</span>
           <select className="w-full rounded-md border border-border bg-background p-2" value={duration}
