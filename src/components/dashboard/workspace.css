@@ -419,3 +419,13 @@
   .director-shell .workspace-scroll[data-page="director"] {overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:hsl(var(--background))}
   .director-shell .workspace-scroll[data-page="director"] > * {min-height:0}
 }
+
+@media (max-width: 760px) {
+  .director-shell .workspace-scroll[data-page="director"] { padding: 8px 16px 24px !important; }
+  .director-editing-layout,
+  .director-workspace-grid { gap: 12px; }
+  .director-editing-layout .director-monitor,
+  .director-editing-layout .director-inspector,
+  .director-editing-layout .director-library { padding: 12px; }
+  .director-inspector .inspector-fields { padding: 12px; }
+}
