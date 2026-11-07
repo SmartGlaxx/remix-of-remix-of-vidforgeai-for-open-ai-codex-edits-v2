@@ -2,7 +2,7 @@ import TrackWaveform from "./TrackWaveform";
 import PlaybackControls from "./PlaybackControls";
 import WorkspaceLink from "./WorkspaceLink";
 import { useEffect, useRef, useState } from "react";
-import { MousePointer2, Maximize, LockKeyhole, Eye, AudioLines, PanelTop, Play, Save, Camera, Timer, Ratio, Monitor, Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Sparkles } from "lucide-react";
+import { MousePointer2, Maximize, LockKeyhole, Eye, AudioLines, PanelTop, Save, Camera, Timer, Ratio, Monitor, Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +64,19 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
   const [selectedShot, setSelectedShot] = useState(0);
   useEffect(() => { if (requestedShotId) { const index = shots.findIndex((shot) => shot.id === requestedShotId); if (index >= 0) setSelectedShot(index); } }, [requestedShotId, shots.length]);
   const [previewTakes, setPreviewTakes] = useState<Record<string, number>>({});
+  const [libraryTab, setLibraryTab] = useState<"Shots" | "Assets" | "Approved">("Shots");
+  const [libraryPage, setLibraryPage] = useState(0);
+  const pendingShot = shots.find(shot => shot.takes.some(take => take.pendingDecision && take.status === "needs_review"));
+  const pendingTake = pendingShot?.takes.find(take => take.pendingDecision && take.status === "needs_review");
+  const decideTake = (discard: boolean) => {
+    if (!pendingShot || !pendingTake) return;
+    setShots(previous => previous.map(shot => shot.id !== pendingShot.id ? shot : {
+      ...shot, takes: shot.takes.map(take => take.jobId !== pendingTake.jobId ? take : {
+        ...take, pendingDecision: false,
+        ...(discard ? { videoUrl: null, rejected: true, status: "failed" as const, error: "Discarded" } : {}),
+      }),
+    }));
+  };
   const currentShot = shots[selectedShot];
   const takeIndex = currentShot ? previewTakes[currentShot.id] ?? currentShot.takes.length - 1 : -1;
   const currentTake = currentShot?.takes[takeIndex];
@@ -98,7 +111,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
   const busy = running || sequenceBusy;
   useEffect(() => { setStudioBusy(running); return () => setStudioBusy(false); }, [running, setStudioBusy]);
   const framesValid = isValidFrameUrl(startFrame) && isValidFrameUrl(endFrame);
-  const canGenerate = !busy && !!prompt.trim() && framesValid;
+  const canGenerate = !pendingTake && !busy && !!prompt.trim() && framesValid;
   const previousEnd = shots.at(-1)?.lastFrame;
 
   useEffect(() => {
@@ -144,7 +157,9 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
         result.generationSeconds = (result.generationSeconds ?? 0) + (failedPrimary.generationSeconds ?? 0);
       }
       if (cancel.current) return;
-      append({ ...result, seed });
+      append({ ...result, seed, pendingDecision: true });
+      setPreviewTakes(previous => ({...previous, [shot.id]: shot.takes.length}));
+      if (!isNew) setSelectedShot(shots.findIndex(item => item.id === shot.id));
       toast({ title: "Take ready — review it", description: `Made with ${result.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}` });
     } catch (e) {
       if (cancel.current) return;
@@ -182,7 +197,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
     return renderTake(shot, useTier, true);
   };
 
-  const retake = (index: number) => { if (!busy) renderTake(shots[index], "primary", false); };
+  const retake = (index: number) => { if (!busy && !pendingTake) renderTake(shots[index], "primary", false); };
 
   const renderOn = async (useTier: Tier, payload: Record<string, unknown>): Promise<StudioTake> => {
     let jobId: string | undefined;
@@ -266,11 +281,27 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
     </div>
   );
 
+  const libraryItems = [
+    ...(libraryTab === "Assets" ? visualScenes.flatMap(scene => scene.imageUrl ? [{
+      key: "frame-" + scene.id, title: scene.section || "Storyboard frame", image: scene.imageUrl, audio: "",
+      open: () => { setSelectedShot(-1); setStartFrame(scene.imageUrl!); },
+    }] : []) : []),
+    ...shots.flatMap((shot, index) => shot.takes.flatMap((take, number) => {
+      if (!take.videoUrl || take.rejected || take.pendingDecision || (libraryTab === "Approved" && (number !== shot.activeTakeIndex || take.status !== "passed"))) return [];
+      return [{ key: shot.id + "-" + number, title: `Shot ${String(index + 1).padStart(2,"0")} · Take ${number + 1}`,
+        image: shot.firstFrame, audio: "", open: () => { selectShot(index); setPreviewTakes(previous => ({...previous, [shot.id]: number})); } }];
+    })),
+    ...(libraryTab === "Assets" ? soundtrackTracks.flatMap(track => track.url && track.status === "done" ? [{
+      key: "audio-" + track.id, title: track.segment, image: "", audio: track.url, open: () => {},
+    }] : []) : []),
+  ];
+  const libraryStart = Math.min(libraryPage, Math.max(0, Math.ceil(libraryItems.length / SHOTS_PER_PAGE) - 1)) * SHOTS_PER_PAGE;
   return (
     <div className="director-editing-layout">
       <div className="director-workspace-grid">
       <aside className="director-library" aria-label="Shot library">
-        <div className="library-tabs"><span className="is-active">Shots</span><WorkspaceLink href="/dashboard/assets">Assets</WorkspaceLink><WorkspaceLink href="/dashboard/shot-lab">Approved</WorkspaceLink></div>
+        <div className="library-tabs" aria-label="Library views">{(["Shots","Assets","Approved"] as const).map(tab => <button key={tab} aria-pressed={libraryTab === tab} className={libraryTab === tab ? "is-active" : ""} onClick={() => {setLibraryTab(tab);setLibraryPage(0)}}>{tab}</button>)}</div>
+        {libraryTab === "Shots" ? <>
         <div className="library-heading"><h2>Shot library <span>({shots.length})</span></h2><button onClick={() => { setSelectedShot(-1); promptRef.current?.focus(); }} aria-label="New shot"><Plus size={18} /></button></div>
         <div className="library-shots">
           {pageShots.map((shot, offset) => {
@@ -283,6 +314,15 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
           {!shots.length && <div className="library-empty"><div className="empty-thumbnail"><Film size={32} strokeWidth={1} /></div><h3>Your first shot starts here</h3><p>Add both storyboard frames and describe the shot to generate your first take.</p><WorkspaceLink href="/dashboard/storyboard">Open Storyboard →</WorkspaceLink></div>}
         </div>
         {shots.length > SHOTS_PER_PAGE && <div className="timeline-pages"><button disabled={!firstTimelineShot} aria-label="Previous shots" onClick={() => goToPage(-1)}>‹</button><span>{firstTimelineShot + 1}–{firstTimelineShot + pageShots.length} / {shots.length}</span><button disabled={firstTimelineShot + pageShots.length >= shots.length} aria-label="Next shots" onClick={() => goToPage(1)}>›</button></div>}
+        </> : <>
+          <div className="library-heading"><h2>{libraryTab} <span>({libraryItems.length})</span></h2></div>
+          <div className="library-shots">{libraryItems.slice(libraryStart, libraryStart + SHOTS_PER_PAGE).map(item => item.audio
+            ? <div key={item.key} className="library-audio"><span>{item.title}</span><audio controls preload="none" src={item.audio}/></div>
+            : <button key={item.key} className="shot-still" onClick={item.open}><img src={item.image} alt=""/><b>{item.title}</b></button>)}
+            {!libraryItems.length && <p className="library-empty">{libraryTab === "Assets" ? "No saved assets yet." : "No approved takes yet."}</p>}
+          </div>
+          {libraryItems.length > SHOTS_PER_PAGE && <div className="timeline-pages"><button aria-label="Previous items" disabled={!libraryStart} onClick={() => setLibraryPage(libraryStart / SHOTS_PER_PAGE - 1)}>‹</button><span>{libraryStart + 1}–{Math.min(libraryStart + SHOTS_PER_PAGE, libraryItems.length)}</span><button aria-label="Next items" disabled={libraryStart + SHOTS_PER_PAGE >= libraryItems.length} onClick={() => setLibraryPage(libraryStart / SHOTS_PER_PAGE + 1)}>›</button></div>}
+        </>}
       </aside>
       <section ref={monitor} className="director-monitor" aria-label="Shot preview" onTimeUpdateCapture={event => {
         const video = event.target;
@@ -313,7 +353,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
                 <Button asChild variant="ghost" size="sm"><WorkspaceLink href={`/dashboard/shot-lab?shot=${encodeURIComponent(shot.id)}`}>Review it in Shot Lab <Link className="ml-1 h-4 w-4" /></WorkspaceLink></Button>
                 {active && <Badge variant={active.status === "passed" ? "default" : active.status === "failed" ? "destructive" : "secondary"}
                   aria-label={`Shot ${index + 1} QC`}>{QC_LABEL[active.status]}</Badge>}
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => retake(index)}><RotateCcw className="w-4 h-4" /> Retake (new seed)</Button>
+                <Button size="sm" variant="outline" disabled={busy || !!pendingTake} onClick={() => retake(index)}><RotateCcw className="w-4 h-4" /> Retake (new seed)</Button>
               </aside></details>
             </div>
             <div className="preview-take-stack">
@@ -333,18 +373,10 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
 
       </section>
       <section className="director-inspector" aria-label="Shot prompt">
-      <div className="inspector-heading flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-primary" />
-        <div>
-          <h3 className="font-display text-lg font-bold text-foreground">Prompt</h3>
-          <p className="text-xs text-muted-foreground">AI Video</p>
-        </div>
-      </div>
-
       <div className="inspector-fields">
       <div className="direction-composer"><label className="sr-only" htmlFor="shot-direction">Shot description</label>
       <Textarea id="shot-direction" ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
-         placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" /><small>{prompt.length} characters</small></div>
+         placeholder="Describe what happens between your start and end frames. Include the subject’s movement, camera direction, and how the light or mood changes." className="min-h-[90px]" /><small>{prompt.length} characters</small></div>
 <div className="shot-settings-rows">
         <label className="space-y-1"><span className="text-xs text-muted-foreground"><Timer size={15}/> Duration</span>
           <select className="w-full rounded-md border border-border bg-background p-2" value={duration}
@@ -407,22 +439,13 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       </section>}</details>
       </div>
       <div className="inspector-actions">
-        <Button className="generate-take" onClick={() => generate("primary")} disabled={!canGenerate}>
-          {running && tier === "primary" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} <Sparkles className="h-4 w-4" /> Generate take
-        </Button>
-        <Button variant="outline" disabled={!currentTake?.videoUrl} onClick={() => {
-          const player = monitor.current?.querySelector<HTMLVideoElement>(".director-preview-shot:not([hidden]) .preview-take:not([hidden]) video");
-          if (player?.paused) void player.play().catch(() => toast({title:"Playback unavailable"}));
-          else player?.pause();
-        }}><Play size={15}/> Preview</Button>
-        <Button variant="outline" disabled={!currentTake?.videoUrl} onClick={() => {
-          if (!currentTake?.videoUrl) return;
-          const link = document.createElement("a");
-          link.href = currentTake.videoUrl; link.download = "shot-" + (selectedShot + 1) + "-take-" + (takeIndex + 1); link.target = "_blank"; link.rel = "noopener"; link.click();
-        }}><Save size={15}/> Save take</Button>
+        {pendingTake ? <>
+          <Button onClick={() => decideTake(false)}><Save size={15}/> Save take</Button>
+          <Button variant="outline" onClick={() => decideTake(true)}><X size={15}/> Discard</Button>
+        </> : <Button className="generate-take" onClick={() => generate("primary")} disabled={!canGenerate}>
+          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate take
+        </Button>}
       </div>
-      <WorkspaceLink className="review-link" href={shots[selectedShot] ? `/dashboard/shot-lab?shot=${encodeURIComponent(shots[selectedShot].id)}` : "/dashboard/shot-lab"}>Review it in Shot Lab →</WorkspaceLink>
-      {!framesValid && <p className="frame-requirement">Both frames require an HTTPS image URL.</p>}
 
       {running && (
         <div className="space-y-2">
