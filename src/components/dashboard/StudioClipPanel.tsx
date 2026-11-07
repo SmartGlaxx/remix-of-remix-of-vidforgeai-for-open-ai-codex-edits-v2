@@ -1,3 +1,4 @@
+import TrackWaveform from "./TrackWaveform";
 import PlaybackControls from "./PlaybackControls";
 import WorkspaceLink from "./WorkspaceLink";
 import { useEffect, useRef, useState } from "react";
@@ -21,7 +22,9 @@ type ShotFailure = Error & { jobId?: string; generationSeconds?: number };
 
 // Worst measured cold first clip ≈ 13 min (285s queue + 491s gen). Size for 14.
 export const COLD_START_BUDGET_MS = 14 * 60 * 1000;
-const SHOTS_PER_PAGE = 4;
+const SHOTS_PER_PAGE = 5;
+const clock = (seconds: number) => new Date(Math.max(0, seconds) * 1000).toISOString().slice(11, 19);
+
 const POLL_MS = 5000;
 
 type Tier = "primary" | "backup";
@@ -43,7 +46,7 @@ const payloadFor = (shot: StudioShot, seed: number) => ({
 });
 
 const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = true }: { includeSequence?: boolean; requestedShotId?: string | null; visible?: boolean }) => {
-  const { visualScenes, studioClips: shots, setStudioClips: setShots,
+  const { soundtrackTracks, sequenceSoundtrack, visualScenes, studioClips: shots, setStudioClips: setShots,
     studioDraft, setStudioDraft, poolRate: rate, setStudioBusy, sequenceBusy } = useProject();
   const storyboardImages = visualScenes.map((s) => s.imageUrl).filter((u): u is string => !!u);
   const [startFrame, setStartFrame] = useDraftField(studioDraft, setStudioDraft, "startFrame");
@@ -69,6 +72,15 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
     if (selectedShot >= 0) setTimelinePage(Math.floor(selectedShot / SHOTS_PER_PAGE));
   }, [selectedShot]);
   const firstTimelineShot = Math.min(timelinePage, Math.max(0, Math.ceil(shots.length / SHOTS_PER_PAGE) - 1)) * SHOTS_PER_PAGE;
+  const pageShots = shots.slice(firstTimelineShot, firstTimelineShot + SHOTS_PER_PAGE);
+  const pageStart = shots.slice(0, firstTimelineShot).reduce((sum, shot) => sum + shot.durationSeconds, 0);
+  const pageSeconds = pageShots.reduce((sum, shot) => sum + shot.durationSeconds, 0);
+  const totalSeconds = shots.reduce((sum, shot) => sum + shot.durationSeconds, 0);
+  const music = soundtrackTracks.find(track => track.id === sequenceSoundtrack);
+  const goToPage = (offset: number) => selectShot(firstTimelineShot + offset * SHOTS_PER_PAGE);
+  const [playTime, setPlayTime] = useState({ id: "", seconds: 0 });
+  const shotStart = shots.slice(0, Math.max(0, selectedShot)).reduce((sum, shot) => sum + shot.durationSeconds, 0);
+  const position = shotStart + (playTime.id === currentShot?.id ? Math.min(playTime.seconds, currentShot.durationSeconds) : 0);
   const previousShotCount = useRef(shots.length);
   useEffect(() => {
     if (shots.length > previousShotCount.current) setSelectedShot(shots.length - 1);
@@ -258,14 +270,21 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
         <div className="library-tabs"><span className="is-active">Shots</span><WorkspaceLink href="/dashboard/assets">Assets</WorkspaceLink><WorkspaceLink href="/dashboard/shot-lab">Approved</WorkspaceLink></div>
         <div className="library-heading"><h2>Shot library <span>({shots.length})</span></h2><button onClick={() => { setSelectedShot(-1); promptRef.current?.focus(); }} aria-label="New shot"><Plus size={18} /></button></div>
         <div className="library-shots">
-          {shots.map((shot, index) => <button type="button" key={shot.id} className={`library-shot ${selectedShot === index ? "is-selected" : ""}`} onClick={() => selectShot(index)}>
-            <div className="library-shot-image"><img src={shot.firstFrame} alt={`Shot ${index + 1}`} /><span>{shot.durationSeconds}.0 s</span>{activeTake(shot)?.status === "passed" && <Check className="shot-check" size={22} />}</div>
-            <div className="library-shot-copy"><strong>Shot {String(index + 1).padStart(2, "0")}</strong><span>{shot.takes.length} takes</span><p>{shot.cameraMotion || "Static"} · {shot.resolution}</p></div>
-          </button>)}
+          {pageShots.map((shot, offset) => {
+            const index = firstTimelineShot + offset;
+            return <button type="button" key={shot.id} aria-pressed={selectedShot === index} className="shot-still" onClick={() => selectShot(index)}>
+              <img src={shot.firstFrame} alt="" /><b>Shot {String(index + 1).padStart(2, "0")}</b><time>{clock(shot.durationSeconds)}</time>
+              {selectedShot === index && <Check className="still-check" size={18} />}
+            </button>;
+          })}
           {!shots.length && <div className="library-empty"><div className="empty-thumbnail"><Film size={32} strokeWidth={1} /></div><h3>Your first shot starts here</h3><p>Add both storyboard frames and describe the shot to generate your first take.</p><WorkspaceLink href="/dashboard/storyboard">Open Storyboard →</WorkspaceLink></div>}
         </div>
+        {shots.length > SHOTS_PER_PAGE && <div className="timeline-pages"><button disabled={!firstTimelineShot} aria-label="Previous shots" onClick={() => goToPage(-1)}>‹</button><span>{firstTimelineShot + 1}–{firstTimelineShot + pageShots.length} / {shots.length}</span><button disabled={firstTimelineShot + pageShots.length >= shots.length} aria-label="Next shots" onClick={() => goToPage(1)}>›</button></div>}
       </aside>
-      <section className="director-monitor" aria-label="Shot preview">
+      <section className="director-monitor" aria-label="Shot preview" onTimeUpdateCapture={event => {
+        const video = event.target;
+        if (currentShot && video instanceof HTMLVideoElement && video.offsetWidth) setPlayTime({ id: currentShot.id, seconds: video.currentTime });
+      }}>
         {(!shots.length || selectedShot === -1) && <div className="draft-preview">
           <div className="preview-title"><span>New shot</span><span>{resolution} · {aspect}</span></div>
           <div className="director-player">{isValidFrameUrl(startFrame) && <img className="player-glass-backdrop" src={startFrame} aria-hidden="true" alt="" />}<div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><h2>Shot preview</h2><p>Add your start and end frames in the inspector.</p></div>}</div><PlaybackControls summary="No takes yet">
@@ -317,7 +336,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       <div className="inspector-heading flex items-center gap-2">
         <Sparkles className="w-5 h-5 text-primary" />
         <div>
-          <h3 className="font-display text-lg font-bold text-foreground">Shot direction</h3>
+          <h3 className="font-display text-lg font-bold text-foreground">Prompt</h3>
           <p className="text-xs text-muted-foreground">LTX-2.5 · Auto-backup LTX-2.3</p>
         </div>
       </div>
@@ -326,6 +345,28 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       <div className="direction-composer"><label htmlFor="shot-direction">Shot description</label>
       <Textarea id="shot-direction" ref={promptRef} aria-label="Shot description" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={running}
          placeholder="Describe the shot: who, where, framing, mood…" className="min-h-[90px]" /></div>
+<div className="shot-settings-rows">
+        <label className="space-y-1"><span className="text-xs text-muted-foreground">Duration</span>
+          <select className="w-full rounded-md border border-border bg-background p-2" value={duration}
+            disabled={running} onChange={(e) => setDuration(Number(e.target.value))}>
+            {[5, 8, 10, 15, 20].map((d) => <option key={d} value={d}>{d}s</option>)}
+          </select></label>
+        <label className="space-y-1"><span className="text-xs text-muted-foreground">Quality</span>
+          <select className="w-full rounded-md border border-border bg-background p-2" value={resolution}
+            disabled={running} onChange={(e) => setResolution(e.target.value as "720p" | "1080p")}>
+            <option value="720p">720p</option><option value="1080p">1080p</option>
+          </select></label>
+        <label className="space-y-1"><span className="text-xs text-muted-foreground">Aspect ratio</span>
+          <select className="w-full rounded-md border border-border bg-background p-2" value={aspect}
+            disabled={running} onChange={(e) => setAspect(e.target.value as "16:9" | "9:16")}>
+            <option value="16:9">16:9 wide</option><option value="9:16">9:16 vertical</option>
+          </select></label>
+        <label className="space-y-1"><span className="text-xs text-muted-foreground">Camera</span>
+          <select className="w-full rounded-md border border-border bg-background p-2" value={camera}
+            disabled={running} onChange={(e) => setCamera(e.target.value)}>
+            {CAMERA.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select></label>
+      </div>
       <details className="direction-disclosure"><summary>Dialogue <small>Optional</small></summary><Textarea aria-label="Dialogue" value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
         placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" /></details>
 
@@ -340,30 +381,6 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       </div>
 
       </details></div>
-      <details className="direction-disclosure"><summary>Shot settings <small>{duration}s · {resolution}</small></summary><div className="grid grid-cols-2 gap-3 text-sm">
-        <label className="space-y-1"><span className="text-xs text-muted-foreground">Length</span>
-          <select className="w-full rounded-md border border-border bg-background p-2" value={duration}
-            disabled={running} onChange={(e) => setDuration(Number(e.target.value))}>
-            {[5, 8, 10, 15, 20].map((d) => <option key={d} value={d}>{d}s</option>)}
-          </select></label>
-        <label className="space-y-1"><span className="text-xs text-muted-foreground">Quality</span>
-          <select className="w-full rounded-md border border-border bg-background p-2" value={resolution}
-            disabled={running} onChange={(e) => setResolution(e.target.value as "720p" | "1080p")}>
-            <option value="720p">720p</option><option value="1080p">1080p</option>
-          </select></label>
-        <label className="space-y-1"><span className="text-xs text-muted-foreground">Shape</span>
-          <select className="w-full rounded-md border border-border bg-background p-2" value={aspect}
-            disabled={running} onChange={(e) => setAspect(e.target.value as "16:9" | "9:16")}>
-            <option value="16:9">16:9 wide</option><option value="9:16">9:16 vertical</option>
-          </select></label>
-        <label className="space-y-1"><span className="text-xs text-muted-foreground">Camera</span>
-          <select className="w-full rounded-md border border-border bg-background p-2" value={camera}
-            disabled={running} onChange={(e) => setCamera(e.target.value)}>
-            {CAMERA.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select></label>
-      </div>
-
-      </details>
       {currentShot && currentTake && <section className="take-inspector-details space-y-2" aria-label="Selected take">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-medium">Take {takeIndex + 1}{takeIndex === currentShot.activeTakeIndex && currentTake.status === "passed" ? " · selected for cut" : ""}</span>
@@ -418,36 +435,16 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
 
       </div>
 
-      {<section aria-label="Director shot timeline" className="workspace-card director-overview space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div className="flex items-center gap-2"><Film className="h-4 w-4 text-primary" /><div>
-            <h3 className="font-semibold">Shot timeline</h3>
-            <p className="text-xs text-muted-foreground">Overview of generated shots in story order</p>
-          </div></div>
-          {shots.length > SHOTS_PER_PAGE && <div className="timeline-pages">
-            <button aria-label="Previous four shots" disabled={firstTimelineShot === 0} onClick={() => setTimelinePage(firstTimelineShot / SHOTS_PER_PAGE - 1)}>‹</button>
-            <span>{firstTimelineShot + 1}–{Math.min(firstTimelineShot + SHOTS_PER_PAGE, shots.length)}</span>
-            <button aria-label="Next four shots" disabled={firstTimelineShot + SHOTS_PER_PAGE >= shots.length} onClick={() => setTimelinePage(firstTimelineShot / SHOTS_PER_PAGE + 1)}>›</button>
-          </div>}
-          <WorkspaceLink href="/dashboard/final-cut" className="overview-link">Open Final cut →</WorkspaceLink>
-          <span className="text-xs tabular-nums text-muted-foreground">{shots.length} shots · {shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)} sec</span>
+      <section aria-label="Director shot timeline" className="cut-console">
+        <header><strong><Clapperboard size={17}/> Timeline</strong><time>{clock(position)} / {clock(totalSeconds)}</time><WorkspaceLink href="/dashboard/final-cut">Open Final cut →</WorkspaceLink></header>
+        <div className="cut-lanes">
+          <span/><div className="cut-ruler">{Array.from({length: 6}, (_, i) => <time key={i}>{clock(pageStart + pageSeconds * i / 5)}</time>)}</div>
+          <strong><Film size={15}/> Video</strong><div className="cut-clips">{pageSeconds > 0 && <i className="cut-playhead" style={{left: Math.max(0, Math.min(100, 100 * (position - pageStart) / pageSeconds)) + "%"}}/>}{pageShots.map((shot, offset) => <button key={shot.id} className="shot-still" style={{flex: shot.durationSeconds}} aria-pressed={selectedShot === firstTimelineShot + offset} onClick={() => selectShot(firstTimelineShot + offset)}>
+            <img src={shot.firstFrame} alt=""/><b>Shot {String(firstTimelineShot + offset + 1).padStart(2, "0")}</b><time>{clock(shot.durationSeconds)}</time>
+          </button>)}{!shots.length && <small>No shots yet</small>}</div>
+          <strong>♫　Audio</strong><div className="cut-audio"><TrackWaveform url={music?.url || undefined}/><span>{music?.segment || (shots.length ? "Original clip audio" : "No clips")}</span></div>
         </div>
-        {!shots.length && <div className="timeline-empty"><Film className="h-5 w-5" /><span>Your shots appear here in story order as you generate them.</span></div>}
-        <div className="director-filmstrip" role="list" aria-label="Shots in chronological order">
-          {shots.slice(firstTimelineShot, firstTimelineShot + SHOTS_PER_PAGE).map((shot, offset) => {
-            const index = firstTimelineShot + offset;
-            const take = activeTake(shot);
-            return <article key={shot.id} role="listitem" className="director-filmstrip-shot"><button className="w-full text-left" onClick={() => selectShot(index)} aria-label={`Preview shot ${index + 1}`}>
-              <div className="director-filmstrip-image">{shot.firstFrame && <img src={shot.firstFrame} alt={`Shot ${index + 1} start frame`} loading="lazy" />}
-                <span className="director-filmstrip-duration">{shot.durationSeconds}s</span></div>
-              <div className="flex items-center justify-between gap-2 px-3 py-2.5"><span className="truncate text-xs font-semibold">Shot {String(index + 1).padStart(2, "0")}</span>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${take?.status === "passed" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"}`}>{take?.status === "passed" ? `Take ${shot.activeTakeIndex + 1} approved` : take?.status === "failed" ? "Needs retake" : "In review"}</span></div>
-            </button></article>;
-          })}
-        </div>
-      </section>}
-
-
+      </section>
       {includeSequence && <StudioSequencePanel />}
     </div>
   );
