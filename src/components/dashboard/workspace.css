@@ -386,3 +386,16 @@
 @media(min-width:1024px){.director-editing-layout{gap:clamp(8px,1vh,14px)}.director-editing-layout .director-monitor{padding:8px}.director-editing-layout .director-inspector{overflow:hidden}.director-inspector .inspector-fields{min-height:0;flex:1;overflow-y:auto}.director-preview-shot[hidden],.preview-take[hidden]{display:none!important}}
 @media(max-width:700px){.cut-tools,.cut-zoom,.cut-lanes strong svg:first-child{display:none}.cut-lanes{grid-template-columns:62px minmax(0,1fr)}}
 .director-inspector .frame-heading{display:none}.director-inspector .inspector-frame-pair{margin:0}.director-inspector .frame-section{padding:7px 9px}.director-inspector .frame-sources{margin-top:5px;padding-top:4px}.director-inspector .direction-composer textarea{height:clamp(60px,7vh,82px);min-height:56px;resize:none}.director-inspector .direction-composer{padding:5px 9px}.director-inspector .frame-input-label img{width:52px;height:30px}.director-inspector .shot-settings-rows label:nth-child(2){order:1}
+
+.director-shell:has(.workspace-scroll[data-page="director"]) .director-header {min-height:62px;padding-block:8px}
+.director-editing-layout .director-library,.director-editing-layout .director-monitor,.director-editing-layout .inspector-fields {padding-top:4px}
+.director-inspector .inspector-actions {padding:7px 12px 9px}
+.library-audio {display:grid;align-content:center;gap:3px;font-size:12px;min-width:0}
+.library-audio audio {width:100%;height:28px}
+.cut-console {padding-bottom:6px}
+.cut-console header {height:clamp(26px,3.75vh,36px);padding-block:3px}
+.cut-lanes {row-gap:6px;padding-block:3px}
+.cut-clips {height:clamp(37.5px,6.75vh,75px)}
+.cut-audio {height:clamp(22.5px,4.05vh,42px)}
+.cut-playhead {bottom:calc(-1 * clamp(22.5px,4.05vh,42px) - 6px)}
+.cut-ruler {padding-top:2px;padding-bottom:4px}

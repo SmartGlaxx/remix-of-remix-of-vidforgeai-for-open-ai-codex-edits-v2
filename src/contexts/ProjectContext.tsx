@@ -76,6 +76,7 @@ export type SoundtrackTrack = {
 export type StudioFailover = { primaryJobId?: string; primaryError: string; backupJobId: string; at: number };
 export type QCStatus = "passed" | "needs_review" | "failed";
 export type StudioTake = {
+  pendingDecision?: boolean;
   videoUrl: string | null; lastFrame: string | null; tier: "primary" | "backup"; saved: boolean;
   jobId?: string; failover?: StudioFailover; status: QCStatus; rejected?: boolean; error?: string;
   generationSeconds?: number; seed: number; createdAt: number;
