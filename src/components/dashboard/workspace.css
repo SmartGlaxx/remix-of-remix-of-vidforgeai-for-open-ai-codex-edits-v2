@@ -429,3 +429,37 @@
   .director-editing-layout .director-library { padding: 12px; }
   .director-inspector .inspector-fields { padding: 12px; }
 }
+
+@media (max-width: 760px) {
+  .director-shell:has(.workspace-scroll[data-page="director"]) .director-header {
+    min-height: 52px;
+    padding-block: 5px;
+  }
+  .director-monitor .preview-title {
+    padding: 0 0 4px;
+    line-height: 1.2;
+  }
+  .director-library .library-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 4px;
+  }
+  .director-library .library-tabs > button,
+  .director-library .library-tabs > a {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 0;
+    padding: 8px 3px;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .director-editing-layout .director-monitor,
+  .director-editing-layout .director-inspector {
+    padding: 12px;
+  }
+  .director-inspector .inspector-fields {
+    padding: 0;
+  }
+}
