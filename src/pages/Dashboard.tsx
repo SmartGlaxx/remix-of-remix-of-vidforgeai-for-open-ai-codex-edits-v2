@@ -48,9 +48,6 @@ function DashboardInner() {
   }, [pathname, page]);
   if (pathname === "/dashboard" || pathname === "/dashboard/" || ["sequence", "timeline"].includes(currentPath)) return <Navigate to={["sequence", "timeline"].includes(currentPath) ? "/dashboard/final-cut" : "/dashboard/projects"} replace />;
   if (!page) return <Navigate to="/dashboard/script" replace />;
-  const pageIndex = workspacePages.findIndex((item) => item.id === page.id);
-  const nextPage = workspacePages[pageIndex + 1];
-  const isFlowPage = pageIndex >= 0;
   const title = topic || selectedTitle || "Untitled project";
   return (
     <div data-accent={accent} className="director-shell flex h-screen overflow-hidden bg-background">
@@ -65,26 +62,9 @@ function DashboardInner() {
           <div className="flex items-center gap-3">
             <WorkspaceThemeDots />
             <Button variant="outline" size="icon" aria-label="Toggle light and dark mode" onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}>{resolvedTheme === "light" ? <Moon size={18} /> : <Sun size={18} />}</Button>
-            {nextPage && <Button asChild variant="outline" size="sm"><NavLink to={`/dashboard/${nextPage.id}`}>Next step <ArrowRight className="h-4 w-4" /></NavLink></Button>}
-            <Button asChild className="workspace-export"><NavLink to="/dashboard/export"><Download className="h-4 w-4" /> Export</NavLink></Button>
+
           </div>
         </header>
-        <div className="stepper-wrap border-b border-border px-5 py-3 md:px-8">
-          <nav aria-label="Production steps" className="stepper mx-auto flex max-w-none items-center gap-2 overflow-x-auto">
-            {workspacePages.map(({ id, label }, index) => {
-              const active = id === page.id;
-              const complete = index < pageIndex;
-              return <div key={id} className="flex min-w-fit flex-1 items-center gap-2">
-                <NavLink aria-current={active ? "step" : undefined} to={`/dashboard/${id}`} className={`stepper-link ${active ? "is-active" : complete ? "is-complete" : ""}`}>
-                  <span className="stepper-number">{complete ? <Check className="h-3.5 w-3.5" /> : String(index + 1).padStart(2, "0")}</span>
-                  <span>{label}{active ? " · You are here" : ""}</span>
-                </NavLink>
-                {index < workspacePages.length - 1 && <span aria-hidden="true" className={`stepper-rule ${complete ? "is-complete" : ""}`} />}
-              </div>;
-            })}
-          </nav>
-          {!isFlowPage && <p className="mx-auto mt-2 max-w-7xl text-[11px] text-muted-foreground">Supporting workspace · <NavLink className="text-primary hover:underline" to="/dashboard/projects">Return to Projects</NavLink></p>}
-        </div>
         <div ref={scroll} className="workspace-scroll flex-1 overflow-y-auto px-4 py-5 pb-24 md:px-5 md:py-5 lg:pb-7" data-workspace-scroll>
           <div className="mx-auto w-full">
             {/* Keep visited tools mounted so navigation cannot interrupt in-flight work. */}
@@ -101,7 +81,7 @@ function DashboardInner() {
                 {visualScenes.length > 1 ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visualScenes.slice(0, -1).map((scene, index) => { const end = visualScenes[index + 1]; return <article key={scene.id} className="rounded-xl border border-border bg-background/40 p-3"><div className="grid grid-cols-2 gap-2"><div><span className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">Start frame</span><div className="aspect-video overflow-hidden rounded-lg bg-muted">{scene.imageUrl && <img src={scene.imageUrl} alt={`Shot ${index + 1} start frame`} className="h-full w-full object-cover" />}</div></div><div><span className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">End frame</span><div className="aspect-video overflow-hidden rounded-lg bg-muted">{end.imageUrl && <img src={end.imageUrl} alt={`Shot ${index + 1} end frame`} className="h-full w-full object-cover" />}</div></div></div><p className="my-2 truncate text-xs font-medium">Shot {String(index + 1).padStart(2, "0")} · {scene.section}</p><Button size="sm" variant="outline" className="w-full" onClick={() => { setStudioDraft((draft) => ({ ...draft, startFrame: scene.imageUrl || "", endFrame: end.imageUrl || "", prompt: scene.prompt || scene.text })); navigate("/dashboard/director"); }}>Direct this shot</Button></article>; })}</div> : <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">Generate at least two storyboard frames to create a start/end pair for a shot.</p>}
               </section><details className="workspace-card" open={visualScenes.length < 2}><summary className="cursor-pointer font-bold">Create and manage storyboard frames</summary><div className="mt-5"><VisualsStep /></div></details>
             </div>}
-            {visited.includes("director") && <div hidden={page.id !== "director"}><StudioClipPanel includeSequence={false} requestedShotId={new URLSearchParams(search).get("shot")} /></div>}
+            {visited.includes("director") && <div hidden={page.id !== "director"}><StudioClipPanel visible={page.id === "director"} includeSequence={false} requestedShotId={new URLSearchParams(search).get("shot")} /></div>}
             {page.id === "shot-lab" && <ShotLabPage />}
             {visited.includes("final-cut") && <div hidden={page.id !== "final-cut"}>
               <StudioSequencePanel />
