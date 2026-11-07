@@ -399,3 +399,23 @@
 .cut-audio {height:clamp(22.5px,4.05vh,42px)}
 .cut-playhead {bottom:calc(-1 * clamp(22.5px,4.05vh,42px) - 6px)}
 .cut-ruler {padding-top:2px;padding-bottom:4px}
+
+@media (max-width: 760px) {
+  .director-editing-layout {display:flex;flex-direction:column;gap:12px;height:auto;min-height:0}
+  .director-workspace-grid {display:flex;flex-direction:column;gap:12px}
+  .director-monitor {order:1;width:100%;height:auto;min-height:0;max-height:none;overflow:visible;padding:8px;background:hsl(var(--card))}
+  .director-inspector {order:2;width:100%;height:auto;max-height:none;min-height:0;overflow:visible;padding:8px}
+  .director-library {order:3;width:100%;height:auto;max-height:none;overflow:visible;padding:8px}
+  .cut-console {order:4}
+  .director-player {--original-height:min(56.25cqw, 490px);overflow:hidden;isolation:isolate}
+  .director-player .director-video-surface,.director-player .draft-viewport {height:clamp(210px, 62vw, 360px);min-height:0;aspect-ratio:16/9}
+  .director-player .director-playback-controls {height:auto;min-height:42px;padding:4px 8px}
+  .director-monitor .director-preview-shot {flex:initial;min-height:0}
+  .director-preview-shot .preview-take-stack,.director-preview-shot .preview-take {min-height:0;overflow:visible}
+  .director-player .take-dock {position:relative}
+  .director-library .library-shots {display:flex;min-height:0;max-height:none;overflow-x:auto;overflow-y:hidden}
+  .director-library .shot-still {flex:0 0 min(72vw, 260px);height:clamp(100px, 35vw, 150px)}
+  .director-inspector .inspector-fields {overflow:visible;min-height:0}
+  .director-shell .workspace-scroll[data-page="director"] {overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:hsl(var(--background))}
+  .director-shell .workspace-scroll[data-page="director"] > * {min-height:0}
+}
