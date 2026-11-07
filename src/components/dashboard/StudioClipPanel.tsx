@@ -21,6 +21,7 @@ type ShotFailure = Error & { jobId?: string; generationSeconds?: number };
 
 // Worst measured cold first clip ≈ 13 min (285s queue + 491s gen). Size for 14.
 export const COLD_START_BUDGET_MS = 14 * 60 * 1000;
+const SHOTS_PER_PAGE = 4;
 const POLL_MS = 5000;
 
 type Tier = "primary" | "backup";
@@ -60,6 +61,14 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
   const [selectedShot, setSelectedShot] = useState(0);
   useEffect(() => { if (requestedShotId) { const index = shots.findIndex((shot) => shot.id === requestedShotId); if (index >= 0) setSelectedShot(index); } }, [requestedShotId, shots.length]);
   const [previewTakes, setPreviewTakes] = useState<Record<string, number>>({});
+  const currentShot = shots[selectedShot];
+  const takeIndex = currentShot ? previewTakes[currentShot.id] ?? currentShot.takes.length - 1 : -1;
+  const currentTake = currentShot?.takes[takeIndex];
+  const [timelinePage, setTimelinePage] = useState(0);
+  useEffect(() => {
+    if (selectedShot >= 0) setTimelinePage(Math.floor(selectedShot / SHOTS_PER_PAGE));
+  }, [selectedShot]);
+  const firstTimelineShot = Math.min(timelinePage, Math.max(0, Math.ceil(shots.length / SHOTS_PER_PAGE) - 1)) * SHOTS_PER_PAGE;
   const previousShotCount = useRef(shots.length);
   useEffect(() => {
     if (shots.length > previousShotCount.current) setSelectedShot(shots.length - 1);
@@ -284,27 +293,14 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
                   {take.videoUrl
                     ? <StudioClipPlayer director active={visible && selectedShot === index && t === (previewTakes[shot.id] ?? shot.takes.length - 1)} videoUrl={take.videoUrl} poster={shot.firstFrame} shot={index + 1} take={t + 1} saved={take.saved} />
                     : <p className="text-xs text-destructive">No video — {take.error ?? "generation failed"}</p>}
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-medium">Take {t + 1}{t === shot.activeTakeIndex && take.status === "passed" ? " · selected for cut" : ""}</span>
-                    <Badge variant="outline">{take.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}{take.failover ? " · auto-backup" : ""}</Badge>
-                    <Badge variant={take.status === "passed" ? "default" : take.status === "failed" ? "destructive" : "secondary"}>{take.rejected ? "rejected" : QC_LABEL[take.status]}</Badge>
-                  </div>
-                  {take.failover && <p className="text-xs text-muted-foreground">Main engine failed (job {take.failover.primaryJobId ?? "not started"}: {take.failover.primaryError}). Rendered on backup, job {take.failover.backupJobId}.</p>}
-                  <p className="text-xs text-muted-foreground">
-                    Job {take.jobId ?? "—"} · seed {take.seed} · {take.generationSeconds != null ? `${take.generationSeconds.toFixed(1)}s GPU` : "GPU time n/a"} · {usd(takeCost(take.generationSeconds, rate))}
-                  </p>
-                  {take.videoUrl && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" disabled={busy || take.status === "passed"} onClick={() => setShots((s) => approveTake(s, index, t))}><Check className="w-4 h-4" /> Approve take {t + 1}</Button>
-                      <Button size="sm" variant="outline" disabled={busy || take.status !== "needs_review"} onClick={() => setShots((s) => rejectTake(s, index, t))}><ThumbsDown className="w-4 h-4" /> Reject take {t + 1}</Button>
-                      {take.lastFrame && <Button asChild variant="ghost" size="sm"><a href={take.lastFrame} target="_blank" rel="noreferrer">View last frame</a></Button>}
-                    </div>
-                  )}
+
                 </div>
               ))}
             </div>
             <div className="director-take-strip" aria-label={`Shot ${index + 1} takes`}>
-              {shot.takes.map((take, t) => <button key={t} type="button" aria-pressed={t === (previewTakes[shot.id] ?? shot.takes.length - 1)} onClick={() => setPreviewTakes((prev) => ({ ...prev, [shot.id]: t }))} className="director-take-thumb">
+              {shot.takes.length > 3 ? <label className="take-picker">Preview take <select value={previewTakes[shot.id] ?? shot.takes.length - 1} onChange={(event) => setPreviewTakes((prev) => ({ ...prev, [shot.id]: Number(event.target.value) }))}>
+                {shot.takes.map((take, t) => <option key={t} value={t}>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</option>)}
+              </select></label> : shot.takes.map((take, t) => <button key={t} type="button" aria-pressed={t === (previewTakes[shot.id] ?? shot.takes.length - 1)} onClick={() => setPreviewTakes((prev) => ({ ...prev, [shot.id]: t }))} className="director-take-thumb">
                 <img src={shot.firstFrame} alt="" /><span>Take {t + 1}{take.status === "passed" ? " ✓" : ""}</span>
               </button>)}
             </div>
@@ -361,6 +357,24 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
           </select></label>
       </div>
 
+      {currentShot && currentTake && <section className="take-inspector-details space-y-2" aria-label="Selected take">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-medium">Take {takeIndex + 1}{takeIndex === currentShot.activeTakeIndex && currentTake.status === "passed" ? " · selected for cut" : ""}</span>
+          <Badge variant="outline">{currentTake.tier === "primary" ? "LTX-2.5" : "LTX-2.3"}{currentTake.failover ? " · auto-backup" : ""}</Badge>
+          <Badge variant={currentTake.status === "passed" ? "default" : currentTake.status === "failed" ? "destructive" : "secondary"}>{currentTake.rejected ? "rejected" : QC_LABEL[currentTake.status]}</Badge>
+        </div>
+        {currentTake.failover && <p className="text-xs text-muted-foreground">Main engine failed (job {currentTake.failover.primaryJobId ?? "not started"}: {currentTake.failover.primaryError}). Rendered on backup, job {currentTake.failover.backupJobId}.</p>}
+        <p className="text-xs text-muted-foreground">
+          Job {currentTake.jobId ?? "—"} · seed {currentTake.seed} · {currentTake.generationSeconds != null ? `${currentTake.generationSeconds.toFixed(1)}s GPU` : "GPU time n/a"} · {usd(takeCost(currentTake.generationSeconds, rate))}
+        </p>
+        {currentTake.videoUrl && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={busy || currentTake.status === "passed"} onClick={() => setShots((s) => approveTake(s, selectedShot, takeIndex))}><Check className="w-4 h-4" /> Approve take {takeIndex + 1}</Button>
+            <Button size="sm" variant="outline" disabled={busy || currentTake.status !== "needs_review"} onClick={() => setShots((s) => rejectTake(s, selectedShot, takeIndex))}><ThumbsDown className="w-4 h-4" /> Reject take {takeIndex + 1}</Button>
+            {currentTake.lastFrame && <Button asChild variant="ghost" size="sm"><a href={currentTake.lastFrame} target="_blank" rel="noreferrer">View last frame</a></Button>}
+          </div>
+        )}
+      </section>}
       </div>
       <div className="inspector-actions">
         <Button className="generate-take" onClick={() => generate("primary")} disabled={!canGenerate}>
@@ -403,12 +417,18 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
             <h3 className="font-semibold">Shot timeline</h3>
             <p className="text-xs text-muted-foreground">Overview of generated shots in story order</p>
           </div></div>
+          {shots.length > SHOTS_PER_PAGE && <div className="timeline-pages">
+            <button aria-label="Previous four shots" disabled={firstTimelineShot === 0} onClick={() => setTimelinePage(firstTimelineShot / SHOTS_PER_PAGE - 1)}>‹</button>
+            <span>{firstTimelineShot + 1}–{Math.min(firstTimelineShot + SHOTS_PER_PAGE, shots.length)}</span>
+            <button aria-label="Next four shots" disabled={firstTimelineShot + SHOTS_PER_PAGE >= shots.length} onClick={() => setTimelinePage(firstTimelineShot / SHOTS_PER_PAGE + 1)}>›</button>
+          </div>}
           <WorkspaceLink href="/dashboard/final-cut" className="overview-link">Open Final cut →</WorkspaceLink>
           <span className="text-xs tabular-nums text-muted-foreground">{shots.length} shots · {shots.reduce((sum, shot) => sum + shot.durationSeconds, 0)} sec</span>
         </div>
         {!shots.length && <div className="timeline-empty"><Film className="h-5 w-5" /><span>Your shots appear here in story order as you generate them.</span></div>}
         <div className="director-filmstrip" role="list" aria-label="Shots in chronological order">
-          {shots.map((shot, index) => {
+          {shots.slice(firstTimelineShot, firstTimelineShot + SHOTS_PER_PAGE).map((shot, offset) => {
+            const index = firstTimelineShot + offset;
             const take = activeTake(shot);
             return <article key={shot.id} role="listitem" className="director-filmstrip-shot"><button className="w-full text-left" onClick={() => selectShot(index)} aria-label={`Preview shot ${index + 1}`}>
               <div className="director-filmstrip-image">{shot.firstFrame && <img src={shot.firstFrame} alt={`Shot ${index + 1} start frame`} loading="lazy" />}

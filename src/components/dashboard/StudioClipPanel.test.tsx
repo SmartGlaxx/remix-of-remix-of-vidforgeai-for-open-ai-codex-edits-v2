@@ -129,6 +129,7 @@ describe("QC + retake loop", () => {
     fireEvent.click(screen.getByText("Approve take 2"));
     expect(screen.getByLabelText("Shot 1 QC")).toHaveTextContent("passed");
     expect(screen.getByLabelText("Shot 1 take 1")).toHaveAttribute("src", "https://example.com/saved-one.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "Take 1" }));
     expect(screen.getByText("rejected")).toBeInTheDocument();
     // Both takes billed: 2 × 60s × $2.50/hr = $0.0833 total; 1 approved 10s shot.
     expect(screen.getByTestId("cost-total")).toHaveTextContent("$0.0833");
