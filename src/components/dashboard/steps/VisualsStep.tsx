@@ -114,7 +114,6 @@ const VisualsStep = () => {
   const [error, setError] = useState<string | null>(null);
   const [modalIndex, setModalIndex] = useState<number | null>(null);
   const [blinkSettings, setBlinkSettings] = useState(false);
-  const [approvedGenerate, setApprovedGenerate] = useState(false);
   const autoPlannedRef = useRef(false);
 
   const scriptText = useMemo(
@@ -189,7 +188,15 @@ const VisualsStep = () => {
         index,
       },
     });
-    if (invokeError) throw new Error(invokeError.message);
+    if (invokeError) {
+      let message = invokeError.message;
+      try {
+        const response = await invokeError.context?.json();
+        if (typeof response?.error === "string") message = response.error;
+        else if (typeof response?.message === "string") message = response.message;
+      } catch { /* Keep the original error when the response is not JSON. */ }
+      throw new Error(message);
+    }
     if (data?.error) throw new Error(data.error);
     let imageUrl = data?.image_url || data?.url;
     if (!imageUrl && data?.job_id && data?.endpoint_id) {
@@ -220,17 +227,6 @@ const VisualsStep = () => {
     }
     if (!scenesToShow.length) {
       toast({ title: "Plan visuals first", description: "Click \"1. Plan Visuals (AI)\" so the director can segment the script and build the Visual Bible.", variant: "destructive" });
-      return;
-    }
-
-    if (!approvedGenerate) {
-      setApprovedGenerate(true);
-      setBlinkSettings(true);
-      window.setTimeout(() => setBlinkSettings(false), 1800);
-      toast({
-        title: "Review settings on each frame",
-        description: "Click any blinking ⚙ button to confirm a frame's prompt & look, then press Generate All again.",
-      });
       return;
     }
 
