@@ -300,7 +300,12 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
     <div className="director-editing-layout">
       <div className="director-workspace-grid">
       <aside className="director-library" aria-label="Shot library">
-        <div className="library-tabs" aria-label="Library views">{(["Shots","Assets","Approved"] as const).map(tab => <button key={tab} aria-pressed={libraryTab === tab} className={libraryTab === tab ? "is-active" : ""} onClick={() => {setLibraryTab(tab);setLibraryPage(0)}}>{tab}</button>)}</div>
+        <div className="library-tabs" aria-label="Library views">{(["Shots","Assets","Approved"] as const).map(tab => {
+          const TabIcon = tab === "Shots" ? Film : tab === "Assets" ? Image : Check;
+          return <button key={tab} type="button" aria-label={tab} title={tab} aria-pressed={libraryTab === tab} className={libraryTab === tab ? "is-active" : ""} onClick={() => {setLibraryTab(tab);setLibraryPage(0)}}>
+            <TabIcon className="library-tab-icon" size={16} aria-hidden="true"/><span>{tab}</span>
+          </button>;
+        })}</div>
         {libraryTab === "Shots" ? <>
         <div className="library-heading"><h2>Shot library <span>({shots.length})</span></h2><button onClick={() => { setSelectedShot(-1); promptRef.current?.focus(); }} aria-label="New shot"><Plus size={18} /></button></div>
         <div className="library-shots">
@@ -329,8 +334,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
         if (currentShot && video instanceof HTMLVideoElement && video.offsetWidth) setPlayTime({ id: currentShot.id, seconds: video.currentTime });
       }}>
         {(!shots.length || selectedShot === -1) && <div className="draft-preview">
-          <div className="preview-title"><span>New shot</span><span>{resolution} · {aspect}</span></div>
-          <div className="director-player">{isValidFrameUrl(startFrame) && <img className="player-glass-backdrop" src={startFrame} aria-hidden="true" alt="" />}<div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><h2>Shot preview</h2><p>Add your start and end frames in the inspector.</p></div>}</div><PlaybackControls summary="No takes yet">
+          <div className="director-player">{isValidFrameUrl(startFrame) && <img className="player-glass-backdrop" src={startFrame} aria-hidden="true" alt="" />}<div className="draft-viewport">{isValidFrameUrl(startFrame) ? <img src={startFrame} alt="Start frame preview" /> : <div className="preview-placeholder"><h2>Shot preview</h2><p>Add your start and end frames in the inspector.</p></div>}</div><span className="preview-format">{resolution} · {aspect}</span><PlaybackControls summary="No takes yet">
           <div className="draft-frame-pair">{[["Start frame", startFrame], ["End frame", endFrame]].map(([label, url]) => <div key={label}>{isValidFrameUrl(url) ? <img src={url} alt={label} /> : <Image size={18} />}<span>{label}<small>{isValidFrameUrl(url) ? "Ready" : "Required"}</small></span></div>)}</div>
           <div className="empty-takes"><Film size={18} /><span>Generated takes will appear here for review.</span></div>
           </PlaybackControls></div>
