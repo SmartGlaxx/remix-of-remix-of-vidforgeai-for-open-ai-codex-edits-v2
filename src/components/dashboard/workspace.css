@@ -548,3 +548,23 @@
   .cut-tools button { width: 28px; height: 28px; display: grid; place-items: center; }
   .cut-lanes strong svg:first-child { display: inline-block; }
 }
+
+/* The panel frame stays outside the scrolling fields. */
+.director-editing-layout .director-inspector { overflow: hidden; }
+.director-inspector .inspector-fields { overscroll-behavior: contain; }
+.preview-format { border: 0; }
+.cut-tools button:disabled { opacity: .35; }
+@media (max-width: 1023px) {
+  .director-editing-layout { display: flex; flex-direction: column; height: auto; min-height: 0; gap: 12px; }
+  .director-editing-layout .director-workspace-grid { display: contents; }
+  .director-editing-layout .director-monitor { order: 1; width: 100%; height: auto; max-height: none; overflow: hidden; padding: 12px; }
+  .director-editing-layout .director-inspector { order: 2; width: 100%; height: auto; max-height: none; padding: 12px; overflow: hidden; }
+  .director-editing-layout .cut-console { order: 3; flex: none; }
+  .director-editing-layout .director-library { order: 4; width: 100%; height: auto; max-height: none; padding: 12px; }
+  .director-inspector .inspector-fields { display: flex; padding: 0 4px 4px 0; max-height: 65dvh; overflow-y: auto; min-height: 0; }
+  .director-inspector .inspector-actions { margin-top: 8px; padding: 10px 0 0; }
+  .director-monitor .director-player .draft-viewport,
+  .director-monitor .director-player .director-video-surface { height: clamp(210px, 56vw, 440px); min-height: 0; }
+  .cut-console header { height: auto; min-height: 36px; }
+  .cut-tools { display: flex; flex-wrap: wrap; }
+}
