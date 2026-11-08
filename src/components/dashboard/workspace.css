@@ -466,7 +466,6 @@
 
 
 /* Align the preview heading with the prompt field and keep library tabs inside their border. */
-.director-editing-layout .director-monitor .preview-title { margin-top: -6px; }
 .director-editing-layout .director-library .library-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -486,4 +485,66 @@
   white-space: nowrap;
   font-size: 11px;
   letter-spacing: -.025em;
+}
+
+/* Position the video frame level with the prompt composer. */
+@media (min-width: 761px) {
+  .director-editing-layout .director-monitor { padding-top: 9px; }
+}
+.preview-format {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 10px;
+  pointer-events: none;
+  padding: 5px 9px;
+  border: 1px solid rgb(255 255 255 / .18);
+  border-radius: 7px;
+  background: rgb(5 11 16 / .72);
+  color: #f3f8fa;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  backdrop-filter: blur(10px);
+}
+.director-library .library-tab-icon { display: none; }
+@media (max-width: 1023px) {
+  .director-library .library-tabs > button { gap: 0; padding: 8px; }
+  .director-library .library-tab-icon { display: block; flex: none; }
+  .director-library .library-tabs > button > span { display: none; }
+}
+.director-inspector .shot-settings-rows select {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 34px 0 10px;
+  border: 1px solid hsl(var(--input));
+  border-radius: 9px;
+  background-color: hsl(var(--secondary));
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  box-shadow: inset 0 1px 0 hsl(var(--foreground) / .05);
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+  cursor: pointer;
+}
+.director-inspector .shot-settings-rows select:hover { border-color: hsl(var(--primary) / .5); }
+.director-inspector .shot-settings-rows select:focus-visible {
+  outline: 2px solid hsl(var(--primary) / .55);
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .cut-console header { flex-wrap: wrap; gap: 6px; }
+  .cut-console header time { order: 5; flex: 1 0 100%; margin: 0; text-align: center; }
+  .cut-tools { display: flex; gap: 4px; }
+  .cut-tools button { width: 28px; height: 28px; display: grid; place-items: center; }
+  .cut-lanes strong svg:first-child { display: inline-block; }
 }
