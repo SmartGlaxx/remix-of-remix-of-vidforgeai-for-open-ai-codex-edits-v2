@@ -2,7 +2,7 @@ import TrackWaveform from "./TrackWaveform";
 import PlaybackControls from "./PlaybackControls";
 import WorkspaceLink from "./WorkspaceLink";
 import { useEffect, useRef, useState } from "react";
-import { MousePointer2, Maximize, LockKeyhole, Eye, AudioLines, PanelTop, Save, Camera, Timer, Ratio, Monitor, Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Sparkles } from "lucide-react";
+import { ZoomIn, ZoomOut, MousePointer2, Maximize, LockKeyhole, Eye, AudioLines, PanelTop, Save, Camera, Timer, Ratio, Monitor, Clapperboard, Loader2, AlertCircle, Link, Image, X, Check, RotateCcw, ThumbsDown, Film, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -474,7 +474,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
 
       <section aria-label="Director shot timeline" className="cut-console">
         <header><strong><Clapperboard size={17}/> Timeline</strong>
-          <div className="cut-tools"><MousePointer2 className="cut-pointer" size={27}/><button title="Fit timeline" onClick={() => setZoom(1)}><Maximize size={16}/></button><button title="New shot" disabled={busy} onClick={() => {setSelectedShot(-1);promptRef.current?.focus()}}><Plus size={17}/></button></div>
+          <div className="cut-tools"><button type="button" aria-label="Zoom timeline out" disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - .25))}><ZoomOut size={16}/></button><button type="button" aria-label="Zoom timeline in" disabled={zoom >= 3} onClick={() => setZoom(value => Math.min(3, value + .25))}><ZoomIn size={16}/></button><MousePointer2 className="cut-pointer" size={27}/><button title="Fit timeline" onClick={() => setZoom(1)}><Maximize size={16}/></button><button title="New shot" disabled={busy} onClick={() => {setSelectedShot(-1);promptRef.current?.focus()}}><Plus size={17}/></button></div>
           <time>{clock(position)} / {clock(totalSeconds)}</time>
           <label className="cut-zoom">− <input aria-label="Timeline zoom" type="range" min="1" max="3" step=".1" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/> +</label>
           <button aria-label="Show audio lane" aria-pressed={showAudio} onClick={()=>setShowAudio(!showAudio)}><AudioLines size={17}/></button>
