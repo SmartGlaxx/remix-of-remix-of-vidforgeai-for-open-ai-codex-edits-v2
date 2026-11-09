@@ -1,3 +1,5 @@
+import SoundtrackStep from "./steps/SoundtrackStep";
+import VoiceoverStep from "./steps/VoiceoverStep";
 import TrackWaveform from "./TrackWaveform";
 import PlaybackControls from "./PlaybackControls";
 import WorkspaceLink from "./WorkspaceLink";
@@ -65,6 +67,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
   useEffect(() => { if (requestedShotId) { const index = shots.findIndex((shot) => shot.id === requestedShotId); if (index >= 0) setSelectedShot(index); } }, [requestedShotId, shots.length]);
   const [previewTakes, setPreviewTakes] = useState<Record<string, number>>({});
   const [libraryTab, setLibraryTab] = useState<"Shots" | "Assets" | "Approved">("Shots");
+  const [soundOpen, setSoundOpen] = useState(false);
   const [libraryPage, setLibraryPage] = useState(0);
   const pendingShot = shots.find(shot => shot.takes.some(take => take.pendingDecision && take.status === "needs_review"));
   const pendingTake = pendingShot?.takes.find(take => take.pendingDecision && take.status === "needs_review");
@@ -417,6 +420,7 @@ const StudioClipPanel = ({ includeSequence = true, requestedShotId, visible = tr
       <details className="direction-disclosure"><summary>Dialogue <small>Optional</small></summary><Textarea aria-label="Dialogue" value={dialogue} onChange={(e) => setDialogue(e.target.value)} disabled={running}
         placeholder="Optional spoken line (the character will say this)" className="min-h-[60px]" /></details>
 
+      <details className="direction-disclosure" onToggle={event => setSoundOpen(event.currentTarget.open)}><summary>Sound</summary>{soundOpen && <div className="space-y-4 min-w-0"><details><summary>Music</summary><SoundtrackStep /></details><details><summary>Voiceover</summary><VoiceoverStep /></details></div>}</details>
       <details className="direction-disclosure"><summary>Production controls</summary>        <Button variant="outline" onClick={() => generate("backup")} disabled={!canGenerate}>
           {running && tier === "backup" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Use backup engine
         </Button>
