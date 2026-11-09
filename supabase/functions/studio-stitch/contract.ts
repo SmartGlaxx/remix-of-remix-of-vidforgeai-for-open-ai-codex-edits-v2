@@ -4,6 +4,7 @@ export const STITCH_ROUTE = "capscify/stitch-final";
 export type StitchParams = {
   video_clips: { url: string; shot_index: number }[];
   soundtrack_url?: string;
+  voiceover_url?: string;
   resolution?: string;
 };
 
