@@ -10,6 +10,7 @@ const Request = z.discriminatedUnion("action", [
   z.object({ action: z.literal("submit"),
     video_clips: z.array(z.object({ url: httpsUrl, shot_index: z.number().int().nonnegative() })).min(2).max(200),
     soundtrack_url: httpsUrl.optional(),
+    voiceover_url: httpsUrl.optional(),
     resolution: z.enum(["1280x720", "720x1280", "1920x1080", "1080x1920"]).optional(),
   }),
   z.object({ action: z.literal("status"), job_id: z.string().min(1).max(200) }),
@@ -29,7 +30,7 @@ Deno.serve(async (req) => {
       method: status ? "GET" : "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       ...(input.action === "submit" ? { body: JSON.stringify(stitchEnvelope({
-        video_clips: input.video_clips, soundtrack_url: input.soundtrack_url, resolution: input.resolution,
+        video_clips: input.video_clips, soundtrack_url: input.soundtrack_url, voiceover_url: input.voiceover_url, resolution: input.resolution,
       })) } : {}),
     });
     const data = await response.json();
