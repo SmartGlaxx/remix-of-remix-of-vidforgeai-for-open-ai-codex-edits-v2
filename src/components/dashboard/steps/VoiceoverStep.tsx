@@ -169,13 +169,13 @@ const languages = [
 ];
 
 const VoiceoverStep = () => {
-  const { scriptSections, voice: ctxVoice, setVoice: setCtxVoice, setAudioDuration } = useProject();
+  const { scriptSections, voice: ctxVoice, setVoice: setCtxVoice, setAudioDuration, voiceoverTracks, setVoiceoverTracks } = useProject();
   const scriptText = scriptSections.map((s) => s.text).join("\n\n").trim();
   const [selectedVoice, setSelectedVoice] = useState(ctxVoice || "af_bella");
   const [text, setText] = useState(scriptText);
   const [speed, setSpeed] = useState(1.0);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(voiceoverTracks.filter(track => track.status === "done" && track.url).at(-1)?.url ?? null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -327,7 +327,9 @@ const VoiceoverStep = () => {
         response_format: "mp3",
         language: voice?.lang || "en-us",
       });
+      if (!data.audio_url) throw new Error("No voiceover audio returned");
       setAudioUrl(data.audio_url);
+      setVoiceoverTracks(previous => [...previous, { id: crypto.randomUUID(), segment: text.trim().slice(0, 80), status: "done", url: data.audio_url, created_at: Date.now() }]);
       toast.success(`Generated ${data.characters} characters of speech`);
     } catch (err: any) {
       console.error("TTS error:", err);
