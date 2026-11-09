@@ -17,7 +17,7 @@ it("retains the Director draft through navigation and a fresh page load", async 
   fireEvent.change(screen.getByLabelText("Start frame (required)"), { target: { value: "https://example.com/start.png" } });
   fireEvent.change(screen.getByLabelText("End frame (required)"), { target: { value: "https://example.com/end.png" } });
   fireEvent.change(screen.getByLabelText("Dialogue"), { target: { value: "We made it." } });
-  fireEvent.change(screen.getByText("Length").closest("label")?.querySelector("select") as HTMLSelectElement, { target: { value: "15" } });
+  fireEvent.change(screen.getByText("Duration").closest("label")?.querySelector("select") as HTMLSelectElement, { target: { value: "15" } });
   fireEvent.click(screen.getAllByRole("link", { name: "Final cut" })[0]);
   fireEvent.change(await screen.findByLabelText("GPU pool rate"), { target: { value: "3.75" } });
   fireEvent.click(screen.getAllByRole("link", { name: "Director" })[0]);

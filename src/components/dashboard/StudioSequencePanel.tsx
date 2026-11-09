@@ -13,9 +13,10 @@ const usd = (n: number) => `$${n.toFixed(4)}`;
 type CutShot = { shot: StudioShot; take: StudioTake };
 
 export default function StudioSequencePanel() {
-  const { soundtrackTracks, studioClips: shots, studioSequence, setStudioSequence,
+  const { voiceoverTracks, sequenceVoiceover, setSequenceVoiceover, soundtrackTracks, studioClips: shots, studioSequence, setStudioSequence,
     sequenceSoundtrack: soundtrack, setSequenceSoundtrack: setSoundtrack,
     poolRate: rate, setPoolRate: setRate, studioBusy, setSequenceBusy } = useProject();
+  const voiceTracks = voiceoverTracks.filter(track => track.status === "done" && track.url);
   const musicTracks = soundtrackTracks.filter((track) => track.status === "done" && track.url);
   const [stitching, setStitching] = useState(false);
   const [stitchPhase, setStitchPhase] = useState("");
@@ -56,11 +57,13 @@ export default function StudioSequencePanel() {
     cancel.current = false;
     setStitching(true); setStitchError(null); setStitchPhase("Sending approved shots in order…");
     try {
+      const selectedVoiceover = voiceTracks.find(track => track.id === sequenceVoiceover)?.url;
       const selectedMusic = musicTracks.find((track) => track.id === soundtrack)?.url;
       const { data, error } = await supabase.functions.invoke("studio-stitch", { body: {
         action: "submit",
         video_clips: cut.map(({ take }, index) => ({ url: take.videoUrl ?? "", shot_index: index })),
         ...(selectedMusic ? { soundtrack_url: selectedMusic } : {}),
+        ...(selectedVoiceover ? { voiceover_url: selectedVoiceover } : {}),
       } });
       if (error || !data?.job_id) throw new Error(error?.message || data?.error || "Could not start stitching");
       const start = Date.now();
@@ -153,6 +156,11 @@ export default function StudioSequencePanel() {
         <label className="block max-w-xl space-y-1 text-sm"><span className="text-xs text-muted-foreground">Choose an existing saved track</span>
           <select aria-label="Sequence soundtrack" value={soundtrack} disabled={busy} onChange={(event) => setSoundtrack(event.target.value)} className="w-full rounded-lg border border-border bg-background p-3">
             <option value="">No added music</option>{musicTracks.map((track) => <option key={track.id} value={track.id}>{track.segment}</option>)}
+          </select>
+        </label>
+        <label className="block max-w-xl space-y-1 text-sm"><span className="text-xs text-muted-foreground">Voiceover</span>
+          <select aria-label="Sequence voiceover" value={sequenceVoiceover} disabled={busy} onChange={event => setSequenceVoiceover(event.target.value)} className="w-full rounded-lg border border-border bg-background p-3">
+            <option value="">No voiceover</option>{voiceTracks.map(track => <option key={track.id} value={track.id}>{track.segment}</option>)}
           </select>
         </label>
       </section>      <details className="rounded-xl border border-border bg-card/40 px-4 py-3">

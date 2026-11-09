@@ -30,3 +30,11 @@ describe("Studio stitch contract", () => {
     expect(() => sequenceVideoUrl({ url: "http://example.com/final.mp4" })).toThrow();
   });
 });
+it("passes music and narration together while preserving the audio mix defaults", () => {
+  const params = stitchEnvelope({
+    video_clips: [{ url: "https://example.com/1.mp4", shot_index: 0 }, { url: "https://example.com/2.mp4", shot_index: 1 }],
+    soundtrack_url: "https://example.com/music.mp3",
+    voiceover_url: "https://example.com/voice.mp3",
+  }).input.params;
+  expect(params).toMatchObject({ soundtrack_url: "https://example.com/music.mp3", voiceover_url: "https://example.com/voice.mp3", ducking: true, music_volume: .35, preserve_clip_audio: true });
+});

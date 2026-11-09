@@ -13,7 +13,7 @@ const START = "https://example.com/start.png";
 const END = "https://example.com/end.png";
 beforeEach(() => {
   localStorage.clear();
-  localStorage.setItem("vidforge_project_state_v1", JSON.stringify({ visualScenes: [{ imageUrl: START }, { imageUrl: END }], soundtrackTracks: tracks }));
+  localStorage.setItem("vidforge_project_state_v1", JSON.stringify({ visualScenes: [{ imageUrl: START }, { imageUrl: END }], soundtrackTracks: tracks, voiceoverTracks: [{ id: "voice", segment: "Narration", status: "done", url: "https://example.com/voice.mp3" }] }));
   const original = window.setTimeout.bind(window);
   vi.spyOn(window, "setTimeout").mockImplementation(((h: TimerHandler, t?: number, ...a: unknown[]) => original(h, t === 5000 ? 0 : t, ...a)) as typeof window.setTimeout);
 });
@@ -193,12 +193,14 @@ describe("Stitching", () => {
     await waitFor(() => expect(screen.getByLabelText("Shot 2 take 1")).toBeInTheDocument());
     fireEvent.click(screen.getAllByText("Approve take 1").at(-1)!);
     fireEvent.change(screen.getByLabelText("Sequence soundtrack"), { target: { value: "music" } });
+    fireEvent.change(screen.getByLabelText("Sequence voiceover"), { target: { value: "voice" } });
+    expect(JSON.parse(localStorage.getItem("vidforge_project_state_v1")!).sequenceVoiceover).toBe("voice");
     fireEvent.click(screen.getByRole("button", { name: "Stitch final cut" }));
     await waitFor(() => expect(screen.getByLabelText("Finished video")).toBeInTheDocument());
     expect(invoke.mock.calls[6]).toEqual(["studio-stitch", { body: { action: "submit", video_clips: [
       { url: "https://example.com/saved-one.mp4", shot_index: 0 },
       { url: "https://example.com/saved-two.mp4", shot_index: 1 },
-    ], soundtrack_url: "https://example.com/music.mp3" } }]);
+    ], soundtrack_url: "https://example.com/music.mp3", voiceover_url: "https://example.com/voice.mp3" } }]);
     expect(screen.getByText("Stitch job · stitch")).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("vidforge_project_state_v1") || "{}").studioSequence.jobId).toBe("stitch");
     expect(screen.getByLabelText("Finished video")).toHaveAttribute("src", saved ? "https://example.com/saved-final.mp4" : "https://example.com/final.mp4");
@@ -212,5 +214,17 @@ describe("Stitching", () => {
     fireEvent.click(screen.getByText("Generate take"));
     await waitFor(() => expect(screen.getByLabelText("Shot 1 take 1")).toHaveAttribute("src", "https://example.com/one.mp4"));
     expect(screen.getByRole("link", { name: "Open video in new tab" })).toHaveAttribute("href", "https://example.com/one.mp4");
+  });
+});
+
+describe("Voiceover selection persistence", () => {
+  it("restores saved voiceover tracks and selection after remount", () => {
+    const first = render(<StudioClipPanel />);
+    expect(screen.getByLabelText("Sequence voiceover")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Sequence voiceover"), { target: { value: "voice" } });
+    first.unmount();
+    render(<StudioClipPanel />);
+    expect(screen.getByLabelText("Sequence voiceover")).toHaveValue("voice");
+    expect(screen.getByRole("option", { name: "Narration" })).toBeInTheDocument();
   });
 });
