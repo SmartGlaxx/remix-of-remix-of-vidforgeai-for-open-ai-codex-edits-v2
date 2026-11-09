@@ -151,6 +151,9 @@ type ProjectState = {
   setVoice: (s: string) => void;
   videoUrl: string | null;
   setVideoUrl: (s: string | null) => void;
+  voiceoverTracks: SoundtrackTrack[];
+  setVoiceoverTracks: Dispatch<SetStateAction<SoundtrackTrack[]>>;
+  sequenceVoiceover: string; setSequenceVoiceover: (id: string) => void;
   soundtrackTracks: SoundtrackTrack[];
   setSoundtrackTracks: (t: SoundtrackTrack[]) => void;
   audioDuration: number;
@@ -177,6 +180,8 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
   const [scriptDraft, setScriptDraft] = useState({ ...DEFAULT_SCRIPT_DRAFT, ...saved.scriptDraft });
   const [musicDraft, setMusicDraft] = useState({ ...DEFAULT_MUSIC_DRAFT, ...saved.musicDraft });
   const [poolRate, setPoolRate] = useState(saved.poolRate ?? 2.5);
+  const [sequenceVoiceover, setSequenceVoiceover] = useState(saved.sequenceVoiceover ?? "");
+  const [voiceoverTracks, setVoiceoverTracks] = useState<SoundtrackTrack[]>(saved.voiceoverTracks ?? []);
   const [sequenceSoundtrack, setSequenceSoundtrack] = useState(saved.sequenceSoundtrack ?? "");
   const [studioBusy, setStudioBusy] = useState(false);
   const [sequenceBusy, setSequenceBusy] = useState(false);
@@ -237,7 +242,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     setVideoUrl(null);
     setStudioClips([]);
     setStudioSequence(null);
-    setSoundtrackTracks([]);
+    setSoundtrackTracks([]); setVoiceoverTracks([]); setSequenceVoiceover("");
     setAudioDuration(0);
     try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
     setResetNonce((n) => n + 1);
@@ -245,14 +250,14 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      studioDraft, scriptDraft, musicDraft, poolRate, sequenceSoundtrack,
+      studioDraft, scriptDraft, musicDraft, poolRate, sequenceSoundtrack, sequenceVoiceover, voiceoverTracks,
       topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta,
       visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion,
       visualAmbiance, visualCamera, visualEngine, visualPalette,
       imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks,
       audioDuration, studioClips, studioSequence,
     }));
-  }, [studioDraft, scriptDraft, musicDraft, poolRate, sequenceSoundtrack, topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration, studioClips, studioSequence]);
+  }, [studioDraft, scriptDraft, musicDraft, poolRate, sequenceSoundtrack, sequenceVoiceover, voiceoverTracks, topic, customTitle, titles, seo, selectedTitle, scriptSections, scriptMeta, visualScenes, visualBible, visualCount, visualStyle, visualAspectRatio, visualQuality, visualMotion, visualAmbiance, visualCamera, visualEngine, visualPalette, imagePrompt, musicPrompt, voice, videoUrl, soundtrackTracks, audioDuration, studioClips, studioSequence]);
 
   return (
     <Ctx.Provider value={{
@@ -268,7 +273,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
       visualAmbiance, setVisualAmbiance, visualCamera, setVisualCamera, visualEngine, setVisualEngine, visualPalette, setVisualPalette,
       imagePrompt, setImagePrompt, musicPrompt, setMusicPrompt, voice, setVoice,
       videoUrl, setVideoUrl,
-      soundtrackTracks, setSoundtrackTracks,
+      soundtrackTracks, setSoundtrackTracks, voiceoverTracks, setVoiceoverTracks, sequenceVoiceover, setSequenceVoiceover,
       audioDuration, setAudioDuration,
       resetProject,
       resetNonce,
