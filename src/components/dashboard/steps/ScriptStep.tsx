@@ -41,7 +41,15 @@ const ScriptStep = () => {
       const { data, error } = await supabase.functions.invoke("generate-script", {
         body: { title, tone: tones[selectedTone].label, duration, hook, language },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        let msg = error.message;
+        try {
+          const body = await (error as { context?: Response }).context?.json();
+          if (body?.error) msg = body.error;
+        } catch { /* keep default message */ }
+        if (/credits exhausted/i.test(msg)) msg = "Your workspace is out of AI credits. Add credits in Settings → Usage, then try again.";
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
       setScriptSections(Array.isArray(data?.sections) ? data.sections : []);
       setScriptMeta(data?.meta ?? null);
