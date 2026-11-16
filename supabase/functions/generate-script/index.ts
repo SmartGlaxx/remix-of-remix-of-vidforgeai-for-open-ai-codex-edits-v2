@@ -35,7 +35,7 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
       body: JSON.stringify({
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-V3.1",
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
       }),

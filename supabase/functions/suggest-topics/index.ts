@@ -15,7 +15,7 @@ Reply with ONLY this JSON: { "topics": [string, string, string] }`;
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
       body: JSON.stringify({
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-V3.1",
         messages: [{ role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
       }),

@@ -49,7 +49,7 @@ Generate 4 title candidates and SEO insights. Reply with ONLY this JSON shape:
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-V3.1",
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: userPrompt },
