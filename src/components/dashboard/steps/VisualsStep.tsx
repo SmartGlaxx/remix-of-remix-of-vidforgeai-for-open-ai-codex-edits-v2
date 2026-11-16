@@ -1,3 +1,4 @@
+import { readFunctionError } from "@/lib/functionError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -188,15 +189,7 @@ const VisualsStep = () => {
         index,
       },
     });
-    if (invokeError) {
-      let message = invokeError.message;
-      try {
-        const response = await invokeError.context?.json();
-        if (typeof response?.error === "string") message = response.error;
-        else if (typeof response?.message === "string") message = response.message;
-      } catch { /* Keep the original error when the response is not JSON. */ }
-      throw new Error(message);
-    }
+    if (invokeError) throw new Error(await readFunctionError(invokeError));
     if (data?.error) throw new Error(data.error);
     let imageUrl = data?.image_url || data?.url;
     if (!imageUrl && data?.job_id && data?.endpoint_id) {
@@ -309,7 +302,7 @@ const VisualsStep = () => {
           engine: visualEngine,
         },
       });
-      if (invokeError) throw new Error(invokeError.message);
+      if (invokeError) throw new Error(await readFunctionError(invokeError));
       if (data?.error) throw new Error(data.error);
       const frames: any[] = data?.frames || [];
       if (!frames.length) throw new Error("No storyboard frames returned. Please try again.");

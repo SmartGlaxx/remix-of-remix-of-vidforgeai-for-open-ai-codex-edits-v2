@@ -143,6 +143,7 @@ Plan the Visual Bible and segment the script by IDEA SHIFTS. Return STRICT JSON 
         temperature: 0.75,
       }),
     });
+    if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
     if (!r.ok) {
       const t = await r.text().catch(() => "");
       return json({ error: `AI gateway ${r.status}: ${t}` }, 502);

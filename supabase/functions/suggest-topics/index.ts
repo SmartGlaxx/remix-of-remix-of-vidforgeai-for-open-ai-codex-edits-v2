@@ -21,6 +21,7 @@ Reply with ONLY this JSON: { "topics": [string, string, string] }`;
       }),
     });
     if (r.status === 429) return json({ error: "Rate limit" }, 429);
+    if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
     if (!r.ok) return json({ error: "AI request failed" }, 502);
     const data = await r.json();
     const content: string = data?.choices?.[0]?.message?.content ?? "{}";
