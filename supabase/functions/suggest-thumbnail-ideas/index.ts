@@ -1,11 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const LOVABLE_AI = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_AI = "https://api.together.xyz/v1/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "AI gateway not configured" }, 500);
     const body = await req.json().catch(() => ({}));
     const title = String(body.title ?? "").trim().slice(0, 240);
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "deepseek-ai/DeepSeek-V3",
         messages: [{ role: "system", content: sys }, { role: "user", content: user }],
         tools,
         tool_choice: { type: "function", function: { name: "suggest_thumbnail" } },

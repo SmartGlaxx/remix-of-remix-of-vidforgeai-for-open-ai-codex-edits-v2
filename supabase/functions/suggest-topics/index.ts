@@ -3,7 +3,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "AI not configured" }, 500);
 
     const seed = Math.random().toString(36).slice(2, 8);
@@ -11,11 +11,11 @@ Deno.serve(async (req) => {
 
 Reply with ONLY this JSON: { "topics": [string, string, string] }`;
 
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const r = await fetch("https://api.together.xyz/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "deepseek-ai/DeepSeek-V3",
         messages: [{ role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
       }),

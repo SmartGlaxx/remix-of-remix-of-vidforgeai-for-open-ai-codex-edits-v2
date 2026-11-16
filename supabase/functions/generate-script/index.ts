@@ -6,7 +6,7 @@ Return STRICT JSON only.`;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "AI not configured" }, 500);
 
     const { title, tone, duration, hook, language } = await req.json().catch(() => ({}));
@@ -31,11 +31,11 @@ Write a full script. Reply with ONLY this JSON:
 }
 Each section text should be a punchy paragraph (80-160 words). Adjust section timestamps to match the requested duration.`;
 
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const r = await fetch("https://api.together.xyz/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "deepseek-ai/DeepSeek-V3",
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
       }),

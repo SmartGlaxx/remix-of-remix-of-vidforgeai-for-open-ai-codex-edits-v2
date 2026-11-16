@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "AI not configured" }, 500);
 
     const { topic } = await req.json().catch(() => ({}));
@@ -42,14 +42,14 @@ Generate 4 title candidates and SEO insights. Reply with ONLY this JSON shape:
   }
 }`;
 
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const r = await fetch("https://api.together.xyz/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "deepseek-ai/DeepSeek-V3",
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: userPrompt },
@@ -59,7 +59,7 @@ Generate 4 title candidates and SEO insights. Reply with ONLY this JSON shape:
     });
 
     if (r.status === 429) return json({ error: "Rate limit exceeded. Try again shortly." }, 429);
-    if (r.status === 402) return json({ error: "AI credits exhausted. Add credits in Workspace settings." }, 402);
+    if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
     if (!r.ok) {
       const txt = await r.text();
       console.error("AI error", r.status, txt);
