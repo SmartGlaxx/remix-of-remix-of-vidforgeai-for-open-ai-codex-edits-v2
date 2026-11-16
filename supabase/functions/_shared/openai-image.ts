@@ -1,25 +1,26 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// Images are generated with FLUX.2-dev on Together AI (billed to the TOGETHER_API_KEY account).
-export const IMAGE_MODEL = "black-forest-labs/FLUX.2-dev";
+// Images are generated with OpenAI gpt-image-1 at MEDIUM quality (billed to OPENAI_API_KEY). Never use "high".
+export const IMAGE_MODEL = "gpt-image-1";
+export const IMAGE_QUALITY = "medium";
 
 export function openaiSize(aspectRatio: string) {
-  return aspectRatio === "9:16" ? { width: 768, height: 1344 } : aspectRatio === "1:1" ? { width: 1024, height: 1024 } : { width: 1344, height: 768 };
+  return aspectRatio === "9:16" ? "1024x1536" : aspectRatio === "1:1" ? "1024x1024" : "1536x1024";
 }
 
 export type GenResult = { ok: true; url: string } | { ok: false; status: number; error: string };
 
 export async function generateAndStore(prompt: string, aspectRatio: string, bucket: string, prefix: string): Promise<GenResult> {
-  const key = Deno.env.get("TOGETHER_API_KEY");
+  const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) return { ok: false, status: 500, error: "Image generation is not configured" };
 
   let res: Response | null = null;
   let body: any = {};
   for (let attempt = 0; attempt < 4; attempt++) {
-    res = await fetch("https://api.together.xyz/v1/images/generations", {
+    res = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: IMAGE_MODEL, prompt, ...openaiSize(aspectRatio), n: 1, response_format: "b64_json" }),
+      body: JSON.stringify({ model: IMAGE_MODEL, prompt: prompt.slice(0, 32000), size: openaiSize(aspectRatio), quality: IMAGE_QUALITY, n: 1 }),
     });
     body = await res.json().catch(() => ({}));
     if (res.ok) break;
