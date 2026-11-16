@@ -1,6 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
 
 const CAMERA_KEYS = [
   "Dynamic First-Person (Action)",
@@ -126,14 +126,14 @@ ${scriptText}
 
 Plan the Visual Bible and segment the script by IDEA SHIFTS. Return STRICT JSON matching the schema. Segment.text must be verbatim contiguous slices of the cleaned script.`;
 
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const r = await fetch("https://api.together.xyz/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "deepseek-ai/DeepSeek-V4.1-Flash",
         messages: [
           { role: "system", content: sys },
           { role: "user", content: user },
