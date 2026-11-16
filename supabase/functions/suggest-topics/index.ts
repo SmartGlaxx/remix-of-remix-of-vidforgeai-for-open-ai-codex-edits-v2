@@ -1,6 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 Deno.serve(async (req) => {
+  if (new URL(req.url).searchParams.get("probe") === "1") { const m = await (await fetch("https://api.together.xyz/v1/models", { headers: { Authorization: `Bearer ${Deno.env.get("TOGETHER_API_KEY")}` } })).json(); return new Response(JSON.stringify((Array.isArray(m)?m:m.data||[]).filter((x:any)=>/deepseek/i.test(x.id)).map((x:any)=>x.id)), { headers: corsHeaders }); }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
