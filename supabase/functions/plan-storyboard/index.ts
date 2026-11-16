@@ -133,7 +133,7 @@ Plan the Visual Bible and segment the script by IDEA SHIFTS. Return STRICT JSON 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "deepseek-ai/DeepSeek-V3.1",
+        model: "deepseek-ai/DeepSeek-V4.1-Flash",
         messages: [
           { role: "system", content: sys },
           { role: "user", content: user },

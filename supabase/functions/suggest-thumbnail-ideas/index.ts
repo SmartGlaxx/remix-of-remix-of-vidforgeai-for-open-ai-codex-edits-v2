@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "deepseek-ai/DeepSeek-V3.1",
+        model: "deepseek-ai/DeepSeek-V4.1-Flash",
         messages: [{ role: "system", content: sys }, { role: "user", content: user }],
         tools,
         tool_choice: { type: "function", function: { name: "suggest_thumbnail" } },
