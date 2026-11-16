@@ -1,3 +1,4 @@
+import { readFunctionError } from "@/lib/functionError";
 import { useEffect, useState } from "react";
 import { Palette, Sparkles, Eye, Loader2, RefreshCw, ZoomIn, AlertCircle, Wand2, Library, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ const ThumbnailStep = () => {
       const { data, error } = await supabase.functions.invoke("suggest-thumbnail-ideas", {
         body: { title: selectedTitle, style: thumbnailStyles[styleIdx].name, video_style: visualStyle },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(await readFunctionError(error));
       if (data?.error) throw new Error(data.error);
       setSuggestions(data?.descriptions ?? []);
       setSuggestedOverlay(data?.text_overlay ?? "");
@@ -150,7 +151,7 @@ const ThumbnailStep = () => {
         index,
       },
     });
-    if (invokeError) throw new Error(invokeError.message);
+    if (invokeError) throw new Error(await readFunctionError(invokeError));
     if (data?.error) throw new Error(data.error);
     let imageUrl = data?.image_url || data?.url;
     if (!imageUrl && data?.job_id && data?.endpoint_id) {

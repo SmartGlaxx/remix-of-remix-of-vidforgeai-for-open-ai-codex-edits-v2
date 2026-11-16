@@ -1,3 +1,4 @@
+import { readFunctionError } from "@/lib/functionError";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -53,7 +54,7 @@ const TitleStep = () => {
       const { data, error } = await supabase.functions.invoke("analyze-title", {
         body: { topic: value },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(await readFunctionError(error));
       if (data?.error) throw new Error(data.error);
       const list = Array.isArray(data?.titles) ? data.titles : [];
       setTitles(list);

@@ -1,3 +1,4 @@
+import { readFunctionError } from "@/lib/functionError";
 import { useState } from "react";
 import {
   Wand2, BookOpen, Clock, Hash, Sparkles, RotateCw,
@@ -41,15 +42,7 @@ const ScriptStep = () => {
       const { data, error } = await supabase.functions.invoke("generate-script", {
         body: { title, tone: tones[selectedTone].label, duration, hook, language },
       });
-      if (error) {
-        let msg = error.message;
-        try {
-          const body = await (error as { context?: Response }).context?.json();
-          if (body?.error) msg = body.error;
-        } catch { /* keep default message */ }
-        if (/credits exhausted/i.test(msg)) msg = "Your workspace is out of AI credits. Add credits in Settings → Usage, then try again.";
-        throw new Error(msg);
-      }
+      if (error) throw new Error(await readFunctionError(error));
       if (data?.error) throw new Error(data.error);
       setScriptSections(Array.isArray(data?.sections) ? data.sections : []);
       setScriptMeta(data?.meta ?? null);
