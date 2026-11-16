@@ -9,6 +9,6 @@ export async function readFunctionError(error: { message: string; context?: unkn
     if (typeof body?.error === "string") msg = body.error;
     else if (typeof body?.message === "string") msg = body.message;
   } catch { /* keep default */ }
-  if (ctx?.status === 402 || /credits exhausted|credits/i.test(msg)) return CREDITS_MESSAGE;
+  if (ctx?.status === 402 || /credits exhausted|insufficient credits/i.test(msg)) return CREDITS_MESSAGE;
   return msg;
 }
