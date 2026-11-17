@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // Images are generated with OpenAI gpt-image-1 at MEDIUM quality (billed to OPENAI_API_KEY). Never use "high".
-export const IMAGE_MODEL = "gpt-image-1";
+export const IMAGE_MODELS = ["gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"];
+export const IMAGE_MODEL = IMAGE_MODELS[0];
 export const IMAGE_QUALITY = "medium";
 
 export function openaiSize(aspectRatio: string) {
@@ -16,14 +17,20 @@ export async function generateAndStore(prompt: string, aspectRatio: string, buck
 
   let res: Response | null = null;
   let body: any = {};
-  for (let attempt = 0; attempt < 4; attempt++) {
+  let model = IMAGE_MODELS[0];
+  for (let attempt = 0; attempt < 6; attempt++) {
     res = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: IMAGE_MODEL, prompt: prompt.slice(0, 32000), size: openaiSize(aspectRatio), quality: IMAGE_QUALITY, n: 1 }),
+      body: JSON.stringify({ model, prompt: prompt.slice(0, 32000), size: openaiSize(aspectRatio), quality: IMAGE_QUALITY, n: 1 }),
     });
     body = await res.json().catch(() => ({}));
     if (res.ok) break;
+    const em = String(body?.error?.message ?? "");
+    if ((res.status === 404 || res.status === 400) && /does not exist|not found|verified|access/i.test(em)) {
+      const next = IMAGE_MODELS[IMAGE_MODELS.indexOf(model) + 1];
+      if (next) { model = next; continue; }
+    }
     if (res.status !== 429 && res.status < 500) break;
     if (attempt === 3) break;
     const ra = Number(res.headers.get("retry-after")) || 0;
