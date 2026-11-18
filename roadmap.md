@@ -4,6 +4,7 @@
 
 - [x] Deploy the existing brief-aware script function to resolve the live Missing title error (reproduced HTTP 400 before deployment, HTTP 200 afterward).
 - [x] Verify authenticated Generate film plans and saves six scenes from a brief alone with no uncaught errors; three regression tests passed. Image/audio generation intentionally not run.
+- [x] Check Script generation/regeneration, Explainer planning/resume/refresh, Storyboard handoff, and direct script requests. Fixed whitespace-only saved titles and gated both Script regeneration buttons. Five tests passed; authenticated phone/desktop light/dark checks passed, with live title/brief planning and cached responses for repeat appearance checks. Direct empty title/brief requests return helpful HTTP 400 messages. No script callers in background jobs or database function source; image/audio generation and final rendering not run.
 
 # Director workspace
 

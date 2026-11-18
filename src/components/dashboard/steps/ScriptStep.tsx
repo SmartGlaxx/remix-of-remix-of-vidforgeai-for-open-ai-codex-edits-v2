@@ -29,7 +29,7 @@ const ScriptStep = () => {
   const [language, setLanguage] = useDraftField(scriptDraft, setScriptDraft, "language");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const title = topic.trim() || selectedTitle || "";
+  const title = topic.trim() || selectedTitle?.trim() || "";
 
   const generate = async () => {
     if (!title) {
@@ -78,7 +78,7 @@ const ScriptStep = () => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-semibold text-foreground">Script draft</h3>
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={generate} disabled={loading}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={generate} disabled={loading || !title}>
               <RotateCw className="w-3 h-3 mr-1" /> Regenerate
             </Button>
             <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={copyAll}>

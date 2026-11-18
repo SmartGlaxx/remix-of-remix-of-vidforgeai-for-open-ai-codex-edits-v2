@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (shortFilm && (typeof explainerBrief !== "string" || !explainerBrief.trim())) {
       return json({ error: "Enter a video brief and retry." }, 400);
     }
-    if (!shortFilm && (!title || typeof title !== "string")) return json({ error: "Missing title" }, 400);
+    if (!shortFilm && (typeof title !== "string" || !title.trim())) return json({ error: "Enter a title or topic and retry." }, 400);
     const userPrompt = shortFilm ? `Write a one-minute illustrated explainer based on this creative brief:
 ${explainerBrief.slice(0, 5000)}
 Output JSON with a title and exactly six scenes. Each scene has a line (16–21 spoken words), a prompt (one concrete shadow cutout illustration with consistent characters and palette), a label (a short takeaway, four words maximum), and a diagram with kind ("flow", "comparison", or "sequence") and exactly three short labels (up to 14 characters each) specific to the idea. Return diagram as {kind, labels}. Make each scene advance the explanation. Use examples from the brief accurately.` : `Title: """${String(title).slice(0, 300)}"""
