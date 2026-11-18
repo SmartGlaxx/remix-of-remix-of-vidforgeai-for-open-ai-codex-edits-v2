@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     if (body.action === "status") {
       const p = Status.safeParse(body);
       if (!p.success) return json({ error: p.error.flatten().fieldErrors }, 400);
-      const ep = ENDPOINTS[p.data.tier];
+      const ep = ENDPOINTS[p.data.tier as keyof typeof ENDPOINTS];
       const r = await fetch(`${RUNPOD_BASE}/${ep.id}/status/${encodeURIComponent(p.data.job_id)}`, {
         headers: { Authorization: `Bearer ${key}` },
       });
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     const p = Submit.safeParse(body);
     if (!p.success) return json({ error: p.error.flatten().fieldErrors }, 400);
     const { action: _a, tier, ...input } = p.data;
-    const ep = ENDPOINTS[tier];
+    const ep = ENDPOINTS[tier as keyof typeof ENDPOINTS];
     const r = await fetch(`${RUNPOD_BASE}/${ep.id}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
