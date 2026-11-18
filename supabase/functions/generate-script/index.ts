@@ -9,10 +9,13 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "AI not configured" }, 500);
 
-    const { title, tone, duration, hook, language } = await req.json().catch(() => ({}));
+    const { title, tone, duration, hook, language, explainerBrief } = await req.json().catch(() => ({}));
     if (!title || typeof title !== "string") return json({ error: "Missing title" }, 400);
 
-    const userPrompt = `Title: """${String(title).slice(0, 300)}"""
+    const shortFilm = typeof explainerBrief === "string" && explainerBrief.trim().length > 0;
+    const userPrompt = shortFilm ? `Write a one-minute illustrated explainer based on this creative brief:
+${explainerBrief.slice(0, 5000)}
+Output JSON with a title and exactly six scenes. Each scene has a line (16–21 spoken words), a prompt (one concrete shadow cutout illustration with consistent characters and palette), a label (a short takeaway, four words maximum), and a diagram with kind ("flow", "comparison", or "sequence") and exactly three short labels (up to 14 characters each) specific to the idea. Return diagram as {kind, labels}. Make each scene advance the explanation. Use examples from the brief accurately.` : `Title: """${String(title).slice(0, 300)}"""
 Tone: ${tone || "Engaging & Dramatic"}
 Duration: ${duration || "8-10 min"}
 Hook style: ${hook || "Shocking Fact"}
@@ -36,7 +39,7 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
       body: JSON.stringify({
         model: "deepseek-ai/DeepSeek-V4.1-Flash",
-        messages: [{ role: "system", content: SYSTEM }, { role: "user", content: userPrompt }],
+        messages: [{ role: "system", content: shortFilm ? "Direct a clear illustrated short film. Return strict JSON with title and scenes, each containing line, prompt and label." : SYSTEM }, { role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
       }),
     });
