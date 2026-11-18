@@ -1,3 +1,4 @@
+import Explainer from "./Explainer";
 import StudioClipPlayer from "@/components/dashboard/StudioClipPlayer";
 import "@/components/dashboard/workspace.css";
 import { ThemeProvider, useTheme } from "next-themes";
@@ -25,6 +26,7 @@ export const workspacePages = [
   { id: "export", label: "Export", icon: Download, group: "03 · FINISH" },
 ];
 export const supportingPages = [
+  { id: "explainer", label: "Explainer Studio", icon: Film },
   { id: "assets", label: "Assets", icon: Boxes },
   { id: "production", label: "Production", icon: Activity },
   { id: "settings", label: "Settings", icon: Settings },
@@ -74,6 +76,7 @@ function DashboardInner() {
               <aside className="script-outline space-y-4"><section className="workspace-card"><h3 className="font-bold">Sections</h3><p className="text-xs text-muted-foreground mt-2">Open a scene on the Storyboard to see the shots it becomes.</p>{scriptSections.map((scene, index) => <NavLink key={index} to={`/dashboard/storyboard?scene=${index}`} className="script-scene-link">{scene.section || `Scene ${index + 1}`}<span>{scene.text.trim().split(/\s+/).filter(Boolean).length} words · Board it →</span></NavLink>)}{!scriptSections.length && <p className="text-sm text-muted-foreground mt-5">Your scenes appear here when you write your script.</p>}</section>
               <section className="workspace-card"><h3 className="font-bold">Script details</h3><p className="text-sm text-muted-foreground mt-3">{scriptSections.length} scenes · {scriptSections.reduce((sum, scene) => sum + scene.text.trim().split(/\s+/).filter(Boolean).length, 0)} words</p></section></aside></div>
             </div>}
+            {page.id === "explainer" && <Explainer />}
             {page.id === "projects" && <ProjectsPage />}
             {page.id === "story-canvas" && <StoryCanvasPage />}
             {visited.includes("storyboard") && <div hidden={page.id !== "storyboard"}>
