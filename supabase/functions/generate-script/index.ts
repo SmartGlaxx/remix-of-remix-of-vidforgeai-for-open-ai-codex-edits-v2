@@ -1,7 +1,20 @@
+import { z } from "npm:zod@3.25.76";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SYSTEM = `You are an elite YouTube long-form scriptwriter. Given a title, tone, duration, hook style, and language, write a high-retention script structured into clearly timed sections.
 Return STRICT JSON only.`;
+
+const explainerPlan = z.object({
+  scenes: z.array(z.object({
+    line: z.string().trim().min(1).max(600),
+    prompt: z.string().trim().min(1).max(2200),
+    label: z.string().trim().min(1).max(100),
+    diagram: z.object({
+      kind: z.enum(["flow", "comparison", "sequence"]),
+      labels: z.array(z.string().trim().min(1).max(32)).length(3),
+    }).optional().catch(undefined),
+  })).length(6),
+});
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -10,9 +23,11 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) return json({ error: "AI not configured" }, 500);
 
     const { title, tone, duration, hook, language, explainerBrief } = await req.json().catch(() => ({}));
-    if (!title || typeof title !== "string") return json({ error: "Missing title" }, 400);
-
-    const shortFilm = typeof explainerBrief === "string" && explainerBrief.trim().length > 0;
+    const shortFilm = explainerBrief !== undefined;
+    if (shortFilm && (typeof explainerBrief !== "string" || !explainerBrief.trim())) {
+      return json({ error: "Enter a video brief and retry." }, 400);
+    }
+    if (!shortFilm && (!title || typeof title !== "string")) return json({ error: "Missing title" }, 400);
     const userPrompt = shortFilm ? `Write a one-minute illustrated explainer based on this creative brief:
 ${explainerBrief.slice(0, 5000)}
 Output JSON with a title and exactly six scenes. Each scene has a line (16–21 spoken words), a prompt (one concrete shadow cutout illustration with consistent characters and palette), a label (a short takeaway, four words maximum), and a diagram with kind ("flow", "comparison", or "sequence") and exactly three short labels (up to 14 characters each) specific to the idea. Return diagram as {kind, labels}. Make each scene advance the explanation. Use examples from the brief accurately.` : `Title: """${String(title).slice(0, 300)}"""
@@ -58,6 +73,13 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
         console.error("Invalid JSON from AI:", content);
         return json({ error: "AI returned invalid JSON" }, 502);
       }
+    }
+    if (shortFilm) {
+      const result = explainerPlan.safeParse(parsed);
+      if (!result.success) {
+        return json({ error: "The planner returned an incomplete scene list. Click Generate film to try again." }, 502);
+      }
+      return json(result.data);
     }
     return json(parsed);
   } catch (e) {
