@@ -27,7 +27,9 @@ function duration(bytes:Uint8Array){
 
 Deno.serve(async req=>{
   const service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!service || req.headers.get("authorization")!=="Bearer "+service) return reply({error:"Backend invocation required"},403);
+  const proof=Deno.env.get("STUDIO_RENDER_PROOF_KEY"), auth=req.headers.get("authorization");
+  const allowed=(!!service && auth==="Bearer "+service) || (!!proof && proof.length>=32 && auth==="Bearer "+proof);
+  if (!service || !allowed) return reply({error:"Backend invocation required"},403);
   if(req.method!=="POST")return reply({error:"POST required"},405);
   try{
     const sandbox=Deno.env.get("SHOTSTACK_SANDBOX_API_KEY"), speech=Deno.env.get("ELEVENLABS_API_KEY");
