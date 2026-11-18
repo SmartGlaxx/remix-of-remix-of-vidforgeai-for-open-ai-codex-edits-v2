@@ -1,5 +1,10 @@
 # Video playback update
 
+# Explainer script service
+
+- [x] Deploy the existing brief-aware script function to resolve the live Missing title error (reproduced HTTP 400 before deployment, HTTP 200 afterward).
+- [x] Verify authenticated Generate film plans and saves six scenes from a brief alone with no uncaught errors; three regression tests passed. Image/audio generation intentionally not run.
+
 # Director workspace
 
 - [x] Replace the locked wizard with Script, Storyboard, Director, and Sequence URLs and honest navigation.
