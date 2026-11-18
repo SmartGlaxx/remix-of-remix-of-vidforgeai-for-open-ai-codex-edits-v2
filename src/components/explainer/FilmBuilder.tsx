@@ -14,6 +14,10 @@ const sceneSchema = z.object({
   audio: z.string().url().optional(), job_id: z.string().optional(), endpoint_id: z.string().optional(),
 });
 const draftSchema = z.object({brief: z.string(), scenes: z.array(sceneSchema).length(6)});
+const scenePlanSchema = z.object({
+  scenes: z.array(sceneSchema.pick({line: true, prompt: true, label: true, diagram: true})).length(6),
+});
+const plannerDeploymentError = "The deployed script function needs the Explainer update. Deploy generate-script from the latest main branch, then retry.";
 type Draft = {brief: string; scenes: FilmScene[]};
 
 function load(key: string): Draft {
@@ -25,7 +29,14 @@ async function invoke(name: string, body: Record<string, unknown>, signal: Abort
   signal.throwIfAborted();
   const {data, error} = await supabase.functions.invoke(name, {body, signal});
   signal.throwIfAborted();
-  if (error || data?.error) throw new Error(data?.error || error.message);
+  if (error || data?.error) {
+    const payload = await error?.context?.json?.().catch(() => null);
+    const message = data?.error || payload?.error || error?.message || "Request failed.";
+    if (name === "generate-script" && message === "Missing title") {
+      throw new Error(plannerDeploymentError);
+    }
+    throw new Error(message);
+  }
   return data;
 }
 
@@ -66,8 +77,13 @@ function Builder({storageKey}: {storageKey: string}) {
       }
       if (film.brief !== brief.trim() || !film.scenes.length) {
         setStatus("Planning six scenes…");
-        const plan = await invoke("generate-script", {title: brief.slice(0, 300), explainerBrief: brief.trim()}, signal);
-        film.scenes = z.array(sceneSchema.pick({line:true, prompt:true, label:true, diagram:true})).length(6).parse(plan.scenes) as FilmScene[];
+        const response = await invoke("generate-script", {explainerBrief: brief.trim()}, signal);
+        if (Array.isArray(response?.sections) && !response?.scenes) {
+          throw new Error(plannerDeploymentError);
+        }
+        const plan = scenePlanSchema.safeParse(response);
+        if (!plan.success) throw new Error("The planner returned an incomplete scene list. Click Generate film to try again.");
+        film.scenes = plan.data.scenes as FilmScene[];
         film.brief = brief.trim();
         setResult(undefined);
         save();
