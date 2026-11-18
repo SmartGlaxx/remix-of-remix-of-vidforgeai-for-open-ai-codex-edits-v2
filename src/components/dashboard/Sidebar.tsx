@@ -12,6 +12,7 @@ const items = [
   { path: "/dashboard/shot-lab", label: "Shot Lab", icon: Beaker, section: "SHOOT · 03" },
   { path: "/dashboard/final-cut", label: "Final cut", icon: Film, section: "FINISH · 04" },
   { path: "/dashboard/export", label: "Export", icon: Download, section: "DELIVER · 05" },
+  { path: "/dashboard/explainer", label: "Explainer Studio", icon: Film, section: "WORKSPACE" },
   { path: "/dashboard/assets", label: "Assets", icon: Boxes, section: "WORKSPACE" },
   { path: "/dashboard/production", label: "Production", icon: Activity, section: "WORKSPACE" },
   { path: "/dashboard/settings", label: "Settings", icon: Settings, section: "WORKSPACE" },
