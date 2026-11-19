@@ -1,6 +1,7 @@
 import {createClient} from "npm:@supabase/supabase-js@2";
 import {animation} from "./animation.ts";
 import {chartCues,narrateScene,scenes} from "./narration.ts";
+import {parseSrt,planTimeline} from "./timeline.ts";
 
 const voice = "gOupLcAkjEnguROwi4oS";
 const stage = "https://api.shotstack.io/edit/stage/render";
@@ -56,20 +57,21 @@ Deno.serve(async req=>{
     }
     const headers={"x-api-key":sandbox,"Content-Type":"application/json"};
     if(action==="submit"){
-      const captions=[],visuals=[],audio=[];
-      let start=0, cues=[];
+      const audio=[];
       for(let i=0;i<scenes.length;i++){
-        const key=root+"/"+i,res=await store.download(key+".json");
-        if(!res.data)return reply({error:"Generate narration for scene "+(i+1)},409);
-        const meta=JSON.parse(await res.data.text()), length=meta.seconds;
-        if(i===1)cues=meta.cues;
-        visuals.push({asset:animation(i,length,cues),width:1280,height:720,scale:1.5,start,length});
-        captions.push({asset:{type:"rich-caption",src:url(key+".srt")},position:"bottom",offset:{x:0,y:0.06},start,length});
-        audio.push({asset:{type:"audio",src:url(key+".mp3")},start,length});
-        start+=length;
+        const key=root+"/"+i,res=await store.download(key+".json"),srt=await store.download(key+".srt");
+        if(!res.data||!srt.data)return reply({error:"Generate narration for scene "+(i+1)},409);
+        const meta=JSON.parse(await res.data.text());
+        audio.push({seconds:meta.seconds,cues:meta.cues,words:parseSrt(await srt.data.text())});
       }
-      const sent=await fetch(stage,{method:"POST",headers,body:JSON.stringify({timeline:{tracks:[{clips:captions},{clips:visuals},{clips:audio}]},output:{format:"mp4",resolution:"1080",fps:30}})});
-      return reply(await sent.json(),sent.status);
+      const plan=planTimeline(audio);
+      const walkOut=(Math.max(1,Math.round(1100/81)))*.4;
+      const total=plan.narrationEnd+.4+walkOut+.3;
+      const visual={asset:animation({...plan,total}),width:1280,height:720,scale:1.5,start:0,length:total};
+      const sound=plan.audio.map(a=>({asset:{type:"audio",src:url(root+"/"+a.scene+".mp3"),trim:a.trim},start:a.start,length:a.length}));
+      const sent=await fetch(stage,{method:"POST",headers,body:JSON.stringify({timeline:{tracks:[{clips:[visual]},{clips:sound}]},output:{format:"mp4",resolution:"1080",fps:30}})});
+      const body=await sent.json();
+      return reply({...body,plan:{total,cues:plan.cues,sceneStarts:plan.sceneStarts,narrationEnd:plan.narrationEnd}},sent.status);
     }
     if(action==="status" && typeof id==="string" && /^[a-zA-Z0-9-]{8,80}$/.test(id)){
       const response=await fetch(stage+"/"+id,{headers}),data=await response.json();

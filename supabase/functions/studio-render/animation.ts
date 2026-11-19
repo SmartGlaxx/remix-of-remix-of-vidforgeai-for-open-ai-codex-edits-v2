@@ -1,35 +1,78 @@
-import type { chartCues } from "./narration.ts";
+import type { Cue, Word } from "./timeline.ts";
 
-// Both limbs use the same joint geometry, mirrored by the starting pose.
+// Host is drawn with the shoe soles at local y=0 so the whole group sits on the floor.
 function limb(id: string, leg: boolean) {
-  const length = leg ? 55 : 38;
-  const colour = leg ? "#244466" : "#bf7959";
-  const segment = '<path d="M0 0 L0 '+length+'" stroke="#222c38" stroke-width="25"/><path d="M0 0 L0 '+length+'" stroke="'+colour+'" stroke-width="18"/>';
-  const tip = leg ? '<path d="M-10 0 Q0 -8 12 -2 L23 6 Q24 12 13 12 H-10Z" fill="#ffca53"/>' : '<ellipse rx="11" ry="14" fill="#bf7959"/>';
-  return '<g id="'+id+'">'+segment+'<g transform="translate(0 '+length+')"><g id="'+id+'Lower">'+segment+'<g transform="translate(0 '+length+')"><g id="'+id+'Tip">'+tip+'</g></g></g></g></g>';
+  const length = leg ? 55 : 38, colour = leg ? "#244466" : "#bf7959";
+  const seg = '<path d="M0 0 L0 '+length+'" stroke="#222c38" stroke-width="25"/><path d="M0 0 L0 '+length+'" stroke="'+colour+'" stroke-width="18"/>';
+  const tip = leg ? '<path d="M-10 0 Q0 -8 12 -2 L23 6 Q24 12 13 12 H-10Z" fill="#ffca53"/>'
+    : '<ellipse rx="11" ry="14" fill="#bf7959"/>'+(id==="rightArm"?'<path id="finger" d="M0 8 L0 30" stroke="#bf7959" stroke-width="9" opacity="0"/>':"");
+  return '<g id="'+id+'">'+seg+'<g transform="translate(0 '+length+')"><g id="'+id+'Lower">'+seg+'<g transform="translate(0 '+length+')"><g id="'+id+'Tip">'+tip+'</g></g></g></g></g>';
 }
+const shoulder = (id: string, x: number, y: number, arm: string) =>
+  `<g id="${id}"><g transform="translate(${x} ${y})">${limb(arm,false)}</g><circle cx="${x}" cy="${y}" r="15" fill="#12aa96"/></g>`;
 
-const host = `<g id="host"><g transform="translate(255 352)"><g id="body">
+const host = `<g id="host"><g id="hostScale"><g id="body" transform="translate(0 -169)">
 <g transform="translate(-17 53)">${limb("leftLeg",true)}</g><g transform="translate(17 53)">${limb("rightLeg",true)}</g>
-<g transform="translate(-35 -24)">${limb("leftArm",false)}</g>
-<path fill="#12aa96" d="M-37 -33Q0 -54 36 -32L32 57Q0 68 -32 55Z"/><path d="M-16 -37L0 -22 16 -38" fill="#ffe19c"/>
+${shoulder("shL",-35,-24,"leftArm")}
+<g id="torso"><path fill="#12aa96" d="M-37 -33Q0 -54 36 -32L32 57Q0 68 -32 55Z"/><path d="M-16 -37L0 -22 16 -38" fill="#ffe19c"/></g>
 <g id="head"><rect x="-28" y="-115" width="59" height="81" rx="27" fill="#bd7958"/>
 <path d="M-30 -80Q-46 -102 -31 -118Q-39 -138 -18 -137Q-6 -151 6 -139Q32 -148 36 -124Q50 -106 28 -89L24 -110Q-1 -97 -21 -105L-23 -83Z" fill="#343043"/>
-<g id="face"><ellipse cx="-10" cy="-82" rx="3" ry="5"/><ellipse cx="17" cy="-82" rx="3" ry="5"/><path id="brow" d="M6 -92l15 -2" fill="none"/><path id="mouth" d="M-7 -58 Q4 -53 14 -60" fill="none"/></g></g>
-<g transform="translate(35 -25)">${limb("rightArm",false)}</g></g></g></g>`;
+<g id="face"><ellipse cx="-10" cy="-82" rx="3" ry="5"/><ellipse cx="17" cy="-82" rx="3" ry="5"/><path id="brow" d="M-16 -94l12 -1M10 -95l13 1" fill="none"/><path id="mouth" d="M-7 -58 Q4 -53 14 -60" fill="none"/></g></g>
+${shoulder("shR",35,-25,"rightArm")}</g></g></g>`;
 
-export function animation(scene:number, duration:number, cues:ReturnType<typeof chartCues>) {
-  const bars = cues.map((cue,i)=>`<div class="column"><span id="value${i}"></span><div id="bar${i}" class="bar" style="height:${cue.value*2.2}px;background:${["#ffbb48","#f47e6f","#35b6a0","#8293eb"][i]}"></div><small>${["Start","Year 1","Year 2","Year 3"][i]}</small></div>`).join("");
-  return {type:"html5",html:`<svg width="1280" height="720" viewBox="0 0 1280 720"><path d="M0 530H1280" stroke="#b5ab93" stroke-width="4"/><g fill="#252d39" stroke="#252d39" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${host}</g></svg><section>${bars}</section>`,
-    css:`*{box-sizing:border-box}html,body{margin:0;width:1280px;height:720px;overflow:hidden;background:#fff3d7}section{position:absolute;left:490px;top:115px;width:710px;height:415px;display:flex;align-items:flex-end;justify-content:space-between}.column{width:145px;text-align:center;font:bold 36px sans-serif}.bar{width:100%;border:4px solid #252d39;border-radius:12px 12px 0 0}.column small{position:absolute;display:block;width:145px;font:24px sans-serif;margin-top:8px}`,
-    js:`const tl=gsap.timeline(), d=${duration}, scene=${scene}, cues=${JSON.stringify(cues)};
-    const joint=(name,angle,time,length)=>tl.to("#"+name,{rotation:angle,transformOrigin:"0px 0px",duration:length,ease:"sine.inOut"},time);
-    function idle(t,end){for(let s=t;s<end;s+=1.4)tl.to("#body",{y:s%2?2:-2,duration:Math.min(1.4,end-s),ease:"sine.inOut"},s)}
-    function walk(t,len,from,to){const step=len/10;tl.fromTo("#host",{x:from},{x:to,duration:len,ease:"none"},t);for(let k=0;k<10;k++){const a=t+k*step;for(const [i,side] of ["left","right"].entries()){const f=(k+i)%2===0; joint(side+"Leg",f?22:-22,a,step);joint(side+"LegLower",f?-35:0,a,step);joint(side+"Arm",f?-21:21,a,step)}tl.to("#body",{y:-4,duration:step/2,yoyo:true,repeat:1},a)}for(const side of ["left","right"]){for(const part of ["Leg","LegLower","Arm"])joint(side+part,0,t+len,.22)}}
-    function wave(t){joint("rightArm",-126,t,.36);joint("rightArmLower",-28,t,.36);for(let k=0;k<4;k++)joint("rightArmLower",k%2?-21:-57,t+.36+k*.23,.23);joint("rightArm",0,t+1.4,.45);joint("rightArmLower",0,t+1.4,.45);tl.to("#face",{x:3,duration:.4},t);tl.to("#mouth",{scaleY:1.8,transformOrigin:"center",duration:.3},t)}
-    function shrug(t){for(const [i,side] of ["left","right"].entries()){joint(side+"Arm",i?-42:42,t,.4);joint(side+"ArmLower",i?-76:76,t,.45);joint(side+"ArmTip",i?-55:55,t,.4);for(const p of ["Arm","ArmLower","ArmTip"])joint(side+p,0,t+1.1,.45)}}
-    function point(t){joint("rightArm",-77,Math.max(0,t-.45),.45);joint("rightArmLower",-12,Math.max(0,t-.45),.45);tl.to("#face",{x:6,duration:.4},0);joint("brow",-7,0,.3)}
-    if(scene===0){walk(0,3.6,-410,0);wave(4);idle(6,d)}
-    if(scene===1){idle(0,d);point(cues[0].start);cues.forEach((c,i)=>{const len=Math.max(.12,c.end-c.start);tl.fromTo("#bar"+i,{scaleY:0},{scaleY:1,transformOrigin:"bottom",duration:len},c.start);const n={v:0};tl.to(n,{v:c.value,duration:len,onUpdate:()=>document.querySelector("#value"+i).textContent="$"+Math.round(n.v)},c.start)});joint("rightArm",0,cues[3].end,.5)}
-    if(scene===2){tl.set("section span",{textContent:""},0);cues.forEach((c,i)=>tl.set("#value"+i,{textContent:"$"+c.value},0));tl.to("section",{opacity:0,duration:1.5},0);shrug(.2);wave(2);idle(4,d-4);walk(d-4,3.7,0,1170)}`};
+export interface Plan { total: number; words: Word[]; cues: Cue[]; sceneStarts: number[]; narrationEnd: number }
+
+export function animation(plan: Plan) {
+  const colours = ["#ffbb48","#f47e6f","#35b6a0","#8293eb"], labels = ["Start","Year 1","Year 2","Year 3"];
+  const bars = plan.cues.map((c,i)=>`<div class="col" style="left:${600+i*160}px"><span id="value${i}"></span><div id="bar${i}" class="bar" style="height:${Math.round(c.value*2.55)}px;background:${colours[i]}"><small>${labels[i]}</small></div></div>`).join("");
+  const data = JSON.stringify({ total: plan.total, words: plan.words, cues: plan.cues, scenes: plan.sceneStarts, end: plan.narrationEnd });
+  return { type: "html5",
+    html: `<svg width="1280" height="720" viewBox="0 0 1280 720"><rect y="600" width="1280" height="120" fill="#f3e2bd"/><path d="M0 600H1280" stroke="#b5ab93" stroke-width="4"/><g fill="#252d39" stroke="#252d39" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${host}</g></svg><section id="chart">${bars}</section><div id="cap"></div>`,
+    css: `*{box-sizing:border-box}html,body{margin:0;width:1280px;height:720px;overflow:hidden;background:#fff3d7;font-family:sans-serif}svg{position:absolute;left:0;top:0;z-index:2}
+#chart{position:absolute;left:0;top:0;width:1280px;height:600px;z-index:1}.col{position:absolute;bottom:0;width:120px;text-align:center;font:bold 38px sans-serif;color:#252d39}
+.bar{width:120px;border:4px solid #252d39;border-bottom:none;border-radius:14px 14px 0 0;transform-origin:bottom;position:relative}.bar small{position:absolute;left:0;right:0;bottom:12px;font:bold 22px sans-serif}
+#cap{position:absolute;left:140px;right:140px;top:622px;height:72px;z-index:3;display:flex;align-items:center;justify-content:center}
+#cap div{background:rgba(37,45,57,.92);color:#fff;font:bold 34px sans-serif;padding:10px 26px;border-radius:16px;white-space:nowrap}#cap b{color:#ffca53}`,
+    js: `const P=${data}, S=1.35, HOME=300, R=Math.PI/180, $=id=>document.getElementById(id);
+const ease=f=>f<0?0:f>1?1:f*f*(3-2*f), env=(t,a,up,b,down)=>t<a||t>b+down?0:t<a+up?ease((t-a)/up):t<=b?1:1-ease((t-b)/down), mix=(a,b,k)=>a+(b-a)*k;
+const set=(id,v)=>$(id).setAttribute("transform",v), rot=(id,a)=>set(id,"rotate("+a.toFixed(2)+")");
+function walk(t0,xa,xb,T){const N=Math.max(1,Math.round(Math.abs(xb-xa)/81))-1;return{t0,T,xa,xb,N,D:(xb-xa)/(N+1),dur:(N+1)*T}}
+const W=[walk(0,-170,HOME,.42),walk(P.end+.4,HOME,1400,.4)];
+const mod=(n,m)=>((n%m)+m)%m;
+function walkPose(w,t){const q=Math.max(-.5,Math.min(w.N+.5,(t-w.t0)/w.T-.5)),x0=w.xa+w.D/2,F=n=>x0+(n+.5)*w.D,n=Math.floor(q),f=q-n;
+ const feet=[0,1].map(L=>{if(mod(n,2)===L||q>=w.N+.5)return[F(Math.min(n,w.N)),0];let a=n-1,b=n+1,s=n,e=n+1;if(a<-1){a=-1;s=-.5}if(b>w.N){b=w.N;e=w.N+.5}const g=ease((q-s)/(e-s));return[F(a)+(F(b)-F(a))*g,Math.sin(Math.PI*Math.min(1,Math.max(0,(q-s)/(e-s))))*20]});
+ return{x:x0+q*w.D,feet,bob:3*Math.sin(Math.PI*mod(f,1))}}
+function ik(dx,dy){const r=Math.min(Math.hypot(dx,dy),109.5),th=Math.atan2(-dx,dy)/R,a=Math.acos(r/110)/R;return{th,t1:th-a,k:2*a}}
+const phrases=[];{let cur=[];P.words.forEach((w,i)=>{cur.push(i);if(cur.length>=4||/[.,?!—]$/.test(w.word)){phrases.push(cur);cur=[]}});if(cur.length)phrases.push(cur)}
+let lastCap="";
+function render(t){
+ let x=HOME,feet=null,bob=0;
+ for(const w of W){if(t<w.t0){x=w===W[0]?w.xa:x;break}if(t<=w.t0+w.dur){const p=walkPose(w,t);x=p.x;feet=p.feet;bob=p.bob;break}x=w.xb}
+ if(t<W[0].t0)x=W[0].xa;
+ set("host","translate("+x.toFixed(2)+" 600) scale("+S+")");set("body","translate(0 "+(-169-bob).toFixed(2)+")");
+ const legs=["left","right"].map((side,i)=>{const [fx,lift]=feet?feet[i]:[x,0];const g=ik((fx-x)/S,104+bob-lift);rot(side+"Leg",g.t1);rot(side+"LegLower",g.k);rot(side+"LegTip",-(g.t1+g.k));return g.th});
+ // arms: walking swing (opposite arm to leg)
+ let la=feet?legs[1]*1.1:0,ll=feet?-12:-6,ra=feet?legs[0]*1.1:0,rl=feet?-12:-6,finger=0,sh=0,headY=0,lean=0,brow=0;
+ // pointing: one reach per bar, elbow bends between reaches
+ const c=P.cues;if(c.length){const pe=env(t,c[0].start-.5,.5,c[3].end+.9,.5);if(pe>0){let k=0;for(let i=0;i<4;i++)if(t>=c[i].start-.5)k=i;
+  const ang=i=>{const bx=660+i*160,by=600-c[i].value*2.55-30,sx=x+35*S,sy=600-194*S;return Math.atan2(-(bx-sx),by-sy)/R};
+  const f=Math.min(1,Math.max(0,(t-(c[k].start-.5))/.5)),from=k?ang(k-1):0,to=ang(k),a=mix(from,to,ease(f));
+  ra=mix(ra,a,pe);rl=mix(rl,-4-55*Math.sin(Math.PI*f)*(k?1:0),pe);finger=pe;lean=pe*(3+k*2);brow=pe*-3}}
+ // two-part wave: raise, then forearm waggle
+ for(const w0 of [W[0].t0+W[0].dur+.2,P.end-1.9]){const e=env(t,w0,.35,w0+1.5,.4);if(e>0){ra=mix(ra,-135,e);rl=mix(rl,-35+(t>w0+.35?30*Math.sin((t-w0-.35)*2*Math.PI*2.4):0),e);brow=mix(brow,-4,e)}}
+ // shrug: shoulders rise, elbows out, palms up
+ {const s0=P.scenes[2]+.3,e=env(t,s0,.35,s0+.9,.45);if(e>0){sh=-15*e;headY=5*e;la=mix(la,38,e);ll=mix(ll,85,e);ra=mix(ra,-38,e);rl=mix(rl,-85,e);brow=-6*e}}
+ set("shL","translate(0 "+sh+")");set("shR","translate(0 "+sh+")");set("head","translate(0 "+headY+")");set("torso","rotate("+lean+")");
+ rot("leftArm",la);rot("leftArmLower",ll);rot("rightArm",ra);rot("rightArmLower",rl);$("finger").setAttribute("opacity",finger);
+ $("brow").setAttribute("transform","translate(0 "+brow+")");
+ const talking=P.words.some(w=>t>=w.start&&t<=w.end);$("mouth").setAttribute("transform","translate(4 -57) scale(1 "+(talking?1.4+.8*Math.abs(Math.sin(t*18)):1)+") translate(-4 57)");
+ // chart
+ const ch=t<P.scenes[1]?0:t<P.scenes[1]+.5?(t-P.scenes[1])/.5:1-ease((t-P.scenes[2]-.2)/1);$("chart").style.opacity=Math.max(0,ch);
+ c.forEach((q,i)=>{const g=ease((t-q.start)/.9);$("bar"+i).style.transform="scaleY("+g+")";$("value"+i).textContent=g>0?"$"+Math.round(q.value*g):""});
+ // captions: short phrase, current word highlighted
+ let html="";for(let p=0;p<phrases.length;p++){const ws=phrases[p],s=P.words[ws[0]].start,e=P.words[ws[ws.length-1]].end,next=phrases[p+1]?P.words[phrases[p+1][0]].start:1e9;
+  if(t>=s-.05&&t<Math.min(next-.05,e+.8)){let cur=ws[0];ws.forEach(i=>{if(t>=P.words[i].start-.03)cur=i});html="<div>"+ws.map(i=>i===cur?"<b>"+P.words[i].word+"</b>":P.words[i].word).join(" ")+"</div>";break}}
+ if(html!==lastCap){$("cap").innerHTML=html;lastCap=html}
+}
+const tl=gsap.timeline(),clock={t:0};render(0);tl.to(clock,{t:P.total,duration:P.total,ease:"none",onUpdate:()=>render(clock.t)},0);`};
 }
