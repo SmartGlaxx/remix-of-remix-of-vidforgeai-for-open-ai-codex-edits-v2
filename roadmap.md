@@ -1,5 +1,11 @@
 # Video playback update
 
+# Compound-interest sandbox revision
+
+- [x] Refine world-space planted-foot walking, larger host, wave/shrug/per-bar reaches and uncropped bottom captions using saved Darian audio.
+- [x] Eight retained tests passed; submitted one 1080p Shotstack sandbox render (67ffb01c-3366-408a-8a0a-d3177c2849d9).
+- [x] Export verified as 1920×1080 H.264/AAC, 61.766667s; entrance/exit and beginning/middle/end captions inspected. Four chart cues match exported saved audio within 40ms. Shotstack total render time 387532ms, active render 52148ms, sandbox cost $0; no production render.
+
 # Explainer script service
 
 - [x] Deploy the existing brief-aware script function to resolve the live Missing title error (reproduced HTTP 400 before deployment, HTTP 200 afterward).

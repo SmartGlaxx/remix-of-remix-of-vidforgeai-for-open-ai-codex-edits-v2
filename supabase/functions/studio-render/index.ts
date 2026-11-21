@@ -2,6 +2,7 @@ import {createClient} from "npm:@supabase/supabase-js@2";
 import {animation} from "./animation.ts";
 import {chartCues,narrateScene,scenes} from "./narration.ts";
 import {parseSrt,planTimeline} from "./timeline.ts";
+import {walk} from "./motion.ts";
 
 const voice = "gOupLcAkjEnguROwi4oS";
 const stage = "https://api.shotstack.io/edit/stage/render";
@@ -34,8 +35,9 @@ Deno.serve(async req=>{
   if(req.method!=="POST")return reply({error:"POST required"},405);
   try{
     const sandbox=Deno.env.get("SHOTSTACK_SANDBOX_API_KEY"), speech=Deno.env.get("ELEVENLABS_API_KEY");
-    if(!sandbox || !speech || !Deno.env.get("SHOTSTACK_API_KEY"))throw new Error("Required provider secret missing.");
-    const store=createClient(Deno.env.get("SUPABASE_URL")!,service).storage.from("videos");
+    const backendUrl=Deno.env.get("SUPABASE_URL");
+    if(!sandbox || !backendUrl)throw new Error("Required sandbox configuration missing.");
+    const store=createClient(backendUrl,service).storage.from("videos");
     const url=(key:string)=>store.getPublicUrl(key).data.publicUrl;
     const root="proofs/compound-interest-v1/"+voice;
     const {action,scene,id}=await req.json();
@@ -43,6 +45,7 @@ Deno.serve(async req=>{
       const key=root+"/"+scene;
       const saved=await store.download(key+".json");
       if(saved.data)return reply({scene,cached:true});
+      if(!speech)throw new Error("Narration provider secret missing.");
       const {audio,words}=await narrateScene(scene,voice,speech);
       const seconds=duration(audio);
       const captions=words.map((w,i)=>`${i+1}\n${stamp(w.start)} --> ${stamp(w.end)}\n${w.word}\n`).join("\n");
@@ -65,9 +68,9 @@ Deno.serve(async req=>{
         audio.push({seconds:meta.seconds,cues:meta.cues,words:parseSrt(await srt.data.text())});
       }
       const plan=planTimeline(audio);
-      const walkOut=(Math.max(1,Math.round(1100/81)))*.4;
+      const walkOut=walk(0,290,1400,.34).duration;
       const total=plan.narrationEnd+.4+walkOut+.3;
-      const visual={asset:animation({...plan,total}),width:1280,height:720,scale:1.5,start:0,length:total};
+      const visual={asset:animation({...plan,total}),width:1920,height:1080,scale:1,start:0,length:total};
       const sound=plan.audio.map(a=>({asset:{type:"audio",src:url(root+"/"+a.scene+".mp3"),trim:a.trim},start:a.start,length:a.length}));
       const sent=await fetch(stage,{method:"POST",headers,body:JSON.stringify({timeline:{tracks:[{clips:[visual]},{clips:sound}]},output:{format:"mp4",resolution:"1080",fps:30}})});
       const body=await sent.json();
