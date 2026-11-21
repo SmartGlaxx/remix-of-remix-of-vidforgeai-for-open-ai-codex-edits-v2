@@ -7,3 +7,4 @@
 - The Director workspace uses dedicated Script, Storyboard, Director and Sequence routes under one persistent Dashboard/ProjectProvider; editable drafts belong in ProjectContext, and visited tools remain mounted to preserve in-flight work during navigation.
 - Sequence UI lives in StudioSequencePanel, with optional music on the Sequence page; StudioClipPanel can embed it for regression coverage, and final sequence records retain their worker job ID for traceability.
 - Keep the compound-interest proof server-authorized and Shotstack sandbox-only; derive visuals and audio trims from one saved-word timeline and world-space foot anchors so caption, chart and gait timing remain testable without rendering.
+- Keep illustration proofs in studio-render as sandbox-only formats with separate cached narration and pure word-timed plans, so new reviews cannot overwrite compound-interest assets or bypass server authorization.

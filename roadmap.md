@@ -1,5 +1,10 @@
 # Video playback update
 
+# Egg-price sandbox preview
+
+- [x] Create the ordered illustration proof with exact Darian narration, word-synced captions, and illustrative receipt reveals; 11 proof/regression tests passed.
+- [x] Render one Shotstack sandbox MP4 (c772cb77-9abe-4c77-82f9-ad8c1fdba800), verified 1920×1080 H.264/AAC and exactly 30.00 seconds. Exported beginning/middle/end spoken captions highlight current words; receipt values reveal in order without caption overlap. Saved narration is 22.18 seconds followed by the final receipt hold; active render 23.76 seconds, observed submission-to-download 7m 16s. No production render.
+
 # Compound-interest sandbox revision
 
 - [x] Refine world-space planted-foot walking, larger host, wave/shrug/per-bar reaches and uncropped bottom captions using saved Darian audio.

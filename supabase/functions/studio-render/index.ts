@@ -4,6 +4,8 @@ import {animation} from "./animation.ts";
 import {chartCues,narrateScene,scenes} from "./narration.ts";
 import {parseSrt,planTimeline} from "./timeline.ts";
 import {walk} from "./motion.ts";
+import {eggImages, eggNarration, eggOverlay, eggPlan} from "./eggs.ts";
+import {timedWords} from "./narration.ts";
 
 const voice = "gOupLcAkjEnguROwi4oS";
 const stage = "https://api.shotstack.io/edit/stage/render";
@@ -40,8 +42,28 @@ Deno.serve(async req=>{
     if(!sandbox || !backendUrl)throw new Error("Required sandbox configuration missing.");
     const store=createClient(backendUrl,service).storage.from("videos");
     const url=(key:string)=>store.getPublicUrl(key).data.publicUrl;
-    const root="proofs/compound-interest-v1/"+voice;
     const {action,scene,id,format}=await req.json();
+    if(format !== undefined && !["cartoon-story","explainer","egg-price"].includes(format))return reply({error:"Unknown proof format."},400);
+    const root=(format==="egg-price"?"proofs/egg-price-v1/":"proofs/compound-interest-v1/")+voice;
+    if(format==="egg-price" && action==="narrate"){
+      const saved=await store.download(root+"/narration.json");
+      if(saved.data)return reply({cached:true,...JSON.parse(await saved.data.text())});
+      if(!speech)throw new Error("Narration provider secret missing.");
+      const response=await fetch("https://api.elevenlabs.io/v1/text-to-speech/"+voice+"/with-timestamps?output_format=mp3_44100_128",{
+        method:"POST",headers:{"xi-api-key":speech,"Content-Type":"application/json"},
+        body:JSON.stringify({text:eggNarration,model_id:"eleven_multilingual_v2",voice_settings:{speed:1.08}})
+      });
+      if(!response.ok){await response.text();throw new Error("ElevenLabs narration failed (HTTP "+response.status+").");}
+      const data=await response.json();
+      const words=timedWords(eggNarration,data.alignment);
+      const audio=Uint8Array.from(atob(data.audio_base64),c=>c.charCodeAt(0));
+      const meta={seconds:duration(audio),words};
+      for(const [key,content,type] of [["narration.mp3",audio,"audio/mpeg"],["narration.json",JSON.stringify(meta),"application/json"]] as const){
+        const result=await store.upload(root+"/"+key,content,{contentType:type,upsert:false});
+        if(result.error)throw new Error("Narration save failed: "+result.error.message);
+      }
+      return reply(meta);
+    }
     if(action==="narrate" && Number.isInteger(scene) && scene>=0 && scene<3){
       const key=root+"/"+scene;
       const saved=await store.download(key+".json");
@@ -60,8 +82,20 @@ Deno.serve(async req=>{
       return reply({scene,seconds});
     }
     const headers={"x-api-key":sandbox,"Content-Type":"application/json"};
+    if(format==="egg-price" && action==="submit"){
+      const saved=await store.download(root+"/narration.json");
+      if(!saved.data)return reply({error:"Generate egg narration first."},409);
+      const meta=JSON.parse(await saved.data.text()),plan=eggPlan(meta.words,meta.seconds);
+      const visuals=eggImages.map((src,i)=>({asset:{type:"image",src},start:plan.cuts[i],length:(plan.cuts[i+1]??plan.total)-plan.cuts[i],fit:"contain"}));
+      const payload={timeline:{background:"#112425",tracks:[
+        {clips:[{asset:eggOverlay(plan),start:0,length:plan.total,width:1920,height:1080,scale:1}]},
+        {clips:visuals},
+        {clips:[{asset:{type:"audio",src:url(root+"/narration.mp3")},start:0,length:meta.seconds}]}
+      ]},output:{format:"mp4",resolution:"1080",fps:30}};
+      const sent=await fetch(stage,{method:"POST",headers,body:JSON.stringify(payload)});
+      return reply({...await sent.json(),plan},sent.status);
+    }
     if(action==="submit"){
-      if(format !== undefined && format !== "cartoon-story" && format !== "explainer")return reply({error:"Unknown proof format."},400);
       const audio=[];
       for(let i=0;i<scenes.length;i++){
         const key=root+"/"+i,res=await store.download(key+".json"),srt=await store.download(key+".srt");
