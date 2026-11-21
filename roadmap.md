@@ -1,5 +1,10 @@
 # Video playback update
 
+# Cartoon host redesign
+
+- [x] Replace tubular limbs with contoured cartoon artwork, collared shirt, defined hands/shoes and expressive blinking eyes while retaining the existing motion and narration timeline.
+- [x] Check walking, wave, shrug, pointing and captions in a local animated preview with no runtime errors; nine timing/cartoon regression tests passed. No new Shotstack or production render submitted.
+
 # Egg-price sandbox preview
 
 - [x] Create the ordered illustration proof with exact Darian narration, word-synced captions, and illustrative receipt reveals; 11 proof/regression tests passed.

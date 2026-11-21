@@ -1,25 +1,6 @@
 import type { Cue, Word } from "./timeline.ts";
 import { walk, walkPose } from "./motion.ts";
-
-// Host is drawn with the shoe soles at local y=0 so the whole group sits on the floor.
-function limb(id: string, leg: boolean) {
-  const length = leg ? 60 : 38, colour = leg ? "#244466" : "#bf7959";
-  const seg = '<path d="M0 0 L0 '+length+'" stroke="#222c38" stroke-width="25"/><path d="M0 0 L0 '+length+'" stroke="'+colour+'" stroke-width="18"/>';
-  const tip = leg ? '<path d="M-10 0 Q0 -8 12 -2 L23 6 Q24 12 13 12 H-10Z" fill="#ffca53"/>'
-    : '<ellipse rx="11" ry="14" fill="#bf7959"/>'+(id==="rightArm"?'<path id="finger" d="M0 8 L0 30" stroke="#bf7959" stroke-width="9" opacity="0"/>':"");
-  return '<g id="'+id+'">'+seg+'<g transform="translate(0 '+length+')"><g id="'+id+'Lower">'+seg+'<g transform="translate(0 '+length+')"><g id="'+id+'Tip">'+tip+'</g></g></g></g></g>';
-}
-const shoulder = (id: string, x: number, y: number, arm: string) =>
-  `<g id="${id}"><g transform="translate(${x} ${y})">${limb(arm,false)}</g><circle cx="${x}" cy="${y}" r="15" fill="#12aa96"/></g>`;
-
-const host = `<g id="host"><g id="hostScale"><g id="body" transform="translate(0 -173)">
-<g transform="translate(-17 53)">${limb("leftLeg",true)}</g><g transform="translate(17 53)">${limb("rightLeg",true)}</g>
-${shoulder("shL",-35,-24,"leftArm")}
-<g id="torso"><path fill="#12aa96" d="M-37 -33Q0 -54 36 -32L32 57Q0 68 -32 55Z"/><path d="M-16 -37L0 -22 16 -38" fill="#ffe19c"/></g>
-<g id="head"><rect x="-28" y="-115" width="59" height="81" rx="27" fill="#bd7958"/>
-<path d="M-30 -80Q-46 -102 -31 -118Q-39 -138 -18 -137Q-6 -151 6 -139Q32 -148 36 -124Q50 -106 28 -89L24 -110Q-1 -97 -21 -105L-23 -83Z" fill="#343043"/>
-<g id="face"><ellipse cx="-10" cy="-82" rx="3" ry="5"/><ellipse cx="17" cy="-82" rx="3" ry="5"/><path id="brow" d="M-16 -94l12 -1M10 -95l13 1" fill="none"/><path id="mouth" d="M-7 -58 Q4 -53 14 -60" fill="none"/></g></g>
-${shoulder("shR",35,-25,"rightArm")}</g></g></g>`;
+import { cartoonHost as host } from "./host.ts";
 
 export interface Plan { total: number; words: Word[]; cues: Cue[]; sceneStarts: number[]; narrationEnd: number }
 
@@ -63,6 +44,7 @@ function render(t){
  set("shL","translate(0 "+sh+")");set("shR","translate(0 "+sh+")");set("head","translate(0 "+headY+")");set("torso","rotate("+lean+")");
  rot("leftArm",la);rot("leftArmLower",ll);rot("rightArm",ra);rot("rightArmLower",rl);$("finger").setAttribute("opacity",finger);
  $("brow").setAttribute("transform","translate(0 "+brow+")");
+ const blink=t%4.2;set("eyes","translate(0 -85) scale(1 "+(blink>3.98&&blink<4.12?.12:1)+") translate(0 85)");
  const talking=P.words.some(w=>t>=w.start&&t<=w.end);$("mouth").setAttribute("transform","translate(4 -57) scale(1 "+(talking?1.4+.8*Math.abs(Math.sin(t*18)):1)+") translate(-4 57)");
  ${layer ? "drawBank(t);" : ""}
  // chart

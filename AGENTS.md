@@ -8,3 +8,4 @@
 - Sequence UI lives in StudioSequencePanel, with optional music on the Sequence page; StudioClipPanel can embed it for regression coverage, and final sequence records retain their worker job ID for traceability.
 - Keep the compound-interest proof server-authorized and Shotstack sandbox-only; derive visuals and audio trims from one saved-word timeline and world-space foot anchors so caption, chart and gait timing remain testable without rendering.
 - Keep illustration proofs in studio-render as sandbox-only formats with separate cached narration and pure word-timed plans, so new reviews cannot overwrite compound-interest assets or bypass server authorization.
+- Keep cartoon host artwork in studio-render/host.ts with the existing joint IDs and segment lengths, so visual redesigns preserve word-timed gestures and planted-foot motion.
