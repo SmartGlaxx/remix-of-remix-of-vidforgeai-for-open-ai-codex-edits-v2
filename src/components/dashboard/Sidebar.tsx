@@ -1,4 +1,4 @@
-import { Play, FolderKanban, BookOpen, GitBranch, Images, Clapperboard, Beaker, Film, Download, Boxes, Activity, Settings, LogOut, User } from "lucide-react";
+import { Drama, Play, FolderKanban, BookOpen, GitBranch, Images, Clapperboard, Beaker, Film, Download, Boxes, Activity, Settings, LogOut, User } from "lucide-react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,10 +9,10 @@ const items = [
   { path: "/dashboard/story-canvas", label: "Story Canvas", icon: GitBranch, section: "STORY · 01" },
   { path: "/dashboard/storyboard", label: "Storyboard", icon: Images, section: "PLAN · 02" },
   { path: "/dashboard/director", label: "Director", icon: Clapperboard, section: "SHOOT · 03" },
+  { path: "/dashboard/explainer", label: "Explainer Studio", icon: Drama, section: "SHOOT · 03" },
   { path: "/dashboard/shot-lab", label: "Shot Lab", icon: Beaker, section: "SHOOT · 03" },
   { path: "/dashboard/final-cut", label: "Final cut", icon: Film, section: "FINISH · 04" },
   { path: "/dashboard/export", label: "Export", icon: Download, section: "DELIVER · 05" },
-  { path: "/dashboard/explainer", label: "Explainer Studio", icon: Film, section: "WORKSPACE" },
   { path: "/dashboard/assets", label: "Assets", icon: Boxes, section: "WORKSPACE" },
   { path: "/dashboard/production", label: "Production", icon: Activity, section: "WORKSPACE" },
   { path: "/dashboard/settings", label: "Settings", icon: Settings, section: "WORKSPACE" },
