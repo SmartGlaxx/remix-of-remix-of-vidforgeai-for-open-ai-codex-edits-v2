@@ -1,4 +1,5 @@
 import {createClient} from "npm:@supabase/supabase-js@2";
+import {cartoonLayer} from "./cartoon.ts";
 import {animation} from "./animation.ts";
 import {chartCues,narrateScene,scenes} from "./narration.ts";
 import {parseSrt,planTimeline} from "./timeline.ts";
@@ -40,7 +41,7 @@ Deno.serve(async req=>{
     const store=createClient(backendUrl,service).storage.from("videos");
     const url=(key:string)=>store.getPublicUrl(key).data.publicUrl;
     const root="proofs/compound-interest-v1/"+voice;
-    const {action,scene,id}=await req.json();
+    const {action,scene,id,format}=await req.json();
     if(action==="narrate" && Number.isInteger(scene) && scene>=0 && scene<3){
       const key=root+"/"+scene;
       const saved=await store.download(key+".json");
@@ -60,6 +61,7 @@ Deno.serve(async req=>{
     }
     const headers={"x-api-key":sandbox,"Content-Type":"application/json"};
     if(action==="submit"){
+      if(format !== undefined && format !== "cartoon-story" && format !== "explainer")return reply({error:"Unknown proof format."},400);
       const audio=[];
       for(let i=0;i<scenes.length;i++){
         const key=root+"/"+i,res=await store.download(key+".json"),srt=await store.download(key+".srt");
@@ -70,7 +72,9 @@ Deno.serve(async req=>{
       const plan=planTimeline(audio);
       const walkOut=walk(0,290,1400,.34).duration;
       const total=plan.narrationEnd+.4+walkOut+.3;
-      const visual={asset:animation({...plan,total}),width:1920,height:1080,scale:1,start:0,length:total};
+      const timedPlan={...plan,total};
+      const layer=format==="cartoon-story"?cartoonLayer(timedPlan):undefined;
+      const visual={asset:animation(timedPlan,layer),width:1920,height:1080,scale:1,start:0,length:total};
       const sound=plan.audio.map(a=>({asset:{type:"audio",src:url(root+"/"+a.scene+".mp3"),trim:a.trim},start:a.start,length:a.length}));
       const sent=await fetch(stage,{method:"POST",headers,body:JSON.stringify({timeline:{tracks:[{clips:[visual]},{clips:sound}]},output:{format:"mp4",resolution:"1080",fps:30}})});
       const body=await sent.json();
