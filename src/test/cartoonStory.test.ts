@@ -1,0 +1,30 @@
+import { expect, it } from "vitest";
+import { animation } from "../../supabase/functions/studio-render/animation";
+import { cartoonLayer } from "../../supabase/functions/studio-render/cartoon";
+import { scenes } from "../../supabase/functions/studio-render/narration";
+
+it("stages the deposit, chart and passbook at the narration cues, including when seeking backwards", () => {
+  const words = scenes.flatMap((line, i) => line.split(/\s+/).map((word,j) => ({word,start: i*30+j*.3,end:i*30+j*.3+.25})));
+  const plan = {words,sceneStarts:[0,30,60],narrationEnd:70,total:76,cues:[100,110,121,133].map((value,i)=>({value,start:32+i*4,end:33+i*4}))};
+  expect(animation(plan).html).not.toContain("bankSet");
+  const asset=animation(plan,cartoonLayer(plan));
+  document.body.innerHTML=asset.html;
+  let seek: (t:number) => void;
+  const gsap={timeline:()=>({to:(clock:{t:number}, tween:{onUpdate:()=>void})=>{seek=t=>{clock.t=t;tween.onUpdate()};}})};
+  Function("gsap",asset.js)(gsap);
+  const el=(id:string)=>document.getElementById(id)!;
+  seek!(words.find(w=>w.word==="hundred")!.start+.5);
+  expect(el("depositNote").style.opacity).toBe("1");
+  seek!(35);
+  expect(el("bankSet").style.display).toBe("none");
+  expect(el("value0").textContent).toBe("$100");
+  seek!(61);
+  expect(el("ledger").style.display).toBe("block");
+  expect(el("entry3").textContent).toContain("$133");
+  seek!(70);
+  expect(el("ledger").style.display).toBe("none");
+  seek!(0);
+  expect(el("bankSet").style.display).toBe("block");
+  expect(el("depositNote").style.opacity).toBe("0");
+  document.body.replaceChildren();
+});

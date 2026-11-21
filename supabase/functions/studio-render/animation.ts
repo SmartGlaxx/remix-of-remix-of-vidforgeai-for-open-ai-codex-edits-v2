@@ -23,17 +23,17 @@ ${shoulder("shR",35,-25,"rightArm")}</g></g></g>`;
 
 export interface Plan { total: number; words: Word[]; cues: Cue[]; sceneStarts: number[]; narrationEnd: number }
 
-export function animation(plan: Plan) {
+export function animation(plan: Plan, layer?: {background: string; foreground: string; css: string; js: string}) {
   const colours = ["#ffbb48","#f47e6f","#35b6a0","#8293eb"], labels = ["Start","Year 1","Year 2","Year 3"];
   const bars = plan.cues.map((c,i)=>`<div class="col" style="left:${600+i*160}px"><span id="value${i}"></span><div id="bar${i}" class="bar" style="height:${Math.round(c.value*2.55)}px;background:${colours[i]}"><small>${labels[i]}</small></div></div>`).join("");
   const data = JSON.stringify({ total: plan.total, words: plan.words, cues: plan.cues, scenes: plan.sceneStarts, end: plan.narrationEnd });
   return { type: "html5",
-    html: `<main id="stage"><svg width="1280" height="720" viewBox="0 0 1280 720"><rect y="600" width="1280" height="120" fill="#f3e2bd"/><path d="M0 600H1280" stroke="#b5ab93" stroke-width="4"/><g fill="#252d39" stroke="#252d39" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${host}</g></svg><section id="chart">${bars}</section><div id="cap"></div></main>`,
+    html: `<main id="stage">${layer?.background ?? ""}<svg width="1280" height="720" viewBox="0 0 1280 720"><rect y="600" width="1280" height="120" fill="#f3e2bd"/><path d="M0 600H1280" stroke="#b5ab93" stroke-width="4"/><g fill="#252d39" stroke="#252d39" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${host}</g></svg><section id="chart">${bars}</section>${layer?.foreground ?? ""}<div id="cap"></div></main>`,
     css: `*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#fff3d7;font-family:sans-serif}#stage{position:absolute;width:1280px;height:720px;transform:scale(1.5);transform-origin:top left}svg{position:absolute;left:0;top:0;z-index:2}
 #chart{position:absolute;left:0;top:0;width:1280px;height:600px;z-index:1}.col{position:absolute;bottom:0;width:120px;text-align:center;font:bold 38px sans-serif;color:#252d39}
 .bar{width:120px;border:4px solid #252d39;border-bottom:none;border-radius:14px 14px 0 0;transform-origin:bottom;position:relative}.bar small{position:absolute;left:0;right:0;bottom:12px;font:bold 22px sans-serif}
 #cap{position:absolute;left:140px;right:140px;top:622px;height:72px;z-index:3;display:flex;align-items:center;justify-content:center}
-#cap div{background:rgba(37,45,57,.92);color:#fff;font:bold 34px sans-serif;padding:10px 26px;border-radius:16px;white-space:nowrap}#cap b{color:#ffca53}`,
+#cap div{background:rgba(37,45,57,.92);color:#fff;font:bold 34px sans-serif;padding:10px 26px;border-radius:16px;white-space:nowrap}#cap b{color:#ffca53}${layer?.css ?? ""}`,
     js: `const P=${data}, S=1.65, HOME=290, R=Math.PI/180, $=id=>document.getElementById(id);
 const ease=f=>f<0?0:f>1?1:f*f*(3-2*f), env=(t,a,up,b,down)=>t<a||t>b+down?0:t<a+up?ease((t-a)/up):t<=b?1:1-ease((t-b)/down), mix=(a,b,k)=>a+(b-a)*k;
 const set=(id,v)=>$(id).setAttribute("transform",v), rot=(id,a)=>set(id,"rotate("+a.toFixed(2)+")");
@@ -42,6 +42,7 @@ const W=[walk(0,-170,HOME,.36),walk(P.end+.4,HOME,1400,.34)];
 function ik(dx,dy){const r=Math.min(Math.hypot(dx,dy),119.5),th=Math.atan2(-dx,dy)/R,a=Math.acos(r/120)/R;return{th,t1:th-a,k:2*a}}
 const phrases=[];{let cur=[];P.words.forEach((w,i)=>{cur.push(i);if(cur.length>=4||/[.,?!—]$/.test(w.word)){phrases.push(cur);cur=[]}});if(cur.length)phrases.push(cur)}
 let lastCap="";
+${layer?.js ?? ""}
 function render(t){
  let x=HOME,feet=null;
  for(const w of W){if(t<w.t0){x=w===W[0]?w.xa:x;break}if(t<=w.t0+w.duration){const p=walkPose(w,t);x=p.x;feet=p.feet;break}x=w.xb}
@@ -63,6 +64,7 @@ function render(t){
  rot("leftArm",la);rot("leftArmLower",ll);rot("rightArm",ra);rot("rightArmLower",rl);$("finger").setAttribute("opacity",finger);
  $("brow").setAttribute("transform","translate(0 "+brow+")");
  const talking=P.words.some(w=>t>=w.start&&t<=w.end);$("mouth").setAttribute("transform","translate(4 -57) scale(1 "+(talking?1.4+.8*Math.abs(Math.sin(t*18)):1)+") translate(-4 57)");
+ ${layer ? "drawBank(t);" : ""}
  // chart
  const ch=t<P.scenes[1]?0:t<P.scenes[1]+.5?(t-P.scenes[1])/.5:1-ease((t-P.scenes[2]-.2)/1);$("chart").style.opacity=Math.max(0,ch);
  c.forEach((q,i)=>{const g=ease((t-q.start)/.9);$("bar"+i).style.transform="scaleY("+g+")";$("value"+i).textContent=g>0?"$"+Math.round(q.value*g):""});
