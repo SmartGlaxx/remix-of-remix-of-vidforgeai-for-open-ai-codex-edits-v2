@@ -1,5 +1,11 @@
 # Video playback update
 
+# Phase 0 Daniel visual approval
+
+- [x] Prepare one 3840×2160 board from original reusable Daniel artwork: stand, walk, wave, point, and a furnished 16:9 teaching scene; inspect the 480×270 phone-size scene. Corrected an overlapping caption highlight and inverted waving palm; nine existing proof tests passed, build OK. No render submitted or active preview changed.
+- [ ] Owner approves Daniel's written-description likeness and the design board before active artwork changes or a new sandbox render.
+- [ ] After board approval, integrate matching layered assets/actions and verify the saved-narration 1080p sandbox MP4; blocked on board approval.
+
 # Cartoon host redesign
 
 - [x] Replace tubular limbs with contoured cartoon artwork, collared shirt, defined hands/shoes and expressive blinking eyes while retaining the existing motion and narration timeline.
