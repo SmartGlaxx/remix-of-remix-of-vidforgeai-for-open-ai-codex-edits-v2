@@ -9,4 +9,4 @@
 - Keep the compound-interest proof server-authorized and Shotstack sandbox-only; derive visuals and audio trims from one saved-word timeline and world-space foot anchors so caption, chart and gait timing remain testable without rendering.
 - Keep illustration proofs in studio-render as sandbox-only formats with separate cached narration and pure word-timed plans, so new reviews cannot overwrite compound-interest assets or bypass server authorization.
 - Keep cartoon host artwork in studio-render/host.ts with the existing joint IDs and segment lengths, so visual redesigns preserve word-timed gestures and planted-foot motion.
-- Stage unapproved Phase 0 character records, layered artwork, actions and backgrounds separately under studio-render/design; generate the review board from those assets without replacing the active rig until owner approval.
+- Keep the replaceable Daniel character record, layered parts, pure named performance and room separate under studio-render/design; danielAnimation supplies identical seekable assets to local preview and the authorized daniel-proof sandbox format, with mouth motion derived from cached audio loudness.

@@ -3,8 +3,9 @@
 # Phase 0 Daniel visual approval
 
 - [x] Prepare one 3840×2160 board from original reusable Daniel artwork: stand, walk, wave, point, and a furnished 16:9 teaching scene; inspect the 480×270 phone-size scene. Corrected an overlapping caption highlight and inverted waving palm; nine existing proof tests passed, build OK. No render submitted or active preview changed.
-- [ ] Owner approves Daniel's written-description likeness and the design board before active artwork changes or a new sandbox render.
-- [ ] After board approval, integrate matching layered assets/actions and verify the saved-narration 1080p sandbox MP4; blocked on board approval.
+- [x] Owner accepted the current Daniel as a temporary host; skip further board reviews and keep his artwork independently replaceable.
+- [x] Integrated separate Daniel art/performance/room into the server-only daniel-proof sandbox format; reused saved narration and derived its loudness without new speech charges. Thirteen regression tests passed. Render 4c0e9828-8ef4-4c43-a3ba-a972e4aaf251 completed: 1920×1080 H.264/AAC, 61.433333s, 33.576s active rendering, 2m45s observed completion, $0 Shotstack sandbox. Consecutive exported walk/wave frames, each saved-number growth cue, shrug, and beginning/middle/end captions inspected. Local Playwright preview startup hung; deterministic JS execution and actual exported frames verified instead. No production render or app-page changes.
+- [ ] After moving-proof review, prioritize the self-service in-app flow: own narration → host → layout → Preview → edit a line → Preview again; blocked on owner video review.
 
 # Cartoon host redesign
 

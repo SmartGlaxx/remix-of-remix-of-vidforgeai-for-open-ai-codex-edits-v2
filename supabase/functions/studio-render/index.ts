@@ -6,6 +6,8 @@ import {parseSrt,planTimeline} from "./timeline.ts";
 import {walk} from "./motion.ts";
 import {eggImages, eggNarration, eggOverlay, eggPlan} from "./eggs.ts";
 import {timedWords} from "./narration.ts";
+import {danielAnimation} from "./danielAnimation.ts";
+import {performanceTimes} from "./design/performance.ts";
 
 const voice = "gOupLcAkjEnguROwi4oS";
 const stage = "https://api.shotstack.io/edit/stage/render";
@@ -43,7 +45,7 @@ Deno.serve(async req=>{
     const store=createClient(backendUrl,service).storage.from("videos");
     const url=(key:string)=>store.getPublicUrl(key).data.publicUrl;
     const {action,scene,id,format}=await req.json();
-    if(format !== undefined && !["cartoon-story","explainer","egg-price"].includes(format))return reply({error:"Unknown proof format."},400);
+    if(format !== undefined && !["cartoon-story","explainer","egg-price","daniel-proof"].includes(format))return reply({error:"Unknown proof format."},400);
     const root=(format==="egg-price"?"proofs/egg-price-v1/":"proofs/compound-interest-v1/")+voice;
     if(format==="egg-price" && action==="narrate"){
       const saved=await store.download(root+"/narration.json");
@@ -104,15 +106,24 @@ Deno.serve(async req=>{
         audio.push({seconds:meta.seconds,cues:meta.cues,words:parseSrt(await srt.data.text())});
       }
       const plan=planTimeline(audio);
-      const walkOut=walk(0,290,1400,.34).duration;
+      const walkOut=walk(0,format==="daniel-proof"?380:290,format==="daniel-proof"?1420:1400,.34).duration;
       const total=plan.narrationEnd+.4+walkOut+.3;
       const timedPlan={...plan,total};
       const layer=format==="cartoon-story"?cartoonLayer(timedPlan):undefined;
-      const visual={asset:animation(timedPlan,layer),width:1920,height:1080,scale:1,start:0,length:total};
+      const loudness=[];
+      if(format==="daniel-proof"){
+        for(let i=0;i<scenes.length;i++){
+          const saved=await store.download(root+"/"+i+".envelope.json");
+          if(!saved.data)return reply({error:"Saved narration loudness missing for scene "+(i+1)},409);
+          const envelope=JSON.parse(await saved.data.text());
+          for(const a of plan.audio.filter(a=>a.scene===i))loudness.push({start:a.start,step:envelope.step,values:envelope.values.slice(Math.round(a.trim/envelope.step),Math.round((a.trim+a.length)/envelope.step))});
+        }
+      }
+      const visual={asset:format==="daniel-proof"?danielAnimation(timedPlan,loudness):animation(timedPlan,layer),width:1920,height:1080,scale:1,start:0,length:total};
       const sound=plan.audio.map(a=>({asset:{type:"audio",src:url(root+"/"+a.scene+".mp3"),trim:a.trim},start:a.start,length:a.length}));
       const sent=await fetch(stage,{method:"POST",headers,body:JSON.stringify({timeline:{tracks:[{clips:[visual]},{clips:sound}]},output:{format:"mp4",resolution:"1080",fps:30}})});
       const body=await sent.json();
-      return reply({...body,plan:{total,cues:plan.cues,sceneStarts:plan.sceneStarts,narrationEnd:plan.narrationEnd}},sent.status);
+      return reply({...body,plan:{total,cues:plan.cues,sceneStarts:plan.sceneStarts,narrationEnd:plan.narrationEnd,...(format==="daniel-proof"?{actions:performanceTimes(timedPlan),characterVersion:"phase0-art-v1"}:{})}},sent.status);
     }
     if(action==="status" && typeof id==="string" && /^[a-zA-Z0-9-]{8,80}$/.test(id)){
       const response=await fetch(stage+"/"+id,{headers}),data=await response.json();
