@@ -5,7 +5,7 @@ import { Webhook } from "npm:standardwebhooks@1.0.0";
 import { PRESET, ownsImage, shouldSubmit, providerState, canSave, imageError } from "./contract.ts";
 
 const schema = z.discriminatedUnion("action", [
-  z.object({action:z.literal("submit"),request_id:z.string().uuid(),image_path:z.string().max(250),prompt:z.string().max(4000).refine(s=>s.trim().length>0)}),
+  z.object({action:z.literal("submit"),request_id:z.string().uuid(),duration:z.number().int().min(1).max(PRESET.duration).default(PRESET.duration),image_path:z.string().max(250),prompt:z.string().max(4000).refine(s=>s.trim().length>0)}),
   z.object({action:z.literal("list")}),
   z.object({action:z.literal("status"),id:z.string().uuid()}),
 ]);
@@ -130,7 +130,8 @@ Deno.serve(async req => {
     if (invalid) return json({error:invalid},400);
     const signed = await admin.storage.from("character-inputs").createSignedUrl(body.image_path,86400);
     if (!signed.data) return json({error:"Could not prepare the illustration."},503);
-    const {data:job,error} = await admin.from(table).insert({owner_id:user.id,request_id:body.request_id,image_path:body.image_path,prompt:body.prompt,settings:PRESET,signed_input_url:signed.data.signedUrl}).select().single();
+    const settings = {...PRESET,duration:body.duration};
+    const {data:job,error} = await admin.from(table).insert({owner_id:user.id,request_id:body.request_id,image_path:body.image_path,prompt:body.prompt,settings,signed_input_url:signed.data.signedUrl}).select().single();
     if (error) {
       if (error.code === "23505") {
         const {data:duplicate} = await admin.from(table).select().eq("request_id",body.request_id).eq("owner_id",user.id).single();
@@ -139,7 +140,7 @@ Deno.serve(async req => {
       throw error;
     }
     try {
-      const response = await provider("/models/prunaai/p-video/predictions",{method:"POST",body:JSON.stringify({input:{...PRESET,image:signed.data.signedUrl,prompt:body.prompt},webhook:`${url}/functions/v1/character-animation?webhook=1&job=${job.id}`,webhook_events_filter:["completed"]})});
+      const response = await provider("/models/prunaai/p-video/predictions",{method:"POST",body:JSON.stringify({input:{...settings,image:signed.data.signedUrl,prompt:body.prompt},webhook:`${url}/functions/v1/character-animation?webhook=1&job=${job.id}`,webhook_events_filter:["completed"]})});
       if (!response.ok) {
         const message = response.status === 402 ? "Replicate billing needs credit. Add credit to Replicate, then deliberately generate another take." : response.status === 401 || response.status === 403 ? "Replicate rejected the token. Replace it securely." : response.status === 422 ? "Replicate rejected the image or motion direction." : "Replicate is temporarily unavailable.";
         // 5xx may have accepted work: remain uncertain, do not retry POST.
