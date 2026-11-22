@@ -1,0 +1,2 @@
+CREATE POLICY "Owners read film media" ON storage.objects FOR SELECT TO authenticated USING(bucket_id='film-media' AND (storage.foldername(name))[1]=(select auth.uid())::text);
+CREATE POLICY "Owners upload film narration" ON storage.objects FOR INSERT TO authenticated WITH CHECK(bucket_id='film-media' AND (storage.foldername(name))[1]=(select auth.uid())::text AND name ~ '/narration-[a-zA-Z0-9-]+\.(mp3|wav|m4a)$');

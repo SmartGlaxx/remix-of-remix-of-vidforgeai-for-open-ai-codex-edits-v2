@@ -15,6 +15,13 @@
       "when": 1795362435853,
       "tag": "0001_character_films_durable_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795362638154,
+      "tag": "0002_film_media_owner_uploads",
+      "breakpoints": true
     }
   ]
 }
