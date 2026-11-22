@@ -8,6 +8,13 @@
       "when": 1795314732888,
       "tag": "0000_character_animation_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795362435853,
+      "tag": "0001_character_films_durable_queue",
+      "breakpoints": true
     }
   ]
 }

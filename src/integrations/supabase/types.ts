@@ -68,12 +68,152 @@ export type Database = {
         }
         Relationships: []
       }
+      character_film_shots: {
+        Row: {
+          action: string
+          animation_id: string | null
+          chapter: number
+          duration: number
+          error: string | null
+          film_id: string
+          frame_job_id: string | null
+          frame_path: string | null
+          id: string
+          image_path: string
+          index: number
+          line: string
+          owner_id: string
+          purpose: string
+          request_id: string
+          state: string
+          transition: string
+          video_path: string | null
+          visual: string
+        }
+        Insert: {
+          action: string
+          animation_id?: string | null
+          chapter: number
+          duration: number
+          error?: string | null
+          film_id: string
+          frame_job_id?: string | null
+          frame_path?: string | null
+          id?: string
+          image_path: string
+          index: number
+          line: string
+          owner_id: string
+          purpose: string
+          request_id?: string
+          state?: string
+          transition: string
+          video_path?: string | null
+          visual: string
+        }
+        Update: {
+          action?: string
+          animation_id?: string | null
+          chapter?: number
+          duration?: number
+          error?: string | null
+          film_id?: string
+          frame_job_id?: string | null
+          frame_path?: string | null
+          id?: string
+          image_path?: string
+          index?: number
+          line?: string
+          owner_id?: string
+          purpose?: string
+          request_id?: string
+          state?: string
+          transition?: string
+          video_path?: string | null
+          visual?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "character_film_shots_film_id_fkey"
+            columns: ["film_id"]
+            isOneToOne: false
+            referencedRelation: "character_films"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      character_films: {
+        Row: {
+          audio_mode: string
+          chapters: Json
+          created_at: string
+          error: string | null
+          estimated_usd: number
+          final_video_path: string | null
+          id: string
+          image_path: string
+          lease_token: string | null
+          lease_until: string | null
+          narration: Json
+          owner_id: string
+          request_id: string
+          script: string
+          seconds: number
+          state: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audio_mode: string
+          chapters?: Json
+          created_at?: string
+          error?: string | null
+          estimated_usd: number
+          final_video_path?: string | null
+          id?: string
+          image_path: string
+          lease_token?: string | null
+          lease_until?: string | null
+          narration?: Json
+          owner_id: string
+          request_id: string
+          script: string
+          seconds: number
+          state?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audio_mode?: string
+          chapters?: Json
+          created_at?: string
+          error?: string | null
+          estimated_usd?: number
+          final_video_path?: string | null
+          id?: string
+          image_path?: string
+          lease_token?: string | null
+          lease_until?: string | null
+          narration?: Json
+          owner_id?: string
+          request_id?: string
+          script?: string
+          seconds?: number
+          state?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_character_film: {
+        Args: { p_id: string; p_token: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

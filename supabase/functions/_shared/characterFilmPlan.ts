@@ -1,5 +1,5 @@
 // Shared by the film setup screen and durable worker. All times are whole seconds.
-import { ESTIMATED_COST, PRESET } from "../character-animation/contract.ts";
+import { ESTIMATED_COST, PRESET } from "./prunaContract.ts";
 
 export const filmPresets = [30, 60, 180, 300, 600, 900, 1800] as const;
 const chapterLimit = 120;

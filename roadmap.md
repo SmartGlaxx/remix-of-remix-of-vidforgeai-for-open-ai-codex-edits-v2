@@ -1,5 +1,11 @@
 # Video playback update
 
+# Character long-film workflow
+
+- [ ] Add separate film setup, editable chapter/shot plan, native or uploaded chapter narration, and a prepared 30-second draft; preserve the single-clip tool.
+- [ ] Deploy durable owner-scoped film execution, idempotent clip submissions, saved chapter/final assembly, stop and recovery controls.
+- [ ] Test mocked 3-minute and 30-minute paths, duplicate/restart safety and stitch recovery; check signed-in Preview without paid provider calls or public publishing.
+
 # Animate an image
 
 - [x] Add private illustration upload, fixed 10-second 720p/24fps Draft/native-audio generation, saved takes and downloads above the existing Character Animation tools.

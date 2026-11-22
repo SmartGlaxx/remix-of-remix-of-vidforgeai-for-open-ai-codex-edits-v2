@@ -1,0 +1,14 @@
+CREATE TABLE public.character_films (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner_id uuid NOT NULL, request_id uuid NOT NULL UNIQUE, title text NOT NULL, script text NOT NULL, seconds integer NOT NULL CHECK(seconds BETWEEN 30 AND 1800), image_path text NOT NULL, audio_mode text NOT NULL CHECK(audio_mode IN ('native','uploaded')), narration jsonb NOT NULL DEFAULT '[]', chapters jsonb NOT NULL DEFAULT '[]', state text NOT NULL DEFAULT 'draft', estimated_usd numeric NOT NULL, final_video_path text, error text, lease_token uuid, lease_until timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT ON public.character_films TO authenticated;
+GRANT ALL ON public.character_films TO service_role;
+ALTER TABLE public.character_films ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners read films" ON public.character_films FOR SELECT TO authenticated USING(owner_id=(select auth.uid()));
+CREATE TABLE public.character_film_shots (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), film_id uuid NOT NULL REFERENCES public.character_films(id) ON DELETE CASCADE, owner_id uuid NOT NULL, index integer NOT NULL, chapter integer NOT NULL, duration integer NOT NULL CHECK(duration BETWEEN 1 AND 10), line text NOT NULL, purpose text NOT NULL, visual text NOT NULL, action text NOT NULL, transition text NOT NULL CHECK(transition IN ('cut','continue')), image_path text NOT NULL, request_id uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(), animation_id uuid, state text NOT NULL DEFAULT 'pending', video_path text, frame_path text, frame_job_id text, error text, UNIQUE(film_id,index));
+GRANT SELECT ON public.character_film_shots TO authenticated;
+GRANT ALL ON public.character_film_shots TO service_role;
+ALTER TABLE public.character_film_shots ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners read film shots" ON public.character_film_shots FOR SELECT TO authenticated USING(owner_id=(select auth.uid()));
+CREATE INDEX character_films_work ON public.character_films(state,lease_until);
+CREATE FUNCTION public.claim_character_film(p_id uuid,p_token uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN UPDATE public.character_films SET lease_token=p_token,lease_until=now()+interval '4 minutes' WHERE id=p_id AND state IN ('running','assembling') AND (lease_until IS NULL OR lease_until<now()); RETURN FOUND; END $$;
+REVOKE ALL ON FUNCTION public.claim_character_film(uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_character_film(uuid,uuid) TO service_role;
