@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import ScriptAnimation from "./ScriptAnimation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -65,9 +64,7 @@ function Editor({storageKey}: {storageKey: string}) {
     finally { controller.current = undefined; if (!task.signal.aborted) setExporting(false); }
   }
   return <section className="space-y-4">
-    <header><h2 className="text-3xl font-bold">Character Animation</h2></header>
-    <ScriptAnimation storageKey={storageKey+".script"}/>
-    <h3 className="text-xl font-semibold">Recorded action sequences</h3>
+    <header><h2 className="text-3xl font-bold">Character Animation</h2><p className="text-muted-foreground">Choose actions and arrange them into a sequence.</p></header>
     <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
       <div className="workspace-card space-y-3">
         {current ? <video key={index+current} ref={player} controls playsInline preload="auto" className="aspect-video w-full rounded-lg bg-black object-contain" src={clip(current)} aria-label={actions[current].name}
