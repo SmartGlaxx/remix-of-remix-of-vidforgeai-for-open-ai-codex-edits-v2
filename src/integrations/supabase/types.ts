@@ -14,7 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      character_animation_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          image_path: string
+          output_url: string | null
+          owner_id: string
+          prediction_id: string | null
+          prompt: string
+          request_id: string
+          settings: Json
+          signed_input_url: string | null
+          state: string
+          updated_at: string
+          video_path: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_path: string
+          output_url?: string | null
+          owner_id: string
+          prediction_id?: string | null
+          prompt: string
+          request_id: string
+          settings?: Json
+          signed_input_url?: string | null
+          state?: string
+          updated_at?: string
+          video_path?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_path?: string
+          output_url?: string | null
+          owner_id?: string
+          prediction_id?: string | null
+          prompt?: string
+          request_id?: string
+          settings?: Json
+          signed_input_url?: string | null
+          state?: string
+          updated_at?: string
+          video_path?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

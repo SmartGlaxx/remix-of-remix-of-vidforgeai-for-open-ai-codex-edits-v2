@@ -4,6 +4,7 @@ import { expect, it, vi } from "vitest";
 import FormatStudio from "./FormatStudio";
 
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({user:{id:"test-editor"}})}));
+vi.mock("./AnimateImage", () => ({default: () => null}));
 
 it("opens Character Animation, edits the sequence, and restores it on return", () => {
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});

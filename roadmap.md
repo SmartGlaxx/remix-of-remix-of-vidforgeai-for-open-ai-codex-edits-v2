@@ -1,5 +1,12 @@
 # Video playback update
 
+# Animate an image
+
+- [x] Add private illustration upload, fixed 10-second 720p/24fps Draft/native-audio generation, saved takes and downloads above the existing Character Animation tools.
+- [x] Deploy authenticated, idempotent Replicate jobs with verified completion webhooks and same-prediction storage recovery. Signed-in duplicate submission returns the existing attempt; alternative owner is ignored; foreign input, missing session, unknown job and forged webhook are rejected.
+- [x] All 75 tests passed; automatic build OK. Signed-in desktop/mobile upload and failed-take/image/prompt refresh restoration checked with no browser errors or horizontal overflow.
+- [ ] Real saved clip, audio metadata, webhook completion, refresh playback and download verification blocked by Replicate HTTP 402 (account needs credit). One authorized submission attempted, no prediction ID returned, no paid retry; published estimate is $0.05, actual charge unavailable. Owner must add Replicate credit before another deliberate attempt.
+
 # Phase 0 Daniel visual approval
 
 - [x] Prepare one 3840×2160 board from original reusable Daniel artwork: stand, walk, wave, point, and a furnished 16:9 teaching scene; inspect the 480×270 phone-size scene. Corrected an overlapping caption highlight and inverted waving palm; nine existing proof tests passed, build OK. No render submitted or active preview changed.

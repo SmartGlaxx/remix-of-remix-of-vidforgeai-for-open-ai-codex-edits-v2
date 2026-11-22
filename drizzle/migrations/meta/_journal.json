@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1795314732888,
+      "tag": "0000_character_animation_jobs",
+      "breakpoints": true
+    }
+  ]
+}
