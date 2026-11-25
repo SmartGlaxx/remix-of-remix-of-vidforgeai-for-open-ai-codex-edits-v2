@@ -18,12 +18,9 @@ export function canSave(job: {state: string; prediction_id: string | null; outpu
 }
 export const VIDEO_MODELS = {
   pruna: { label: "Pruna P-Video", endpoint: "prunaai/p-video", estimate: ESTIMATED_COST },
-  seedance: { label: "Seedance 2.0 Mini", endpoint: "bytedance/seedance-2.0-mini", estimate: 0.1 },
   ltx: { label: "LTX-2.5", endpoint: "runpod:brzqdegz3rq3gg", estimate: 0.08 },
 } as const;
 export type VideoModel = keyof typeof VIDEO_MODELS;
-export const SEEDANCE_PRESET = { duration: 10, resolution: "720p", aspect_ratio: "16:9", generate_audio: true } as const;
-/** Provider input per model; Seedance rejects Pruna-only keys. */
 export const LTX_ENDPOINT = "brzqdegz3rq3gg";
 /** LTX-2.5 on the owner's RunPod endpoint needs both frames; the illustration anchors start and end. */
 export function ltxInput(duration: number, image: string, prompt: string) {
@@ -35,5 +32,5 @@ export function runpodState(status: string) {
 }
 export function providerInput(model: VideoModel, duration: number, image: string, prompt: string) {
   if (model === "ltx") return ltxInput(duration, image, prompt);
-  return model === "seedance" ? { ...SEEDANCE_PRESET, duration, image, prompt } : { ...PRESET, duration, image, prompt };
+  return { ...PRESET, duration, image, prompt };
 }
