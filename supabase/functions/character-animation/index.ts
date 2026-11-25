@@ -2,10 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 import { Webhook } from "npm:standardwebhooks@1.0.0";
-import { PRESET, ownsImage, shouldSubmit, providerState, canSave, imageError } from "./contract.ts";
+import { PRESET, VIDEO_MODELS, providerInput, ownsImage, shouldSubmit, providerState, canSave, imageError } from "./contract.ts";
 
 const schema = z.discriminatedUnion("action", [
-  z.object({action:z.literal("submit"),request_id:z.string().uuid(),duration:z.number().int().min(1).max(PRESET.duration).default(PRESET.duration),image_path:z.string().max(250),prompt:z.string().max(4000).refine(s=>s.trim().length>0),owner_id:z.string().uuid().optional()}),
+  z.object({action:z.literal("submit"),request_id:z.string().uuid(),duration:z.number().int().min(1).max(PRESET.duration).default(PRESET.duration),image_path:z.string().max(250),prompt:z.string().max(4000).refine(s=>s.trim().length>0),model:z.enum(["pruna","seedance"]).default("pruna"),owner_id:z.string().uuid().optional()}),
   z.object({action:z.literal("list"),owner_id:z.string().uuid().optional()}),
   z.object({action:z.literal("status"),id:z.string().uuid(),owner_id:z.string().uuid().optional()}),
 ]);
@@ -142,7 +142,7 @@ Deno.serve(async req => {
     if (invalid) return json({error:invalid},400);
     const signed = await admin.storage.from("character-inputs").createSignedUrl(body.image_path,86400);
     if (!signed.data) return json({error:"Could not prepare the illustration."},503);
-    const settings = {...PRESET,duration:body.duration};
+    const settings = {...PRESET,duration:body.duration,model:body.model};
     const {data:job,error} = await admin.from(table).insert({owner_id:owner,request_id:body.request_id,image_path:body.image_path,prompt:body.prompt,settings,signed_input_url:signed.data.signedUrl}).select().single();
     if (error) {
       if (error.code === "23505") {
@@ -152,9 +152,9 @@ Deno.serve(async req => {
       throw error;
     }
     try {
-      const response = await provider("/models/prunaai/p-video/predictions",{method:"POST",body:JSON.stringify({input:{...settings,image:signed.data.signedUrl,prompt:body.prompt},webhook:`${url}/functions/v1/character-animation?webhook=1&job=${job.id}`,webhook_events_filter:["completed"]})});
+      const response = await provider(`/models/${VIDEO_MODELS[body.model].endpoint}/predictions`,{method:"POST",body:JSON.stringify({input:providerInput(body.model,body.duration,signed.data.signedUrl,body.prompt),webhook:`${url}/functions/v1/character-animation?webhook=1&job=${job.id}`,webhook_events_filter:["completed"]})});
       if (!response.ok) {
-        const message = response.status === 402 ? "Replicate billing needs credit. Add credit to Replicate, then deliberately generate another take." : response.status === 401 || response.status === 403 ? "Replicate rejected the token. Replace it securely." : response.status === 422 ? "Replicate rejected the image or motion direction." : "Replicate is temporarily unavailable.";
+        const message = response.status === 402 ? "Replicate billing needs credit. Add credit to Replicate, then deliberately generate another take." : response.status === 401 || response.status === 403 ? "Replicate rejected the token. Replace it securely." : response.status === 422 ? (body.model==="seedance" ? "Seedance rejected the image or direction (it often blocks faces). Try Pruna for this image." : "Replicate rejected the image or motion direction.") : "Replicate is temporarily unavailable.";
         // 5xx may have accepted work: remain uncertain, do not retry POST.
         return json({job:await view(await patch(job.id,{state:response.status>=500 ? "checking":"failed",error:message}))});
       }

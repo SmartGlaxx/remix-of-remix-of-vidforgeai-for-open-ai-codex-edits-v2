@@ -16,3 +16,13 @@ export function providerState(status: string) {
 export function canSave(job: {state: string; prediction_id: string | null; output_url: string | null}) {
   return job.state !== "ready" && Boolean(job.prediction_id && job.output_url);
 }
+export const VIDEO_MODELS = {
+  pruna: { label: "Pruna P-Video", endpoint: "prunaai/p-video", estimate: ESTIMATED_COST },
+  seedance: { label: "Seedance 2.0 Mini", endpoint: "bytedance/seedance-2.0-mini", estimate: 0.1 },
+} as const;
+export type VideoModel = keyof typeof VIDEO_MODELS;
+export const SEEDANCE_PRESET = { duration: 10, resolution: "720p", aspect_ratio: "16:9", generate_audio: true } as const;
+/** Provider input per model; Seedance rejects Pruna-only keys. */
+export function providerInput(model: VideoModel, duration: number, image: string, prompt: string) {
+  return model === "seedance" ? { ...SEEDANCE_PRESET, duration, image, prompt } : { ...PRESET, duration, image, prompt };
+}

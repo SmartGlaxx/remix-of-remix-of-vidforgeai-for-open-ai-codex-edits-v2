@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { imageError, ESTIMATED_COST } from "../../../supabase/functions/character-animation/contract";
+import { imageError, VIDEO_MODELS, type VideoModel } from "../../../supabase/functions/character-animation/contract";
 export type AnimationJob = {id:string; request_id:string; prompt:string; image_path:string; image_url:string; video_url:string|null; state:string; error:string|null; prediction_id:string|null; created_at:string};
 const labels: Record<string,string> = {submitting:"Submitting",checking:"Checking submission",queued:"Queued",generating:"Generating",saving:"Saving video",save_failed:"Saving failed",ready:"Ready",failed:"Failed"};
 export function restoreDraft(jobs: AnimationJob[]) { return jobs[0] ? {prompt:jobs[0].prompt,path:jobs[0].image_path,image:jobs[0].image_url} : undefined; }
@@ -24,7 +24,7 @@ export default function AnimateImage() {
   const [prompt,setPrompt] = useState(""); const [image,setImage] = useState(""); const [path,setPath] = useState("");
   const [jobs,setJobs] = useState<AnimationJob[]>([]); const [selected,setSelected] = useState<string>();
   const [busy,setBusy] = useState(false); const [loading,setLoading] = useState(true); const [error,setError] = useState("");
-  const [request,setRequest] = useState<string>(); const [downloading,setDownloading] = useState(false);
+  const [request,setRequest] = useState<string>(); const [model,setModel] = useState<VideoModel>("pruna"); const [downloading,setDownloading] = useState(false);
   const input = useRef<HTMLInputElement>(null); const locked = useRef(false); const draftLoaded = useRef(false);
   useEffect(()=>{ draftLoaded.current=false; setJobs([]); setSelected(undefined); setError("");
     try {const d=JSON.parse(localStorage.getItem(key) ?? "null"); if(d){setPrompt(d.prompt ?? "");setPath(d.path ?? "");setImage(d.image ?? "");setRequest(d.request);draftLoaded.current=true;}} catch { /* Stored jobs remain authoritative. */ }
@@ -61,7 +61,7 @@ export default function AnimateImage() {
     const id=request ?? crypto.randomUUID();setRequest(id);
     // Persist before the network call: refresh/retry uses this same paid attempt.
     try{localStorage.setItem(key,JSON.stringify({prompt,path,image,request:id}));}catch{/* The unique server record still protects this attempt. */}
-    try{const data=await call({action:"submit",request_id:id,image_path:path,prompt});merge(data.job);setSelected(data.job.id);setRequest(undefined);}
+    try{const data=await call({action:"submit",request_id:id,image_path:path,prompt,model});merge(data.job);setSelected(data.job.id);setRequest(undefined);}
     catch(e){setError(e instanceof Error?e.message:"Submission interrupted. Check this attempt again.");}
     finally{setBusy(false);locked.current=false;}
   }
@@ -83,7 +83,8 @@ export default function AnimateImage() {
         <Button variant="outline" disabled={busy||active||loading} onClick={()=>input.current?.click()}><Upload className="mr-2 h-4 w-4"/>{image?"Replace image":"Upload illustration"}</Button>
         {!path&&<p className="text-xs text-muted-foreground">Choose a JPG, PNG, or WebP image · up to 10 MB</p>}
         <div className="space-y-2"><Label htmlFor="motion-direction">What should happen?</Label><Textarea id="motion-direction" rows={4} maxLength={4000} value={prompt} disabled={active||busy} onChange={e=>{setPrompt(e.target.value);setRequest(undefined);}} placeholder="She looks down, picks up the mug, takes a sip, and sets it back on the table."/>{!prompt.trim()&&<p className="text-xs text-muted-foreground">Enter a motion direction.</p>}</div>
-        <div className="flex flex-wrap items-center gap-3"><Button onClick={generate} disabled={!user||!path||!prompt.trim()||busy||active||loading}>{busy?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Film className="mr-2 h-4 w-4"/>}{request?"Check this attempt":jobs.length?"Generate another take":"Generate 10-second clip"}</Button><span className="text-xs text-muted-foreground">Estimated US${ESTIMATED_COST.toFixed(2)} / take</span></div>
+        <div className="space-y-2"><Label>Video model</Label><div role="radiogroup" aria-label="Video model" className="flex flex-wrap gap-2">{(Object.keys(VIDEO_MODELS) as VideoModel[]).map(m=><Button key={m} type="button" role="radio" aria-checked={model===m} variant={model===m?"default":"outline"} size="sm" disabled={active||busy} onClick={()=>{setModel(m);setRequest(undefined);}}>{VIDEO_MODELS[m].label}</Button>)}</div>{model==="seedance"&&<p className="text-xs text-muted-foreground">Seedance has stronger motion but may refuse images with faces.</p>}</div>
+        <div className="flex flex-wrap items-center gap-3"><Button onClick={generate} disabled={!user||!path||!prompt.trim()||busy||active||loading}>{busy?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Film className="mr-2 h-4 w-4"/>}{request?"Check this attempt":jobs.length?"Generate another take":"Generate 10-second clip"}</Button><span className="text-xs text-muted-foreground">Estimated US${VIDEO_MODELS[model].estimate.toFixed(2)} / take</span></div>
         {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
       <div className="min-w-0 space-y-4">
