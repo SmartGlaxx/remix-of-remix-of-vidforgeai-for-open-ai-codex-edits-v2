@@ -57,7 +57,8 @@ function Builder({ owner }: { owner: string }) {
     (async () => {
       setBusy("Loading");
       try {
-        const first = await call({ action: "prepare" });
+        const filmId = new URLSearchParams(window.location.search).get("film");
+        const first = await call(filmId ? { action: "status", id: filmId } : { action: "prepare" });
         setView(first); setScript(first.film.script); setSeconds(first.film.seconds); setAudioMode(first.film.audio_mode as "native" | "uploaded");
         if (first.film.image_path && !first.film.image_path.includes("awaiting-illustration")) {
           setPath(first.film.image_path);

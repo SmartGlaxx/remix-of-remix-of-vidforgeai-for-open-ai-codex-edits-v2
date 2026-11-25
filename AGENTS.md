@@ -13,3 +13,5 @@
 - Keep image-animation attempts in server-owned records with globally unique request IDs, private owner-scoped inputs, verified Replicate completion webhooks, and deterministic video paths; uncertain submissions never create another prediction and save retries only recover the existing output.
 - Build film submissions through the pure filmAnimationRequest helper; continuation uses extracted frame_path rather than a planned board, so pose continuity is testable without paid predictions.
 - Expose capscify/extract-frame as a non-generation gateway utility and reverse the decoded tail before selecting one frame; otherwise an earlier near-end pose is mistaken for the actual final frame.
+- Character film links may select an owner-scoped saved film with the film query parameter; direct review links must not silently open a newer draft.
+- Both bulk and per-shot storyboard generation use drawFrame's single-moment, single-character constraints to prevent before/after collages from becoming animation inputs.

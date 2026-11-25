@@ -2,11 +2,14 @@
 
 # PR #26 Preview verification
 
+- [x] Restore original single-Daniel café opening, replace seated and mug-raised poses, reuse reviewed end poses as continuation storyboard starts, verify all three pairs signed in and after refresh; Generate film remains unclicked and draft has no animation attempts.
+- [ ] Live café continuity blocked: gateway template is ghcr.io/smartglaxx/gateway:latest but worker hbzukmct16pwhi rejects capscify/extract-frame. Live job sync-b7ef8337-a627-4286-9018-abd49287f27f-e1 failed with Unknown route: capscify/extract-frame. Commit dfa657b-or-later activation cannot be confirmed. Request builder stops with Waiting for the preceding final frame; no returned frame or actual Pruna image exists to compare. Locally decoded saved-clip last frame and blocked-comparison evidence delivered; owner must activate the updated gateway before live continuity can be verified.
+
 - [x] Apply storyboard columns and deploy the four requested functions; both frame columns confirmed in the database.
 - [x] Verify all four signed-in Explainer formats without paid video generation; three six-scene planners now succeed with per-scene end poses and transitions, Character Animation restores the saved café draft.
 - [x] Verify paired Pruna frame payloads and continuation selection with regression tests; 97 app tests and two actual-frame utility tests pass. Café draft has six saved medium-quality storyboard images, no animation attempts, 30 seconds and US$0.15 estimated video cost.
 - [ ] Verify live extracted final-frame continuation; blocked until the updated RunPod gateway image is built by the existing GitHub workflow and loaded by the worker. The current live gateway rejects capscify/extract-frame. Do not start a paid film while this is unresolved.
-- [ ] Review café opening artwork; the generated opening board duplicated Daniel, so the current pictures are not approved for a paid render.
+- [x] Correct café opening artwork: original uploaded single-Daniel image is the actual shot-one input; reviewed seated and mug-raised images replace the inconsistent draft boards. No settled films or paid clips changed.
 - [x] Return the direct Preview link and leave paid rendering to the owner; no paid video render or public publish.
 
 # Character long-film workflow
