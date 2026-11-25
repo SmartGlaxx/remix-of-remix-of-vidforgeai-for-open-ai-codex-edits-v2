@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import AnimateImage from "./AnimateImage";
+import CharacterFilm from "./CharacterFilm";
 
 const actions = {
   run: { name: "Run", duration: 5 },
@@ -67,6 +68,7 @@ function Editor({storageKey}: {storageKey: string}) {
   return <section className="space-y-4">
     <header><h2 className="text-3xl font-bold">Character Animation</h2></header>
     <AnimateImage />
+    <CharacterFilm />
     <h3 className="text-xl font-semibold">Recorded actions</h3>
     <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
       <div className="workspace-card space-y-3">

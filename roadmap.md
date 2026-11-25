@@ -2,9 +2,9 @@
 
 # Character long-film workflow
 
-- [ ] Add separate film setup, editable chapter/shot plan, native or uploaded chapter narration, and a prepared 30-second draft; preserve the single-clip tool.
-- [ ] Deploy durable owner-scoped film execution, idempotent clip submissions, saved chapter/final assembly, stop and recovery controls.
-- [ ] Test mocked 3-minute and 30-minute paths, duplicate/restart safety and stitch recovery; check signed-in Preview without paid provider calls or public publishing.
+- [x] Add separate film setup, editable chapter/shot plan, native or uploaded chapter narration, and a prepared 30-second draft; preserve the single-clip tool. Character Animation now shows "Animate an image" above "Create a film"; the 30-second draft (3 shots, US$0.15, state draft) is planned and waiting, and no paid prediction was submitted.
+- [x] Deploy durable owner-scoped film execution, idempotent clip submissions, saved chapter/final assembly, stop and recovery controls. character-film (client API + assembly callback), character-film-worker (durable tick, 4-minute lease, self-wake) and character-animation (service-key internal calls, film wake on clip completion) are deployed; a 5-minute reconciliation sweep (288 runs/day) re-arms any lost wake.
+- [x] Test mocked 3-minute and 30-minute paths, duplicate/restart safety and stitch recovery; check signed-in Preview without paid provider calls or public publishing. 18-clip/2-chapter and 180-clip/16-MP4 paths pass with one paid prediction per shot; billing pause, worker restart, stitch retry, continuation ordering and stop all pass. Signed-in preview confirms the panel, the US$0.15 estimate, restore after refresh, foreign film 404, bad duration 400 and unsigned 401.
 
 # Animate an image
 
