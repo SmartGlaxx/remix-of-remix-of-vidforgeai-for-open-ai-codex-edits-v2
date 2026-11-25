@@ -6,6 +6,8 @@ import { assemblies, draftDirections, narrationMismatch, narrationSeconds, SAMPL
 import { ownsImage } from "../_shared/prunaContract.ts";
 import { admin, kick, loadFilm, serviceKey, signed } from "../_shared/filmRuntime.ts";
 
+import { drawFrame } from "../_shared/shotBoard.ts";
+
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 const schema = z.discriminatedUnion("action", [
@@ -13,6 +15,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list") }),
   z.object({ action: z.literal("status"), id: z.string().uuid() }),
   z.object({ action: z.literal("plan"), request_id: z.string().uuid(), script: z.string().trim().min(1).max(20000), seconds: z.number().int().min(30).max(1800), image_path: z.string().max(250), audio_mode: z.enum(["native", "uploaded"]) }),
+  z.object({ action:z.literal("board_frame"), id:z.string().uuid(), side:z.enum(["start","end"]) }),
   z.object({ action: z.literal("update_shot"), id: z.string().uuid(), line: z.string().trim().max(600).optional(), purpose: z.string().trim().max(300).optional(), visual: z.string().trim().max(2200).optional(), direction: z.string().trim().max(600).optional(), transition: z.enum(["cut", "continue"]).optional() }),
   z.object({ action: z.literal("generate"), id: z.string().uuid() }),
   z.object({ action: z.literal("stop"), id: z.string().uuid() }),
@@ -118,7 +121,7 @@ Deno.serve(async request => {
 
     // Every remaining action re-checks ownership before touching a row.
     // Shot-scoped actions resolve their parent film first, so a foreign shot ID can never reach another owner's row.
-    const shotParent = body.action === "update_shot" ? body.id : body.action === "retake" ? body.shot_id : "";
+    const shotParent = (body.action === "update_shot" || body.action === "board_frame") ? body.id : body.action === "retake" ? body.shot_id : "";
     let filmId = shotParent ? "" : "id" in body ? body.id : "";
     if (shotParent) {
       const { data: shot } = await admin.from("character_film_shots").select("film_id").eq("id", shotParent).eq("owner_id", owner).maybeSingle();
@@ -127,11 +130,42 @@ Deno.serve(async request => {
     const { data: film } = filmId ? await admin.from("character_films").select().eq("id", filmId).eq("owner_id", owner).maybeSingle() : { data: null };
     if (!film) return json({ error: "Film not found." }, 404);
 
+    if(body.action==="board_frame"){
+      if(film.state!=="draft") return json({error:"Only drafts can generate storyboard frames"},409);
+      const {shots}=await loadFilm(film.id);
+      const shot=shots.find(s=>s.id===body.id);
+      if(!shot)return json({error:"Shot not found"},404);
+      const previous=shots.find(s=>s.index===shot.index-1);
+      const root=owner+"/boards/";
+      // Include the shot direction and source in the key so edits produce a fresh board.
+      const revision=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify([film.image_path,shot.visual,shot.action,shot.line,shot.transition,previous?.id])));
+      const tag=Array.from(new Uint8Array(revision).slice(0,8),v=>v.toString(16).padStart(2,"0")).join("");
+      const base=root+shot.id+"-"+tag;
+      const start=base+"-start.png";
+      const end=base+"-end.png";
+      if(body.side==="start"){
+        await drawFrame(owner,film.image_path,start,shot.visual+" Show the opening pose immediately before this action: "+shot.action);
+        if(shot.transition==="cut"){
+          const {error}=await admin.from("character_film_shots").update({image_path:start,board_start_path:start}).eq("id",shot.id).eq("owner_id",owner);
+          if(error)throw error;
+        }
+        if(shot.transition==="continue"){
+          const {error}=await admin.from("character_film_shots").update({board_start_path:start}).eq("id",shot.id).eq("owner_id",owner);
+          if(error)throw error;
+        }
+      } else {
+        await drawFrame(owner,start,end,shot.visual+" Show the final pose immediately after this action completes: "+shot.action);
+        const {error}=await admin.from("character_film_shots").update({board_end_path:end}).eq("id",shot.id).eq("owner_id",owner);
+        if(error)throw error;
+      }
+      return json({path:body.side==="start"?start:end,url:await signed("character-inputs",body.side==="start"?start:end)});
+    }
     if (body.action === "update_shot") {
       if (film.state !== "draft") return json({ error: "This film has started; retake the shot to change it." }, 409);
-      const { data: shot } = await admin.from("character_film_shots").select("id").eq("id", body.id).eq("film_id", film.id).maybeSingle();
+      const { data: shot } = await admin.from("character_film_shots").select("id,index").eq("id", body.id).eq("film_id", film.id).maybeSingle();
       if (!shot) return json({ error: "Shot not found." }, 404);
-      const values: Record<string, string> = {};
+      if(shot.index===0 && body.transition==="continue")return json({error:"The first shot opens the film"},400);
+      const values: Record<string, string|null> = {board_start_path:null,board_end_path:null,image_path:film.image_path};
       for (const key of ["line", "purpose", "visual", "transition"] as const) if (body[key]) values[key] = body[key] as string;
       if (body.direction) values.action = body.direction;
       if (Object.keys(values).length) {

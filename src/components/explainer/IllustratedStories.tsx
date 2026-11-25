@@ -1,4 +1,3 @@
-import FilmBuilder from "@/components/explainer/FilmBuilder";
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, SkipBack, SkipForward, Wand2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -106,7 +105,7 @@ export function IllustratedStories() {
     } catch(e){setMessage(e instanceof Error?e.message:"Image generation failed.");} finally{setBusy(false);}
   }
   return <section className="space-y-5">
-    <FilmBuilder/>
+
     <header><h2 className="text-3xl font-bold tracking-tight">Illustrated Stories</h2><p className="text-muted-foreground">Where your $100 payment goes</p></header>
     <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
     <section className="overflow-hidden rounded-2xl border bg-card">

@@ -33,7 +33,7 @@ it("opens a planned 30-second, three-shot film costing US$0.15", async () => {
   expect(await screen.findByRole("heading", { name: "Create a film" })).toBeInTheDocument();
   expect(await screen.findByText("Estimated US$0.15")).toBeInTheDocument();
   expect(screen.getByText("30s runtime · 3 clips · 1 chapter")).toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: /^Shot 1/ }).length).toBeGreaterThan(0);
+  expect(screen.getByRole("combobox", { name: "Shot" })).toHaveValue("0");
   expect(invoke).toHaveBeenCalledWith("character-film", { body: { action: "prepare" } });
 });
 
@@ -60,4 +60,16 @@ it("offers stop while the worker runs the film", async () => {
   const stop = await screen.findByRole("button", { name: "Stop" });
   fireEvent.click(stop);
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("character-film", { body: { action: "stop", id: "film-1" } }));
+});
+
+it("navigates a 180-shot film without rendering 180 shot buttons", async () => {
+  const shots=Array.from({length:180},(_,i)=>shot(i,{chapter:Math.floor(i/12)}));
+  invoke.mockResolvedValue({data:{...view, shots},error:null});
+  render(<CharacterFilm/>);
+  const chapters=await screen.findByLabelText("Chapter");
+  fireEvent.change(chapters,{target:{value:"14"}});
+  expect(screen.getByLabelText("Shot")).toHaveValue("168");
+  fireEvent.click(screen.getByRole("button",{name:"Next shot"}));
+  expect(screen.getByRole("heading",{name:"Shot 170"})).toBeInTheDocument();
+  expect(screen.queryAllByRole("button",{name:/^Shot \d/})).toHaveLength(0);
 });

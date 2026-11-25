@@ -28,6 +28,7 @@ export default function CharacterStudio() {
 }
 
 function Editor({storageKey}: {storageKey: string}) {
+  const [mode, setMode] = useState("Create a film");
   const [sequence, setSequence] = useState(() => read(storageKey));
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -67,9 +68,11 @@ function Editor({storageKey}: {storageKey: string}) {
   }
   return <section className="space-y-4">
     <header><h2 className="text-3xl font-bold">Character Animation</h2></header>
-    <AnimateImage />
-    <CharacterFilm />
-    <h3 className="text-xl font-semibold">Recorded actions</h3>
+    <nav aria-label="Character tools" className="flex flex-wrap gap-1 rounded-xl border bg-card p-1">{["Create a film","Animate an image","Recorded actions"].map(name =>
+      <Button key={name} size="sm" aria-pressed={mode===name} variant={mode===name?"secondary":"ghost"} onClick={() => {setMode(name); player.current?.pause(); setPlaying(false);}}>{name}</Button>)}</nav>
+    <div hidden={mode!=="Create a film"}><CharacterFilm/></div>
+    <div hidden={mode!=="Animate an image"}><AnimateImage/></div>
+    <div hidden={mode!=="Recorded actions"}>
     <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
       <div className="workspace-card space-y-3">
         {current ? <video key={index+current} ref={player} controls playsInline preload="auto" className="aspect-video w-full rounded-lg bg-black object-contain" src={clip(current)} aria-label={actions[current].name}
@@ -90,6 +93,7 @@ function Editor({storageKey}: {storageKey: string}) {
         {result ? <Button asChild><a href={result.url} download={'character-animation.'+result.ext}>Download video</a></Button> : <Button disabled={!current || exporting} onClick={download}>{exporting ? "Exporting… keep this tab visible" : "Export sequence"}</Button>}
         {error && <p role="alert">{error}</p>}
       </div>
+    </div>
     </div>
   </section>;
 }

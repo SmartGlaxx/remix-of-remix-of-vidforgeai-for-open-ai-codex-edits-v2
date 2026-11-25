@@ -30,7 +30,7 @@ export const isRunpodJob = (predictionId: string | null) => Boolean(predictionId
 export function runpodState(status: string) {
   return status === "COMPLETED" ? "saving" : status === "IN_PROGRESS" ? "generating" : status === "IN_QUEUE" ? "queued" : "failed";
 }
-export function providerInput(model: VideoModel, duration: number, image: string, prompt: string) {
+export function providerInput(model: VideoModel, duration: number, image: string, prompt: string, endImage?: string) {
   if (model === "ltx") return ltxInput(duration, image, prompt);
-  return { ...PRESET, duration, image, prompt };
+  return { ...PRESET, duration, image, prompt, ...(endImage ? {last_frame_image:endImage} : {}) };
 }

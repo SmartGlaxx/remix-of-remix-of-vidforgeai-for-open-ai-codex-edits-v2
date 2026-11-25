@@ -15,3 +15,8 @@ describe("video model choice",()=>{
   });
   it("keeps Pruna as the default model",()=>{expect(VIDEO_MODELS.pruna.endpoint).toBe("prunaai/p-video");});
 });
+
+it("passes an approved ending image through to Pruna", () => {
+  const input=providerInput("pruna",10,"https://frames.test/start.jpg","Sit and raise the mug","https://frames.test/end.jpg");
+  expect(input).toMatchObject({image:"https://frames.test/start.jpg",last_frame_image:"https://frames.test/end.jpg"});
+});
