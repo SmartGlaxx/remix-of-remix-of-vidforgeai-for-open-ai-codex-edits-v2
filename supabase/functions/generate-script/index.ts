@@ -4,10 +4,15 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const SYSTEM = `You are an elite YouTube long-form scriptwriter. Given a title, tone, duration, hook style, and language, write a high-retention script structured into clearly timed sections.
 Return STRICT JSON only.`;
 
+const directionPlan=z.object({shots:z.array(z.object({
+  purpose:z.string().min(1).max(300), visual:z.string().min(1).max(1200),
+  action:z.string().min(1).max(600), transition:z.enum(["cut","continue"])
+})).min(1).max(12)});
 const explainerPlan = z.object({
   scenes: z.array(z.object({
     line: z.string().trim().min(1).max(600),
     prompt: z.string().trim().min(1).max(2200),
+    endPrompt:z.string().trim().min(1).max(1100), transitionText:z.string().trim().min(1).max(500),
     label: z.string().trim().min(1).max(100),
     diagram: z.object({
       kind: z.enum(["flow", "comparison", "sequence"]),
@@ -22,15 +27,17 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("TOGETHER_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "AI not configured" }, 500);
 
-    const { title, tone, duration, hook, language, explainerBrief } = await req.json().catch(() => ({}));
+    const { title, tone, duration, hook, language, explainerBrief, format, shotLines, previousBeat } = await req.json().catch(() => ({}));
+    const directing=Array.isArray(shotLines);
+    if(directing && !z.array(z.string().max(600)).min(1).max(12).safeParse(shotLines).success)return json({error:"Invalid chapter"},400);
     const shortFilm = explainerBrief !== undefined;
     if (shortFilm && (typeof explainerBrief !== "string" || !explainerBrief.trim())) {
       return json({ error: "Enter a video brief and retry." }, 400);
     }
-    if (!shortFilm && (typeof title !== "string" || !title.trim())) return json({ error: "Enter a title or topic and retry." }, 400);
-    const userPrompt = shortFilm ? `Write a one-minute illustrated explainer based on this creative brief:
+    if (!directing && !shortFilm && (typeof title !== "string" || !title.trim())) return json({ error: "Enter a title or topic and retry." }, 400);
+    const userPrompt = directing ? `Direct these voiced storyboard beats as one coherent YouTube explainer chapter. Keep narration unchanged. Give each line its own specific opening composition (visual), editorial purpose and physical action including the transition and exact ending pose. Preserve cast, props and locations; use meaningful close-ups and intentional cuts. Use continue for uninterrupted movement, including chapter boundaries. Return JSON {shots:[{visual,purpose,action,transition:"cut" or "continue"}]} with exactly one entry per line, in order. Previous chapter ending: ${String(previousBeat??"Opening").slice(0,650)}. Lines: ${JSON.stringify(shotLines)}` : shortFilm ? `Write a one-minute illustrated explainer based on this creative brief:
 ${explainerBrief.slice(0, 5000)}
-Output JSON with a title and exactly six scenes. Each scene has a line (16–21 spoken words), a prompt (one concrete shadow cutout illustration with consistent characters and palette), a label (a short takeaway, four words maximum), and a diagram with kind ("flow", "comparison", or "sequence") and exactly three short labels (up to 14 characters each) specific to the idea. Return diagram as {kind, labels}. Make each scene advance the explanation. Use examples from the brief accurately.` : `Title: """${String(title).slice(0, 300)}"""
+Output JSON with a title and exactly six scenes. Each scene has a line (16–21 spoken words), a prompt (one concrete opening illustration; repeat exact identity, outfit, scene and palette for recurring characters), a label (a short takeaway, four words maximum), and a diagram with kind ("flow", "comparison", or "sequence") and exactly three short labels (up to 14 characters each) specific to the idea. Return diagram as {kind, labels}. Make each scene advance the explanation. Use examples from the brief accurately. Add an endPrompt for the final pose/composition and transitionText for exactly what changes. Start with a hook and close with a useful payoff. Style: ${format==="comic"?"graphic novel panels with dialogue":format==="whiteboard"?"sparse black line drawings of a single readable idea per scene":"illustrated narrative"}.` : `Title: """${String(title).slice(0, 300)}"""
 Tone: ${tone || "Engaging & Dramatic"}
 Duration: ${duration || "8-10 min"}
 Hook style: ${hook || "Shocking Fact"}
@@ -74,6 +81,7 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
         return json({ error: "AI returned invalid JSON" }, 502);
       }
     }
+    if(directing){const plan=directionPlan.safeParse(parsed);if(!plan.success||plan.data.shots.length!==shotLines.length)return json({error:"Director returned an incomplete chapter"},502);return json(plan.data);}
     if (shortFilm) {
       const result = explainerPlan.safeParse(parsed);
       if (!result.success) {

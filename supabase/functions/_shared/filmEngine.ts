@@ -1,5 +1,5 @@
 import { readyShots, orderedInputs, type Assembly, type FilmDirection } from "./filmWorkflow.ts";
-export type Shot = FilmDirection & {id:string;request_id:string;state:string;animation_id?:string;video_path?:string;frame_path?:string;frame_job_id?:string;error?:string};
+export type Shot = FilmDirection & {id:string;request_id:string;state:string;animation_id?:string;video_path?:string;frame_path?:string;board_start_path?:string;board_end_path?:string;frame_job_id?:string;error?:string};
 export type Film = {id:string;owner_id:string;state:string;seconds:number;audio_mode:string;narration:{chapter:number;path:string;seconds:number}[];chapters:Assembly[];final_video_path?:string;error?:string};
 export interface FilmServices {
   load():Promise<{film:Film;shots:Shot[]}>;

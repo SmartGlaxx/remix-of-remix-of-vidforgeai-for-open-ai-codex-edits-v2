@@ -1,3 +1,4 @@
+import ShotBoard from "./ShotBoard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Download, Film, Loader2, Pause, Play, RefreshCw, Upload, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { planCharacterFilm } from "../../../supabase/functions/_shared/characterFilmPlan";
 import { ESTIMATED_COST, imageError } from "../../../supabase/functions/character-animation/contract";
 
-type Shot = { id: string; index: number; chapter: number; duration: number; line: string; purpose: string; visual: string; action: string; transition: "cut" | "continue"; state: string; error: string | null; video_path: string | null };
+type Shot = { board_start_path?:string;board_end_path?:string; id: string; index: number; chapter: number; duration: number; line: string; purpose: string; visual: string; action: string; transition: "cut" | "continue"; state: string; error: string | null; video_path: string | null };
 type Chapter = { key: string; indices: number[]; state: string; error?: string };
 type Film = { id: string; state: string; seconds: number; script: string; audio_mode: string; image_path: string; estimated_usd: number; final_video_url: string | null; error: string | null; mismatch: boolean; spoken_seconds: number; narration: { chapter: number; path: string; seconds: number }[]; chapters: Chapter[] };
 type View = { film: Film; shots: Shot[]; progress: { saved: number; total: number; chapter: number; chapters: number; phase: string } };
@@ -110,8 +111,37 @@ function Builder({ owner }: { owner: string }) {
     try {
       const next = await call({ action: "plan", request_id: crypto.randomUUID(), script: script.trim(), seconds, image_path: path, audio_mode: audioMode });
       setView(next); setSelected(0);
+      let previousBeat="";
+      for(const chapter of Array.from(new Set(next.shots.map(item=>item.chapter)))){
+        const group=next.shots.filter(item=>item.chapter===chapter);
+        setBusy("Directing chapter "+(chapter+1));
+        const result=await supabase.functions.invoke("generate-script",{body:{shotLines:group.map(item=>item.line),previousBeat}});
+        if(result.error || result.data?.shots?.length!==group.length)throw new Error("Your draft is saved. Chapter "+(chapter+1)+" could not be directed.");
+        for(const [index,item] of group.entries()){
+          const direction=result.data.shots[index];
+          const saved=await call({action:"update_shot",id:item.id,purpose:direction.purpose,visual:direction.visual,direction:direction.action,transition:item.index===0?"cut":direction.transition});
+          previousBeat=direction.action;
+          setView(saved);
+        }
+      }
     } catch (e) { setError(e instanceof Error ? e.message : "Could not plan this film."); }
     finally { setBusy(""); }
+  }
+
+  async function buildBoards(){
+    if(!view)return;
+    setError("");
+    try{
+      for(const item of view.shots){
+        for(const side of ["start","end"] as const){
+          if(side==="start"?item.board_start_path:item.board_end_path)continue;
+          setBusy("Drawing shot "+(item.index+1)+" of "+view.shots.length);
+          const {data,error}=await supabase.functions.invoke("character-film",{body:{action:"board_frame",id:item.id,side}});
+          if(error||!data?.path)throw new Error(data?.error||error?.message||"Could not generate frame");
+        }
+      }
+    }catch(e){setError(e instanceof Error?e.message:"Storyboard generation failed");}
+    finally{try{await load(view.film.id);}finally{setBusy("");}}
   }
 
   async function generate() {
@@ -172,8 +202,9 @@ function Builder({ owner }: { owner: string }) {
       <span className="text-xs text-muted-foreground">30 seconds to 30 minutes · one finished MP4</span>
     </div>
 
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-      <div className="min-w-0 space-y-4">
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(17rem,.8fr)_minmax(0,1.65fr)]">
+      <div className="min-w-0 space-y-4 rounded-xl border bg-card p-4">
+        <details open={!view || !image} className="group"><summary className="cursor-pointer text-sm font-semibold">Film setup</summary><div className="mt-4 space-y-4">
         <div className="space-y-2">
           <Label htmlFor="film-image">Character illustration</Label>
           <input ref={fileInput} id="film-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={e => void upload(e.target.files?.[0])} />
@@ -218,6 +249,7 @@ function Builder({ owner }: { owner: string }) {
           </div>}
         </div>
 
+        </div></details>
         <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
           <p className="font-medium">Estimated US${estimate.toFixed(2)}</p>
           <p className="text-muted-foreground">{plan_ ? `${plan_.seconds}s runtime · ${plan_.shotCount} clips · ${plan_.chapters.length} chapter${plan_.chapters.length === 1 ? "" : "s"}` : "Choose a length from 30 to 1,800 seconds."}</p>
@@ -226,10 +258,12 @@ function Builder({ owner }: { owner: string }) {
 
         <div className="flex flex-wrap gap-2">
           <Button disabled={!!busy || running || !script.trim() || !path || !plan_} onClick={plan}>{busy === "Planning" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Film className="mr-2 h-4 w-4" />}Plan film</Button>
+          {draft && view && <Button variant="outline" disabled={!!busy} onClick={buildBoards}>{busy.startsWith("Drawing")?busy:"Illustrate storyboard · "+view.shots.reduce((n,s)=>n+Number(!s.board_start_path)+Number(!s.board_end_path),0)+" images"}</Button>}
           <Button disabled={!!busy || running || !view || !draft || !plan_} onClick={generate}><Play className="mr-2 h-4 w-4" />Generate film · US${estimate.toFixed(2)}</Button>
           {running && <Button variant="outline" onClick={() => act({ action: "stop", id: view!.film.id })}><Pause className="mr-2 h-4 w-4" />Stop</Button>}
           {["stopped", "attention", "billing_paused"].includes(view?.film.state ?? "") && <Button variant="outline" onClick={() => act({ action: "resume", id: view!.film.id })}><Play className="mr-2 h-4 w-4" />Resume</Button>}
         </div>
+        {busy && <p role="status" className="text-sm text-muted-foreground">{busy}…</p>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {view?.film.mismatch && <p role="alert" className="text-sm text-destructive">This script reads as about {view.film.spoken_seconds}s, not {view.film.seconds}s. Shorten the script or change the length before generating.</p>}
       </div>
@@ -244,25 +278,31 @@ function Builder({ owner }: { owner: string }) {
             <video key={view.film.final_video_url} controls playsInline preload="metadata" src={view.film.final_video_url} className="max-h-96 w-full rounded-lg bg-black object-contain" aria-label="Finished film" onError={() => setError("The finished film could not play. Try downloading it.")} />
             <div className="flex flex-wrap items-center gap-3"><Button variant="outline" disabled={downloading} onClick={download}><Download className="mr-2 h-4 w-4" />{downloading ? "Downloading…" : "Download film"}</Button><span className="text-xs text-muted-foreground">{view.film.seconds}s · US${Number(view.film.estimated_usd).toFixed(2)} video generation</span></div>
           </div>
-          : <div className="grid aspect-video place-items-center rounded-lg bg-muted text-muted-foreground"><Film className="h-12 w-12" /></div>}
+          : <div className="grid aspect-video place-items-center overflow-hidden rounded-xl border bg-muted text-muted-foreground">{image?<img src={image} alt="Film reference preview" className="h-full w-full object-contain"/>:<span className="flex items-center gap-2 text-sm"><Film className="h-5 w-5"/>Film preview</span>}</div>}
 
         {view?.film.error && <p role="alert" className="text-sm text-destructive">{view.film.error}</p>}
         {view && ["attention", "billing_paused"].includes(view.film.state) && <Button variant="outline" onClick={() => act({ action: "retry_stitch", id: view.film.id })}><RefreshCw className="mr-2 h-4 w-4" />Retry assembly from saved clips</Button>}
 
         {!!view?.shots.length && <div className="space-y-2">
           <h4 className="font-semibold">Scene outline · {view.shots.length} shots</h4>
-          <ul className="max-h-96 space-y-2 overflow-y-auto pr-1">
-            {view.shots.map((s, i) => <li key={s.id}>
-              <button aria-pressed={selected === i} onClick={() => setSelected(i)} className={"w-full rounded-lg border px-3 py-2 text-left text-sm " + (selected === i ? "border-primary" : "")}>
-                <span className="flex justify-between gap-2"><span className="font-medium">Shot {s.index + 1} · Chapter {s.chapter + 1} · {s.duration}s</span><span className="shrink-0 text-xs text-muted-foreground">{shotLabels[s.state] ?? s.state}</span></span>
-                <span className="mt-1 block text-xs text-muted-foreground">{s.purpose} · {s.transition === "continue" ? "continues the action" : "new scene"}</span>
-              </button>
-            </li>)}
-          </ul>
+          <div className="grid gap-3 rounded-xl border bg-card p-3 sm:grid-cols-2">
+            <label className="text-xs text-muted-foreground">Chapter
+              <select className="mt-1 block h-10 w-full rounded-md border bg-background px-2 text-sm text-foreground" value={shot?.chapter ?? 0} onChange={e => setSelected(view.shots.findIndex(s=>s.chapter===Number(e.target.value)))}>
+                {Array.from(new Set(view.shots.map(s=>s.chapter))).map(c=><option key={c} value={c}>Chapter {c+1}</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-muted-foreground">Shot
+              <select className="mt-1 block h-10 w-full rounded-md border bg-background px-2 text-sm text-foreground" value={selected} onChange={e=>setSelected(Number(e.target.value))}>
+                {view.shots.map((s,i)=>s.chapter===shot?.chapter && <option key={s.id} value={i}>Shot {s.index+1} · {s.duration}s · {shotLabels[s.state] ?? s.state}</option>)}
+              </select>
+            </label>
+            <div className="flex justify-between sm:col-span-2"><Button size="sm" variant="ghost" disabled={!selected} onClick={()=>setSelected(selected-1)}>Previous shot</Button><Button size="sm" variant="ghost" disabled={selected>=view.shots.length-1} onClick={()=>setSelected(selected+1)}>Next shot</Button></div>
+          </div>
         </div>}
 
         {shot && <div className="space-y-3 rounded-lg border border-border p-3">
           <div className="flex items-center justify-between"><h4 className="font-semibold">Shot {shot.index + 1}</h4><span className="text-xs text-muted-foreground">{shotLabels[shot.state] ?? shot.state}</span></div>
+          <ShotBoard key={shot.id} id={shot.id} start={shot.board_start_path} end={shot.board_end_path} onSaved={()=>load(view!.film.id)} continuation={shot.transition==="continue"} enabled={!!draft && !busy}/>
           {draft ? <div className="space-y-2">
             <Label htmlFor="shot-purpose">Purpose</Label>
             <Input id="shot-purpose" value={shot.purpose} maxLength={300} disabled={!!busy} onChange={e => setView({ ...view!, shots: view!.shots.map((s, i) => i === selected ? { ...s, purpose: e.target.value } : s) })} />
@@ -276,7 +316,7 @@ function Builder({ owner }: { owner: string }) {
               <Label htmlFor="shot-transition" className="text-xs">Transition</Label>
               <select id="shot-transition" className="h-8 rounded-md border bg-background px-2 text-sm" value={shot.transition} disabled={!!busy} onChange={e => setView({ ...view!, shots: view!.shots.map((s, i) => i === selected ? { ...s, transition: e.target.value as "cut" | "continue" } : s) })}>
                 <option value="cut">Cut to a new scene</option>
-                <option value="continue">Continue the action</option>
+                <option value="continue" disabled={shot.index===0}>Continue the action</option>
               </select>
             </div>
             <Button size="sm" disabled={!!busy} onClick={() => act({ action: "update_shot", id: shot.id, line: shot.line, purpose: shot.purpose, visual: shot.visual, direction: shot.action, transition: shot.transition })}><Check className="mr-2 h-4 w-4" />Save direction</Button>

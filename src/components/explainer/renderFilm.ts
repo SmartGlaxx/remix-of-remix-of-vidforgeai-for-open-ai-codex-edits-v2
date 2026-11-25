@@ -1,9 +1,13 @@
+import { boardStrokes, drawBoard, drawComic, type StoryFormat } from "./sceneStyles";
 export interface FilmScene {
   line: string;
   prompt: string;
   label: string;
   diagram?: {kind: "flow" | "comparison" | "sequence"; labels: string[]};
   image?: string;
+  endImage?: string;
+  endPrompt?: string;
+  transitionText?: string;
   audio?: string;
   job_id?: string;
   endpoint_id?: string;
@@ -17,7 +21,7 @@ async function loadImage(url: string) {
   return image;
 }
 
-export async function renderFilm(scenes: FilmScene[], progress: (seconds: number) => void, signal: AbortSignal) {
+export async function renderFilm(scenes: FilmScene[], progress: (seconds: number) => void, signal: AbortSignal, format: StoryFormat = "illustrated") {
   const mime = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find(type =>
     typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type));
   if (!mime) throw new Error("Video export requires a browser with MediaRecorder support.");
@@ -34,7 +38,8 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
       const [image, response] = await Promise.all([loadImage(scene.image!), fetch(scene.audio!, {signal})]);
       if (!response.ok) throw new Error("Could not load the saved narration.");
       const audio = await ctx.decodeAudioData(await response.arrayBuffer());
-      return {image, audio};
+      const last = scene.endImage ? await loadImage(scene.endImage) : image;
+      return {image, audio, last, strokes: format === "whiteboard" ? boardStrokes(image) : []};
     }));
     signal.throwIfAborted();
     const total = assets.reduce((sum, asset) => sum + asset.audio.duration, 0);
@@ -56,9 +61,14 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
       while (i > 0 && starts[i] > t) i--;
       const p = Math.min(1, (t - starts[i]) / (assets[i].audio.duration / rate));
       const image = assets[i].image;
+      if(format === "whiteboard"){ drawBoard(pen, assets[i].strokes, p); return; }
+      if(format === "comic"){ drawComic(pen,image,assets[i].last,p,scenes[i].line); return; }
       const scale = Math.max(1280 / image.width, 720 / image.height) * 1.08;
       const w = image.width * scale, h = image.height * scale;
       pen.drawImage(image, (1280-w)*(.35+.3*(i%2 ? 1-p : p)), (720-h)/2, w, h);
+      if(scenes[i].endImage && p>.65){
+        pen.save(); pen.globalAlpha=Math.min(1,(p-.65)/.25); pen.drawImage(assets[i].last,0,0,1280,720); pen.restore();
+      }
       const diagram = scenes[i].diagram;
       if (diagram) {
         pen.save();

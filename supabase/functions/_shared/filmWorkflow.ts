@@ -8,7 +8,7 @@ export function draftDirections(script:string, seconds:number, image_path=""):Fi
   const words=script.trim().split(/\s+/).filter(Boolean);
   return plan.chapters.flatMap(c=>c.shots.map(s=>{
     const line=words.slice(Math.floor(s.index*words.length/plan.shotCount),Math.floor((s.index+1)*words.length/plan.shotCount)).join(" ");
-    return {...s,chapter:c.chapterIndex,line,purpose:s.index===0?"Introduce the idea":s.index===plan.shotCount-1?"Resolve the story":"Develop the next idea",visual:`Same character, face, hairstyle, clothing and palette in the reference scene. Shot ${s.index+1}: ${line}`,action:s.index===0?"Look toward the viewer, then gesture to the main subject":s.index===plan.shotCount-1?"Complete the demonstration and return attention to the viewer":`Demonstrate this idea with a distinct physical gesture: ${line}`,transition:"cut" as const,image_path};
+    return {...s,chapter:c.chapterIndex,line,purpose:s.index===0?"Introduce the idea":s.index===plan.shotCount-1?"Resolve the story":"Develop the next idea",visual:`Same character, face, hairstyle, clothing and palette in the reference scene. Shot ${s.index+1}: ${line}`,action:s.index===0?"Look toward the viewer, then gesture to the main subject":s.index===plan.shotCount-1?"Complete the demonstration and return attention to the viewer":`Demonstrate this idea with a distinct physical gesture: ${line}`,transition:s.index===0?"cut" as const:"continue" as const,image_path};
   }));
 }
 export function readyShots(shots:{index:number; state:string; transition:string}[],limit=2) {

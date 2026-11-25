@@ -6,16 +6,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { renderFilm, type FilmScene } from "./renderFilm";
 
+import { artDirections, type StoryFormat } from "./sceneStyles";
+
 const sceneSchema = z.object({
   line: z.string().trim().min(1).max(600), prompt: z.string().trim().min(1).max(2200),
   label: z.string().trim().min(1).max(100),
   diagram: z.object({kind:z.enum(["flow","comparison","sequence"]), labels:z.array(z.string().min(1).max(32)).length(3)}).optional(),
+  endPrompt: z.string().optional(), transitionText: z.string().optional(), endImage:z.string().url().optional(),
   image: z.string().url().optional(),
   audio: z.string().url().optional(), job_id: z.string().optional(), endpoint_id: z.string().optional(),
 });
 const draftSchema = z.object({brief: z.string(), scenes: z.array(sceneSchema).length(6)});
 const scenePlanSchema = z.object({
-  scenes: z.array(sceneSchema.pick({line: true, prompt: true, label: true, diagram: true})).length(6),
+  scenes: z.array(sceneSchema.pick({line: true, prompt: true, label: true, diagram: true,endPrompt:true,transitionText:true})).length(6),
 });
 const plannerDeploymentError = "The deployed script function needs the Explainer update. Deploy generate-script from the latest main branch, then retry.";
 type Draft = {brief: string; scenes: FilmScene[]};
@@ -40,12 +43,13 @@ async function invoke(name: string, body: Record<string, unknown>, signal: Abort
   return data;
 }
 
-export default function FilmBuilder() {
+export default function FilmBuilder({format="illustrated"}: {format?:StoryFormat}) {
   const { user } = useAuth();
-  return user ? <Builder key={user.id} storageKey={"genvast.film." + user.id}/> : null;
+  return user ? <Builder format={format} key={user.id+format} storageKey={"genvast.film." + user.id + (format==="illustrated"?"":"."+format)}/> : null;
 }
 
-function Builder({storageKey}: {storageKey: string}) {
+function Builder({storageKey,format}: {storageKey: string;format:StoryFormat}) {
+  const [selected,setSelected]=useState(0);
   const [draft, setDraft] = useState(() => load(storageKey));
   const [brief, setBrief] = useState(draft.brief);
   const [status, setStatus] = useState("");
@@ -64,7 +68,7 @@ function Builder({storageKey}: {storageKey: string}) {
     try {
       if (render) {
         setStatus("Rendering. Keep this tab visible for one minute.");
-        const blob = await renderFilm(draft.scenes, sec => setStatus("Rendering " + sec + " / 60 seconds. Keep this tab visible."), signal);
+        const blob = await renderFilm(draft.scenes, sec => setStatus("Rendering " + sec + " / 60 seconds. Keep this tab visible."), signal, format);
         setResult({url: URL.createObjectURL(blob), ext: blob.type.includes("mp4") ? "mp4" : "webm"});
         setStatus("Your film is ready.");
         return;
@@ -77,7 +81,7 @@ function Builder({storageKey}: {storageKey: string}) {
       }
       if (film.brief !== brief.trim() || !film.scenes.length) {
         setStatus("Planning six scenes…");
-        const response = await invoke("generate-script", {explainerBrief: brief.trim()}, signal);
+        const response = await invoke("generate-script", {explainerBrief: brief.trim(), ...(format==="illustrated"?{}:{format})}, signal);
         if (Array.isArray(response?.sections) && !response?.scenes) {
           throw new Error(plannerDeploymentError);
         }
@@ -91,9 +95,14 @@ function Builder({storageKey}: {storageKey: string}) {
       for (const [i, scene] of film.scenes.entries()) {
         if (!scene.image) {
           setStatus("Illustrating scene " + (i+1) + " of 6…");
-          const image = await invoke("generate-visual", {index:i, use_prompt_as_is:true, prompt:"Layered paper-cutout illustration. " + scene.prompt}, signal);
+          const image = await invoke("generate-visual", {index:i, use_prompt_as_is:true, aspect_ratio:"16:9", prompt:artDirections[format]+" "+scene.prompt}, signal);
           scene.image = z.string().url().parse(image.image_url);
           save();
+        }
+        if(format!=="whiteboard" && scene.endPrompt && !scene.endImage){
+          setStatus("Illustrating the ending of scene " + (i+1) + "…");
+          const end=await invoke("generate-visual",{index:i,use_prompt_as_is:true,aspect_ratio:"16:9",prompt:(artDirections[format]+" Same scene and cast. Opening: "+scene.prompt+" Ending: "+scene.endPrompt).slice(0,2500)},signal);
+          scene.endImage=z.string().url().parse(end.image_url); save();
         }
         for (let poll = 0; !scene.audio; poll++) {
           if (poll >= 12) throw new Error("Voice generation is still queued. Resume to check again.");
@@ -115,13 +124,18 @@ function Builder({storageKey}: {storageKey: string}) {
     } finally { task.current = undefined; setBusy(false); }
   }
 
-  const ready = draft.brief === brief.trim() && draft.scenes.length === 6 && draft.scenes.every(s => s.image && s.audio);
+  const ready = draft.brief === brief.trim() && draft.scenes.length === 6 && draft.scenes.every(s => s.image && s.audio && (format==="whiteboard" || !s.endPrompt || s.endImage));
   return <section className="workspace-card space-y-4">
     <h2 className="text-2xl font-semibold">Create a one-minute explainer</h2>
     <label htmlFor="film-brief">Video brief</label>
     <Textarea id="film-brief" placeholder="Explain how rental income becomes monthly cash flow…" value={brief} disabled={busy} maxLength={5000} onChange={e => setBrief(e.target.value)}/>
     <Button disabled={busy || !brief.trim()} onClick={() => run(ready)}>{ready ? "Render video" : draft.brief === brief.trim() && draft.scenes.length ? "Resume generation" : "Generate film"}</Button>
     <p role="status">{status}</p>
+    {!!draft.scenes.length && <section className="grid gap-4 rounded-xl border p-4 sm:grid-cols-2">
+      <div className="space-y-2"><label className="text-sm">Storyboard scene <select className="rounded border bg-background px-2 py-1" value={selected} onChange={e=>setSelected(Number(e.target.value))}>{draft.scenes.map((s,i)=><option key={i} value={i}>{i+1} · {s.label}</option>)}</select></label>
+      <p className="text-sm">{draft.scenes[selected].line}</p><p className="text-xs text-muted-foreground">{draft.scenes[selected].transitionText}</p></div>
+      <div className="flex gap-2">{[draft.scenes[selected].image,draft.scenes[selected].endImage].map((url,i)=>url && <figure key={i} className="min-w-0 flex-1"><img className="aspect-video w-full rounded-md object-cover" src={url} alt={i?"Ending illustration":"Scene illustration"}/><figcaption className="text-xs text-muted-foreground">{i?"End frame":format==="whiteboard"?"Drawing":"Start frame"}</figcaption></figure>)}</div>
+    </section>}
     {result && <><video src={result.url} controls playsInline className="w-full rounded-xl"/><a className="underline" href={result.url} download={"explainer."+result.ext}>Download video</a></>}
   </section>;
 }

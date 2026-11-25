@@ -34,8 +34,12 @@ export function filmServices(id:string,owner:string):FilmServices {
     async shot(shotId,values){const {error}=await admin.from("character_film_shots").update(values).eq("id",shotId).eq("film_id",id).eq("owner_id",owner);if(error)throw error;},
     async animate(shot){
       const {data:current}=await admin.from("character_animation_jobs").select().eq("request_id",shot.request_id).eq("owner_id",owner).maybeSingle();
-      const image=shot.frame_path??shot.image_path;
-      const body=current?{action:"status",id:current.id,owner_id:owner}:{action:"submit",request_id:shot.request_id,owner_id:owner,image_path:image,duration:shot.duration,prompt:`${shot.visual}\nPhysical action: ${shot.action}\n${(await loadFilm(id)).film.audio_mode==="native"?`Native scene sound; dialogue, if appropriate: ${shot.line}`:"Environmental sound only. No speech, no dialogue, no music; narration will be added separately."}`.slice(0,4000)};
+      const context=await loadFilm(id);
+      const previous=context.shots.find(s=>s.index===shot.index-1);
+      if(!current && shot.transition==="continue" && !shot.frame_path)throw new Error("Waiting for the preceding final frame");
+      const continuity=shot.transition==="continue" ? "Continue the movement from this exact frame. Previous action: "+(previous?.action??"")+". Preserve pose, props, direction and camera." : "Start at the composed opening frame.";
+      const image=shot.transition==="continue"?shot.frame_path:shot.image_path;
+      const body=current?{action:"status",id:current.id,owner_id:owner}:{action:"submit",request_id:shot.request_id,owner_id:owner,image_path:image,end_image_path:shot.board_end_path,duration:shot.duration,prompt:`${continuity}\n${shot.visual}\nPhysical action: ${shot.action}\n${context.film.audio_mode==="native"?`Native scene sound; dialogue, if appropriate: ${shot.line}`:"Environmental sound only. No speech, no dialogue, no music; narration will be added separately."}`.slice(0,4000)};
       const response=await fetch(`${backend}/functions/v1/character-animation`,{method:"POST",headers:{Authorization:`Bearer ${serviceKey}`,"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(100000)});
       const result=await response.json();if(!result.job)throw new Error(result.error??"Could not check the clip attempt");return result.job;
     },

@@ -1,50 +1,39 @@
 import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, Drama, Images } from "lucide-react";
-import { IllustratedStories } from "./IllustratedStories";
+import { ArrowLeft, ArrowUpRight, Drama, Images, PanelsTopLeft, PenTool } from "lucide-react";
 import CharacterStudio from "./CharacterStudio";
+import FilmBuilder from "./FilmBuilder";
+import { IllustratedStories } from "./IllustratedStories";
 
 const formats = [
-  ["character", "Character Animation", "Direct a sequence of full-body performances."],
-  ["illustrated", "Illustrated Stories", "Build a narrated film from illustrated scenes."],
-  ["whiteboard", "Whiteboard / Hand Reveal", "A drawing unfolds beneath a moving pen."],
-  ["comic", "Motion Comics", "Stage dialogue and action across comic panels."],
-  ["silhouette", "Silhouette Animation", "Tell a story with shadow and silhouette."],
-  ["cutout", "Paper Cutout", "Move layered paper characters and props."],
-  ["graphics", "Motion Graphics", "Explain an idea with animated shapes and symbols."],
-  ["data", "Data Animation", "Show quantities changing through animated charts."],
-  ["type", "Kinetic Typography", "Time expressive lettering to the spoken word."],
-  ["maps", "Maps and Timelines", "Trace journeys and events across space and time."],
-  ["technical", "Scientific and Technical", "Show how a system or mechanism works."],
-  ["parallax", "2.5D Parallax", "Create depth with independently moving layers."],
-  ["drawn", "Frame-by-Frame", "Build movement from a series of drawings."],
-  ["3d", "3D Animation", "Stage characters and cameras in three dimensions."],
-  ["stop", "Stop Motion", "Animate physical objects one frame at a time."],
-  ["rotoscope", "Rotoscoping", "Trace movement from filmed performances."],
-];
+  { id: "character", title: "Character Animation", description: "Direct full-body performances across a sequence of shots.", icon: Drama },
+  { id: "illustrated", title: "Illustrated Stories", description: "Tell a narrated story with original scene illustrations.", icon: Images },
+  { id: "whiteboard", title: "Whiteboard / Hand Reveal", description: "Follow a moving pen as each idea takes shape.", icon: PenTool },
+  { id: "comic", title: "Motion Comics", description: "Stage action and dialogue across illustrated panels.", icon: PanelsTopLeft },
+] as const;
+
 export default function FormatStudio() {
   const [params, setParams] = useSearchParams();
-  const format = params.get("format");
-  function select(value?: string) {
+  const format = formats.find(item => item.id === params.get("format"));
+  function select(id?: string) {
     const next = new URLSearchParams(params);
-    if (value) next.set("format", value); else next.delete("format");
+    if (id) next.set("format", id); else next.delete("format");
     setParams(next);
   }
-  if (format === "character" || format === "illustrated") return <section className="mx-auto max-w-6xl space-y-4">
-    <button className="inline-flex items-center gap-2 text-sm text-muted-foreground" onClick={() => select()}><ArrowLeft size={16}/> Explainer formats</button>
-    {format === "character" ? <CharacterStudio/> : <IllustratedStories/>}
-  </section>;
-  return <section className="mx-auto max-w-6xl space-y-5">
-    <header><h2 className="text-3xl font-bold">Explainer Studio</h2><p className="text-muted-foreground">Choose an animation format.</p></header>
-    <div className="grid gap-4 sm:grid-cols-2">{formats.slice(0,2).map(([id,title,description]) => {
-      const Icon = id === "character" ? Drama : Images;
-      return <button key={id} onClick={() => select(id)} className="workspace-card space-y-3 text-left hover:border-primary focus-visible:ring-2">
-        <div className="flex justify-between text-primary"><Icon/><ArrowUpRight/></div>
-        <h3 className="text-xl font-semibold">{title}</h3><p className="text-sm text-muted-foreground">{description}</p>
-      </button>;
-    })}</div>
-    <h3 className="text-lg font-semibold">Planned formats</h3>
-    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{formats.slice(2).map(([id,title,description]) =>
-      <li key={id} className="rounded-xl border bg-card p-4"><h4 className="font-semibold">{title}</h4><p className="mt-1 text-sm text-muted-foreground">{description}</p></li>
-    )}</ul>
+  return <section className="mx-auto w-full max-w-6xl space-y-5">
+    {format ? <>
+      <button className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => select()}><ArrowLeft size={16}/>Explainer formats</button>
+      {format.id === "character" ? <CharacterStudio/> : <>
+        <h2 className="text-3xl font-bold tracking-tight">{format.title}</h2>
+        <FilmBuilder key={format.id} format={format.id}/>
+        {format.id === "illustrated" && <details className="workspace-card"><summary className="cursor-pointer font-medium">Illustrated scene study</summary><IllustratedStories/></details>}
+      </>}
+    </> : <>
+      <header><h2 className="text-3xl font-bold tracking-tight">Explainer Studio</h2><p className="mt-1 text-muted-foreground">Choose how to tell your story.</p></header>
+      <div className="grid gap-4 sm:grid-cols-2">{formats.map(({id,title,description,icon:Icon}) =>
+        <button key={id} onClick={() => select(id)} className="workspace-card group text-left transition-colors hover:border-primary focus-visible:ring-2">
+          <span className="mb-5 flex items-center justify-between"><span className="rounded-xl bg-primary/10 p-3 text-primary"><Icon size={24}/></span><ArrowUpRight size={18} className="text-muted-foreground group-hover:text-primary"/></span>
+          <h3 className="text-xl font-semibold">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </button>)}</div>
+    </>}
   </section>;
 }
