@@ -1,5 +1,14 @@
 # Video playback update
 
+# PR #26 Preview verification
+
+- [x] Apply storyboard columns and deploy the four requested functions; both frame columns confirmed in the database.
+- [x] Verify all four signed-in Explainer formats without paid video generation; three six-scene planners now succeed with per-scene end poses and transitions, Character Animation restores the saved café draft.
+- [x] Verify paired Pruna frame payloads and continuation selection with regression tests; 97 app tests and two actual-frame utility tests pass. Café draft has six saved medium-quality storyboard images, no animation attempts, 30 seconds and US$0.15 estimated video cost.
+- [ ] Verify live extracted final-frame continuation; blocked until the updated RunPod gateway image is built by the existing GitHub workflow and loaded by the worker. The current live gateway rejects capscify/extract-frame. Do not start a paid film while this is unresolved.
+- [ ] Review café opening artwork; the generated opening board duplicated Daniel, so the current pictures are not approved for a paid render.
+- [x] Return the direct Preview link and leave paid rendering to the owner; no paid video render or public publish.
+
 # Character long-film workflow
 
 - [x] Add separate film setup, editable chapter/shot plan, native or uploaded chapter narration, and a prepared 30-second draft; preserve the single-clip tool. Character Animation now shows "Animate an image" above "Create a film"; the 30-second draft (3 shots, US$0.15, state draft) is planned and waiting, and no paid prediction was submitted.

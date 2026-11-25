@@ -72,6 +72,8 @@ export type Database = {
         Row: {
           action: string
           animation_id: string | null
+          board_end_path: string | null
+          board_start_path: string | null
           chapter: number
           duration: number
           error: string | null
@@ -93,6 +95,8 @@ export type Database = {
         Insert: {
           action: string
           animation_id?: string | null
+          board_end_path?: string | null
+          board_start_path?: string | null
           chapter: number
           duration: number
           error?: string | null
@@ -114,6 +118,8 @@ export type Database = {
         Update: {
           action?: string
           animation_id?: string | null
+          board_end_path?: string | null
+          board_start_path?: string | null
           chapter?: number
           duration?: number
           error?: string | null

@@ -474,6 +474,7 @@ def extract_last_frame(video_url, work_dir):
     cmd = [
         "ffmpeg", "-y",
         "-sseof", "-0.4", "-i", video_path,
+        "-vf", "reverse",
         "-vframes", "1", "-q:v", "3",
         frame_path,
     ]
@@ -481,6 +482,23 @@ def extract_last_frame(video_url, work_dir):
     if proc.returncode != 0 or not os.path.exists(frame_path):
         raise RuntimeError(f"ffmpeg last-frame extraction failed: {proc.stderr[-500:]}")
     return frame_path
+
+
+def capscify_extract_frame(params):
+    """Non-generation utility: return the saved video's actual final decoded frame."""
+    from urllib.parse import urlparse
+
+    video_url = params.get("video_url", "")
+    parsed = urlparse(video_url)
+    host = parsed.hostname or ""
+    allowed = (host.endswith(".supabase.co") or host == "replicate.delivery"
+               or host.endswith(".replicate.delivery") or host == "ipfs.filebase.io"
+               or host.endswith(".s3.filebase.com"))
+    if parsed.scheme != "https" or not allowed or parsed.username or parsed.password:
+        raise ValueError("Expected a saved HTTPS video URL")
+    with tempfile.TemporaryDirectory() as work_dir:
+        frame_path = extract_last_frame(video_url, work_dir)
+        return {"last_frame_url": upload_file_to_filebase(frame_path, "capscify/frames")}
 
 
 def capscify_generate_video(params):
@@ -893,6 +911,7 @@ ROUTES = {
     "storage/cleanup": storage_cleanup,
     "job/status": job_status,
     "capscify/generate-video": capscify_generate_video,
+    "capscify/extract-frame": capscify_extract_frame,
     "capscify/stitch-final": capscify_stitch_final,
 }
 

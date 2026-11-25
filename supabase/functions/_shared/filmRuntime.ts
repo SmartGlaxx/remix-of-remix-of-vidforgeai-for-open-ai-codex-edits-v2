@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { STITCH_ENDPOINT, stitchEnvelope } from "./stitchContract.ts";
 import type { Film, Shot, FilmServices } from "./filmEngine.ts";
 import type { Assembly } from "./filmWorkflow.ts";
+import { filmAnimationRequest } from "./filmAnimationRequest.ts";
 export const backend=Deno.env.get("SUPABASE_URL")??"";
 export const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
 export const admin=createClient(backend,serviceKey);
@@ -36,10 +37,7 @@ export function filmServices(id:string,owner:string):FilmServices {
       const {data:current}=await admin.from("character_animation_jobs").select().eq("request_id",shot.request_id).eq("owner_id",owner).maybeSingle();
       const context=await loadFilm(id);
       const previous=context.shots.find(s=>s.index===shot.index-1);
-      if(!current && shot.transition==="continue" && !shot.frame_path)throw new Error("Waiting for the preceding final frame");
-      const continuity=shot.transition==="continue" ? "Continue the movement from this exact frame. Previous action: "+(previous?.action??"")+". Preserve pose, props, direction and camera." : "Start at the composed opening frame.";
-      const image=shot.transition==="continue"?shot.frame_path:shot.image_path;
-      const body=current?{action:"status",id:current.id,owner_id:owner}:{action:"submit",request_id:shot.request_id,owner_id:owner,image_path:image,end_image_path:shot.board_end_path,duration:shot.duration,prompt:`${continuity}\n${shot.visual}\nPhysical action: ${shot.action}\n${context.film.audio_mode==="native"?`Native scene sound; dialogue, if appropriate: ${shot.line}`:"Environmental sound only. No speech, no dialogue, no music; narration will be added separately."}`.slice(0,4000)};
+      const body=current?{action:"status",id:current.id,owner_id:owner}:filmAnimationRequest(shot,owner,context.film.audio_mode,previous);
       const response=await fetch(`${backend}/functions/v1/character-animation`,{method:"POST",headers:{Authorization:`Bearer ${serviceKey}`,"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(100000)});
       const result=await response.json();if(!result.job)throw new Error(result.error??"Could not check the clip attempt");return result.job;
     },

@@ -11,3 +11,5 @@
 - Keep cartoon host artwork in studio-render/host.ts with the existing joint IDs and segment lengths, so visual redesigns preserve word-timed gestures and planted-foot motion.
 - Keep the replaceable Daniel character record, layered parts, pure named performance and room separate under studio-render/design; danielAnimation supplies identical seekable assets to local preview and the authorized daniel-proof sandbox format, with mouth motion derived from cached audio loudness.
 - Keep image-animation attempts in server-owned records with globally unique request IDs, private owner-scoped inputs, verified Replicate completion webhooks, and deterministic video paths; uncertain submissions never create another prediction and save retries only recover the existing output.
+- Build film submissions through the pure filmAnimationRequest helper; continuation uses extracted frame_path rather than a planned board, so pose continuity is testable without paid predictions.
+- Expose capscify/extract-frame as a non-generation gateway utility and reverse the decoded tail before selecting one frame; otherwise an earlier near-end pose is mistaken for the actual final frame.

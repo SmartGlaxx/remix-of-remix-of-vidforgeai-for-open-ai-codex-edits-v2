@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     if (!directing && !shortFilm && (typeof title !== "string" || !title.trim())) return json({ error: "Enter a title or topic and retry." }, 400);
     const userPrompt = directing ? `Direct these voiced storyboard beats as one coherent YouTube explainer chapter. Keep narration unchanged. Give each line its own specific opening composition (visual), editorial purpose and physical action including the transition and exact ending pose. Preserve cast, props and locations; use meaningful close-ups and intentional cuts. Use continue for uninterrupted movement, including chapter boundaries. Return JSON {shots:[{visual,purpose,action,transition:"cut" or "continue"}]} with exactly one entry per line, in order. Previous chapter ending: ${String(previousBeat??"Opening").slice(0,650)}. Lines: ${JSON.stringify(shotLines)}` : shortFilm ? `Write a one-minute illustrated explainer based on this creative brief:
 ${explainerBrief.slice(0, 5000)}
-Output JSON with a title and exactly six scenes. Each scene has a line (16–21 spoken words), a prompt (one concrete opening illustration; repeat exact identity, outfit, scene and palette for recurring characters), a label (a short takeaway, four words maximum), and a diagram with kind ("flow", "comparison", or "sequence") and exactly three short labels (up to 14 characters each) specific to the idea. Return diagram as {kind, labels}. Make each scene advance the explanation. Use examples from the brief accurately. Add an endPrompt for the final pose/composition and transitionText for exactly what changes. Start with a hook and close with a useful payoff. Style: ${format==="comic"?"graphic novel panels with dialogue":format==="whiteboard"?"sparse black line drawings of a single readable idea per scene":"illustrated narrative"}.` : `Title: """${String(title).slice(0, 300)}"""
+Output JSON with a title and exactly six scenes. EACH of the six scene objects MUST contain all these fields: line (16–21 spoken words), prompt (one concrete opening illustration; repeat exact identity, outfit, scene and palette for recurring characters), label (a short takeaway, four words maximum), endPrompt (a string describing THAT scene's final pose/composition), transitionText (a string describing exactly what changes WITHIN THAT scene), and diagram {kind: "flow" | "comparison" | "sequence", labels: [three short labels, up to 14 characters each]}. Do not place endPrompt or transitionText at the root: they belong INSIDE EVERY scene. Required shape: {"title":"...","scenes":[{"line":"...","prompt":"...","label":"...","endPrompt":"...","transitionText":"...","diagram":{"kind":"flow","labels":["...","...","..."]}}]} with exactly six complete entries. Make each scene advance the explanation. Use examples from the brief accurately. No words or letters in image prompts; labels are separate overlays. Start with a hook and close with a useful payoff. Style: ${format==="comic"?"graphic novel panels with dialogue":format==="whiteboard"?"sparse black line drawings of a single readable idea per scene":"illustrated narrative"}.` : `Title: """${String(title).slice(0, 300)}"""
 Tone: ${tone || "Engaging & Dramatic"}
 Duration: ${duration || "8-10 min"}
 Hook style: ${hook || "Shocking Fact"}
@@ -61,7 +61,7 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
       body: JSON.stringify({
         model: "deepseek-ai/DeepSeek-V4.1-Flash",
-        messages: [{ role: "system", content: shortFilm ? "Direct a clear illustrated short film. Return strict JSON with title and scenes, each containing line, prompt and label." : SYSTEM }, { role: "user", content: userPrompt }],
+        messages: [{ role: "system", content: shortFilm ? "Direct a clear illustrated short film. Return strict JSON with title and exactly six scenes. Every scene must contain line, prompt, label, endPrompt, transitionText and diagram. endPrompt and transitionText must be inside each scene, never at the root." : SYSTEM }, { role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
       }),
     });
@@ -85,6 +85,7 @@ Each section text should be a punchy paragraph (80-160 words). Adjust section ti
     if (shortFilm) {
       const result = explainerPlan.safeParse(parsed);
       if (!result.success) {
+        console.error("Explainer plan validation", JSON.stringify(result.error.issues.map(issue=>({path:issue.path,code:issue.code,message:issue.message}))));
         return json({ error: "The planner returned an incomplete scene list. Click Generate film to try again." }, 502);
       }
       return json(result.data);

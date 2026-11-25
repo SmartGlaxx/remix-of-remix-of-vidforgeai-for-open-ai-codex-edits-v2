@@ -22,6 +22,13 @@
       "when": 1795362638154,
       "tag": "0002_film_media_owner_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795648423738,
+      "tag": "0003_explainer_storyboard_frames",
+      "breakpoints": true
     }
   ]
 }
