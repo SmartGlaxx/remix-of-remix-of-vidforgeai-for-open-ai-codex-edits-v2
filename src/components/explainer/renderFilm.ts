@@ -21,7 +21,7 @@ async function loadImage(url: string) {
   return image;
 }
 
-export async function renderFilm(scenes: FilmScene[], progress: (seconds: number) => void, signal: AbortSignal, format: StoryFormat = "illustrated") {
+export async function renderFilm(scenes: FilmScene[], progress: (seconds: number) => void, signal: AbortSignal, format: StoryFormat = "illustrated", seconds = 60) {
   const mime = ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find(type =>
     typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type));
   if (!mime) throw new Error("Video export requires a browser with MediaRecorder support.");
@@ -43,7 +43,7 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
     }));
     signal.throwIfAborted();
     const total = assets.reduce((sum, asset) => sum + asset.audio.duration, 0);
-    const rate = total / 60;
+    const rate = total / seconds;
     if (!(rate > 0)) throw new Error("Narration has no playable duration.");
     const output = ctx.createMediaStreamDestination();
     stream = canvas.captureStream(30);
@@ -98,7 +98,7 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
       pen.font = "bold 52px sans-serif";
       pen.fillText(scenes[i].label, 64, 617 + 26*Math.max(0,1-p*8), 1152);
       pen.fillStyle = "#54dab4";
-      pen.fillRect(64, 655, 1152 * t / 60, 5);
+      pen.fillRect(64, 655, 1152 * t / seconds, 5);
     }
     draw(0);
     return await new Promise<Blob>((resolve, reject) => {
@@ -122,9 +122,9 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
       });
       function tick() {
         const t = ctx.currentTime - start;
-        draw(Math.min(60,t));
+        draw(Math.min(seconds,t));
         progress(Math.floor(t));
-        if (t >= 60) recorder.stop();
+        if (t >= seconds) recorder.stop();
         else frame = requestAnimationFrame(tick);
       }
       tick();
