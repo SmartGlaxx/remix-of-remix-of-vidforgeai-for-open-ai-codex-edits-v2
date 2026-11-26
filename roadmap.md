@@ -2,6 +2,8 @@
 
 # Automatic Character Animation direction
 
+- [x] Add bounded action replanning after two failed camera/location corrections; validate live planner against the actual opening, preserve durations/narration/cuts, retain private edit provenance and reviews, and pass 118 regression tests. Deploy character-film and character-film-worker.
+- [ ] Accepted seated café A → B → C proof: localized masked edits still change framing and lift too far; saved candidates share B exactly but both fail continuity review. Used 9/20 image calls; video remains unauthorized. Original attempts predate provenance receipts, so their actual provider input cannot be independently verified.
 - [x] Add durable one-click topic/script → observed scene direction → paired frames → continuity checks → Pruna → saved assembly; retain deliberate storyboard editing, three unwired format placeholders and the existing single-clip tool.
 - [x] Test scene anchors, shared boundary asset IDs, 2–10 second action timing, preparation allowance bounds, two overlapping jobs, restart safety, and rejection before paid submission. Full regression suite passed (113 tests), followed by the additional authoritative-boundary test.
 - [x] Deploy generate-script, character-film and character-film-worker; signed-in café preparation inspected the original image, saved three directed shots and frames, automatically attempted two bounded corrections, then STOPPED at failed continuity review without any animation attempts. Draft 260b6a70-3989-458e-af5b-b6f6ef65f95a; shot two end and shot three start use the identical asset. Desktop/phone checks show no page errors or mobile horizontal overflow; placeholders are disabled.

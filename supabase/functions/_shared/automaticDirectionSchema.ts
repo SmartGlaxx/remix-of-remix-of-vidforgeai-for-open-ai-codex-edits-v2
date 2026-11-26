@@ -17,7 +17,7 @@ export const directedChapterSchema = z.object({
   })).min(1).max(48),
 });
 // The strict wire schema intentionally has no optional fields or numeric/string bounds.
-export const frameCheckSchema = z.object({ identity: z.boolean(), pose: z.boolean(), camera: z.boolean(), lighting: z.boolean(), landmarks: z.boolean(), props: z.boolean(), feasible: z.boolean(), issues: z.array(z.string()), correction: z.string(), offending_frame: z.enum(["start", "end"]) });
+export const frameCheckSchema = z.object({ identity: z.boolean(), pose: z.boolean(), camera: z.boolean(), lighting: z.boolean(), landmarks: z.boolean(), props: z.boolean(), feasible: z.boolean(), issues: z.array(z.string()), correction: z.string(), offending_frame: z.enum(["start", "end"]), edit_region: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).nullable() });
 export const sceneObservationSchema = z.object({ scene: z.object({
   id: z.string(), layout: z.string(), materials: z.string(), lighting: z.string(),
   cast: z.array(z.object({ id: z.string(), appearance: z.string(), position: z.string(), facing: z.string() })),

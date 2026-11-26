@@ -3,6 +3,8 @@ import { advanceFilm, type Film, type Shot, type FilmServices } from "../../supa
 import { anchorDirectedChapter, automaticBudget, assertPreparedShot, checkPassed, reservePreparationCall, sharesBoundary, validateDirectedChapter, type SceneRecord, type EventDirection, type FrameCheck, type DirectedChapter } from "../../supabase/functions/_shared/automaticDirection";
 import { filmAnimationRequest } from "../../supabase/functions/_shared/filmAnimationRequest";
 import { prepareFilm, type PreparationServices } from "../../supabase/functions/_shared/filmPreparation";
+import { validateRecoveryPlan } from "../../supabase/functions/_shared/filmRecovery";
+import { maskPixels } from "../../supabase/functions/_shared/frameMask";
 
 const scene: SceneRecord = { id: "cafe", layout: "Window west of Daniel; table in front", materials: "Wooden table", lighting: "Window daylight from west", cast: [{ id: "daniel", appearance: "One Daniel, glasses and blue shirt", position: "At chair", facing: "Table north" }], props: [{ id: "teal-mug", position: "Table in front of right hand", owner: "daniel", hand: "right" }, { id: "notebook", position: "Table beside mug", owner: "daniel", hand: "left" }], landmarks: [{ id: "window", position: "west wall" }], reference_path: "owner/original.png" };
 const passed: FrameCheck = { identity: true, pose: true, camera: true, lighting: true, landmarks: true, props: true, feasible: true, issues: [], correction: "", offending_frame: "end" };
@@ -72,7 +74,7 @@ function preparationHarness(authorized = false) {
   const images = new Set(["owner/original.png"]);
   const draws: { source: string; target: string; prompt: string }[] = [];
   let plans = 0;
-  const services: PreparationServices = { load: async () => ({ film: structuredClone(film), shots: structuredClone(shots) }), film: async values => { Object.assign(film, values); }, shot: async (id, values) => { const shot = shots.find(shot => shot.id === id); if (shot) Object.assign(shot, values); }, script: async () => "Sit down Lift mug Take a sip", observe: async()=>scene, plan: async () => { plans++; return { scenes: [scene], shots: cafeShots() }; }, install: async (_chapter, plan: DirectedChapter) => { shots.splice(0, shots.length, ...plan.shots.map((shot, i) => ({ ...shot, id: "s" + i, request_id: "r" + i, index: i, chapter: 0, state: "pending", image_path: "owner/original.png" }))); }, draw: async (source, target, prompt) => { draws.push({ source, target, prompt }); images.add(target); }, exists: async path => images.has(path), review: async () => ({ ...passed }) };
+  const services: PreparationServices = { replan: async () => ({ scenes: [scene], shots: cafeShots() }), load: async () => ({ film: structuredClone(film), shots: structuredClone(shots) }), film: async values => { Object.assign(film, values); }, shot: async (id, values) => { const shot = shots.find(shot => shot.id === id); if (shot) Object.assign(shot, values); }, script: async () => "Sit down Lift mug Take a sip", observe: async()=>scene, plan: async () => { plans++; return { scenes: [scene], shots: cafeShots() }; }, install: async (_chapter, plan: DirectedChapter) => { shots.splice(0, shots.length, ...plan.shots.map((shot, i) => ({ ...shot, id: "s" + i, request_id: "r" + i, index: i, chapter: 0, state: "pending", image_path: "owner/original.png" }))); }, draw: async (source, target, prompt) => { draws.push({ source, target, prompt }); images.add(target); }, exists: async path => images.has(path), review: async () => ({ ...passed }) };
   return { film, shots, services, draws, plans: () => plans };
 }
 it("prepares the café across fresh worker ticks using original opening and attached-start edits, without video authorization", async () => {
@@ -102,4 +104,46 @@ it("never repeats an uncertain planner request after restart", async () => {
   await expect(prepareFilm(h.services)).rejects.toThrow("Interrupted response");
   await expect(prepareFilm({ ...h.services })).rejects.toThrow("No automatic duplicate request");
   expect(h.plans()).toBe(0);
+});
+it("replans after two camera/location corrections and preserves the opening", async () => {
+  const h = preparationHarness();
+  let calls = 0;
+  h.services.review = async () => ++calls <= 3 ? { ...passed, camera: false, landmarks: false, issues: ["Camera changed"], correction: "Keep camera" } : { ...passed };
+  let replans = 0;
+  h.services.replan = async () => { replans++; return { scenes: [scene], shots: cafeShots() }; };
+  for (let i = 0; i < 40 && h.film.state === "preparing"; i++) await prepareFilm(h.services);
+  expect(replans).toBe(1);
+  expect(h.film.state).toBe("draft");
+  expect(h.shots[0].board_start_path).toBe("owner/original.png");
+  expect(h.film.preparation?.evidence?.filter(e => !e.check.camera)).toHaveLength(3);
+  expect(h.shots[1].board_start_path).toBe(h.shots[0].board_end_path);
+});
+it("does not repeat an uncertain recovery request or exceed its image allowance", async () => {
+  const h = preparationHarness();
+  if (!h.film.preparation) throw new Error("Missing preparation");
+  h.film.preparation.phase = "replan"; h.film.preparation.recovery_shot = "s0";
+  h.shots[0].board_start_path = "owner/original.png";
+  h.shots[0].frame_check = { ...passed, camera: false, landmarks: false };
+  let requests = 0;
+  h.services.replan = async () => { requests++; throw new Error("Interrupted replan"); };
+  await expect(prepareFilm(h.services)).rejects.toThrow("Interrupted replan");
+  await expect(prepareFilm(h.services)).rejects.toThrow("No automatic duplicate request");
+  expect(requests).toBe(1);
+  expect(h.film.preparation.budget.image_calls).toBe(0);
+});
+it("rejects recovery that invents a seated opening or changes narration", () => {
+  const shots = cafeShots();
+  const plan = { scenes: [scene], shots: cafeShots() };
+  plan.shots[0].direction.start_pose = "already seated";
+  expect(() => validateRecoveryPlan(plan, shots)).toThrow("actual opening");
+  plan.shots[0].direction.start_pose = "standing";
+  plan.shots[1].line = "New narration";
+  expect(() => validateRecoveryPlan(plan, shots)).toThrow("narration");
+});
+it("masks only the moving hand/forearm/mug region and rejects whole-frame edits", () => {
+  const pixels = maskPixels(10, 10, { x: 0.2, y: 0.3, width: 0.3, height: 0.2 });
+  expect(pixels[(3 * 10 + 2) * 4 + 3]).toBe(0);
+  expect(pixels[3]).toBe(255);
+  expect(pixels[(5 * 10 + 2) * 4 + 3]).toBe(255);
+  expect(() => maskPixels(10, 10, { x: 0, y: 0, width: 1, height: 1 })).toThrow("localized");
 });

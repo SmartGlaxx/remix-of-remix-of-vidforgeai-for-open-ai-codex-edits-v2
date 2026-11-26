@@ -1,5 +1,6 @@
 import type { Film, Shot } from "./filmEngine.ts";
-import { anchorDirectedChapter, checkPassed, reservePreparationCall, sceneFramePrompt, validateDirectedChapter, type DirectedChapter, type FrameCheck, type Preparation, type SceneRecord } from "./automaticDirection.ts";
+import { needsActionReplan, validateRecoveryPlan } from "./filmRecovery.ts";
+import { anchorDirectedChapter, checkPassed, reservePreparationCall, sceneFramePrompt, validateDirectedChapter, type DirectedChapter, type FrameEditReceipt, type FrameCheck, type Preparation, type SceneRecord } from "./automaticDirection.ts";
 
 export interface PreparationServices {
   load(): Promise<{ film: Film; shots: Shot[] }>;
@@ -8,8 +9,9 @@ export interface PreparationServices {
   script(topic: string, seconds: number): Promise<string>;
   observe(path: string, script: string): Promise<SceneRecord>;
   plan(lines: string[], seconds: number, scenes: SceneRecord[], previous?: Shot): Promise<DirectedChapter>;
+  replan(shots: Shot[], scene: SceneRecord, check: FrameCheck): Promise<DirectedChapter>;
   install(chapter: number, plan: DirectedChapter): Promise<void>;
-  draw(source: string, target: string, prompt: string): Promise<void>;
+  draw(source: string, target: string, prompt: string, region?: FrameCheck["edit_region"]): Promise<void | FrameEditReceipt>;
   exists(path: string): Promise<boolean>;
   review(shot: Shot, scene: SceneRecord): Promise<FrameCheck>;
 }
@@ -20,7 +22,9 @@ export async function prepareFilm(s: PreparationServices) {
   const p = film.preparation;
   if (film.state !== "preparing" || !p) return;
   if (p.task) throw new Error("Preparation was interrupted during " + p.task + ". No automatic duplicate request was sent; saved work is retained.");
-  const persist = async (next: Preparation) => s.film({ preparation: next });
+  const edits = [...(p.edits ?? [])];
+  const persist = async (next: Preparation) => s.film({ preparation: { ...next, edits } });
+  const draw: PreparationServices["draw"] = async (...args) => { const receipt = await s.draw(...args); if (receipt) edits.push(receipt); return receipt; };
   if (p.phase === "script") {
     await persist({ ...p, task: "script" });
     const script = await s.script(p.topic ?? "", film.seconds);
@@ -53,13 +57,37 @@ export async function prepareFilm(s: PreparationServices) {
     await persist({ ...p, chapter: p.chapter + 1, task: null });
     return;
   }
+  if (p.phase === "replan") {
+    const failed = shots.find(shot => shot.id === p.recovery_shot);
+    const scene = film.scenes?.find(scene => scene.id === failed?.direction?.scene_id);
+    if (!failed?.frame_check || !scene || !failed.direction) throw new Error("Recovery context is missing.");
+    if ((p.replans?.[failed.id] ?? 0) >= 1) throw new Error("The bounded action replan is exhausted. Saved frames retained; no video submitted.");
+    // Reserve both operation intent and its allowance before any planner request.
+    const budget = reservePreparationCall(p.budget, "check");
+    const replans = { ...p.replans, [failed.id]: 1 };
+    await persist({ ...p, budget, replans, task: "replanning action " + failed.id });
+    const affected = shots.filter(shot => shot.chapter === failed.chapter && shot.index >= failed.index);
+    const plan = validateRecoveryPlan(await s.replan(affected, scene, failed.frame_check), affected);
+    for (const [index, event] of plan.shots.entries()) {
+      const shot = affected[index];
+      await s.shot(shot.id, { ...event, correction_attempts: 0, frame_check: null, board_end_path: undefined,
+        ...(index > 0 ? { board_start_path: undefined, image_path: film.image_path ?? "" } : {}) });
+    }
+    // Later chapters must be directed against the new authoritative ending state.
+    for (const next of shots.filter(shot => shot.chapter > failed.chapter)) {
+      if (next.animation_id || next.state !== "pending") throw new Error("Cannot replace started downstream work.");
+      await s.shot(next.id, { direction: undefined, board_start_path: undefined, board_end_path: undefined, frame_check: null });
+    }
+    await persist({ ...p, budget, replans, task: null, recovery_shot: undefined, phase: "direction", frame_revision: (p.frame_revision ?? 0) + 1, chapter: failed.chapter + 1 });
+    return;
+  }
   if (p.phase === "frames") {
     for (const scene of film.scenes ?? []) {
       if (!scene.reference_path) throw new Error("The location has no canonical reference path.");
       if (!(await s.exists(scene.reference_path))) {
         const budget = reservePreparationCall(p.budget, "image");
         await persist({ ...p, budget, task: "scene reference " + scene.id });
-        await s.draw(film.image_path ?? "", scene.reference_path, "Establish this ONE scene and its cast in a single reference view. " + JSON.stringify(scene));
+        await draw(film.image_path ?? "", scene.reference_path, "Establish this ONE scene and its cast in a single reference view. " + JSON.stringify(scene));
         await persist({ ...p, budget, task: null });
         return;
       }
@@ -72,23 +100,23 @@ export async function prepareFilm(s: PreparationServices) {
       if (!shot.board_start_path) {
         const shared = shot.transition === "continue" && shot.direction.continuity === "shared";
         if (shared && !previous?.board_end_path) throw new Error("The shared ending frame must be saved first.");
-        const target = shared ? previous?.board_end_path : shot.index === 0 ? film.image_path : `${film.owner_id}/boards/${shot.id}-auto-start-${shot.correction_attempts ?? 0}.png`;
+        const target = shared ? previous?.board_end_path : shot.index === 0 ? film.image_path : `${film.owner_id}/boards/${shot.id}-auto-start-${shot.correction_attempts ?? 0}-r${p.frame_revision ?? 0}.png`;
         if (!target) throw new Error("Upload a character reference first.");
         if (!shared && shot.index !== 0 && !(await s.exists(target))) {
           const budget = reservePreparationCall(p.budget, "image");
           await persist({ ...p, budget, task: "opening frame " + shot.id });
-          await s.draw(scene.reference_path ?? film.image_path ?? "", target, sceneFramePrompt(scene, shot.direction, "start"));
+          await draw(scene.reference_path ?? film.image_path ?? "", target, sceneFramePrompt(scene, shot.direction, "start"));
           await persist({ ...p, budget, task: null });
         }
         await s.shot(shot.id, { image_path: target, board_start_path: target });
         return;
       }
       if (!shot.board_end_path) {
-        const target = `${film.owner_id}/boards/${shot.id}-auto-end-${shot.correction_attempts ?? 0}.png`;
+        const target = `${film.owner_id}/boards/${shot.id}-auto-end-${shot.correction_attempts ?? 0}-r${p.frame_revision ?? 0}.png`;
         if (!(await s.exists(target))) {
           const budget = reservePreparationCall(p.budget, "image");
           await persist({ ...p, budget, task: "ending frame " + shot.id });
-          await s.draw(shot.board_start_path, target, sceneFramePrompt(scene, shot.direction, "end"));
+          await draw(shot.board_start_path, target, sceneFramePrompt(scene, shot.direction, "end"));
           await persist({ ...p, budget, task: null });
         }
         await s.shot(shot.id, { board_end_path: target });
@@ -100,30 +128,36 @@ export async function prepareFilm(s: PreparationServices) {
   }
   if (p.phase === "review") {
     const shot = shots.find(shot => !checkPassed(shot.frame_check));
-    if (!shot) { await s.film({ state: p.authorized ? "running" : "draft", preparation: { ...p, phase: "ready" }, error: undefined }); return; }
+    if (!shot) { await s.film({ state: p.authorized ? "running" : "draft", preparation: { ...p, edits, phase: "ready" }, error: undefined }); return; }
     const scene = film.scenes?.find(scene => scene.id === shot.direction?.scene_id);
     if (!scene || !shot.direction) throw new Error("Cannot review a shot without its scene and event.");
     const budget = reservePreparationCall(p.budget, "check");
     await persist({ ...p, budget, task: "continuity review " + shot.id });
     const check = await s.review(shot, scene);
     await s.shot(shot.id, { frame_check: check });
-    await persist({ ...p, budget, task: null });
+    const evidence = [...(p.evidence ?? []), { shot_id: shot.id, start: shot.board_start_path ?? "", end: shot.board_end_path ?? "", attempt: shot.correction_attempts ?? 0, check }];
+    const reviewed = { ...p, budget, evidence, task: null };
+    await persist(reviewed);
     if (!checkPassed(check)) {
+      if (needsActionReplan(shot, check) && !(p.replans?.[shot.id])) {
+        await persist({ ...reviewed, phase: "replan", recovery_shot: shot.id });
+        return;
+      }
       if ((shot.correction_attempts ?? 0) >= 2 || check.offending_frame === "start" && (shot.index === 0 || shot.transition === "continue")) throw new Error("Continuity needs attention: " + check.issues.join("; ") + ". No video was submitted.");
       const correction = (shot.correction_attempts ?? 0) + 1;
       const side = check.offending_frame;
-      const target = `${film.owner_id}/boards/${shot.id}-corrected-${side}-${correction}.png`;
+      const target = `${film.owner_id}/boards/${shot.id}-corrected-${side}-${correction}-r${p.frame_revision ?? 0}.png`;
       const correctedBudget = reservePreparationCall(budget, "image");
-      await persist({ ...p, budget: correctedBudget, task: "correcting " + shot.id });
-      await s.draw(side === "end" ? shot.board_start_path ?? "" : scene.reference_path ?? film.image_path ?? "", target, sceneFramePrompt(scene, shot.direction, side) + "\nCorrect these issues: " + check.correction);
+      await persist({ ...reviewed, budget: correctedBudget, task: "correcting " + shot.id });
+      await draw(side === "end" ? shot.board_start_path ?? "" : scene.reference_path ?? film.image_path ?? "", target, sceneFramePrompt(scene, shot.direction, side) + "\nCorrect these issues: " + check.correction, side === "end" ? check.edit_region : null);
       await s.shot(shot.id, { correction_attempts: correction, frame_check: null, ...(side === "end" ? { board_end_path: target } : { board_start_path: target, image_path: target, board_end_path: undefined }) });
       // A shared boundary is ONE asset, including after repair; downstream endings must be redrawn.
       for (const next of shots.filter(next => next.index > shot.index && next.transition === "continue")) {
         const preceding = shots.find(prev => prev.index === next.index - 1);
         if (next.direction?.continuity !== "shared" || next.board_start_path !== preceding?.board_end_path) break;
-        await s.shot(next.id, { board_start_path: next.index === shot.index + 1 ? target : undefined, board_end_path: undefined, frame_check: null });
+        await s.shot(next.id, { board_start_path: next.index === shot.index + 1 ? target : undefined, image_path: next.index === shot.index + 1 ? target : film.image_path ?? "", board_end_path: undefined, frame_check: null });
       }
-      await persist({ ...p, phase: "frames", budget: correctedBudget, task: null });
+      await persist({ ...reviewed, phase: "frames", budget: correctedBudget, task: null });
     }
   }
 }

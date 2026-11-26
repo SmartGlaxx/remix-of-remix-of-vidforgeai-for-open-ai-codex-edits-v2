@@ -63,7 +63,7 @@ async function present(id: string) {
   const real = chapters.filter(a => a.key !== "final");
   const current = chapters.find(a => a.state !== "ready");
   const saved = shots.filter(s => s.state === "ready" && s.video_path).length;
-  const phase = film.state === "draft" ? (film.preparation?.phase === "ready" ? "Ready to render" : "Draft") : film.state === "preparing" ? ({script:"Writing narration",scene:"Inspecting the reference scene",direction:"Directing scenes",frames:"Preparing paired frames",review:"Checking continuity",ready:"Ready to render"}[film.preparation?.phase ?? "direction"]) : film.state === "ready" ? "Finished" : film.state === "assembling" ? (current?.key === "final" ? "Saving final film" : "Assembling chapters") : "Generating clips";
+  const phase = film.state === "draft" ? (film.preparation?.phase === "ready" ? "Ready to render" : "Draft") : film.state === "preparing" ? ({script:"Writing narration",scene:"Inspecting the reference scene",direction:"Directing scenes",frames:"Preparing paired frames",review:"Checking continuity",replan:"Replanning the action",ready:"Ready to render"}[film.preparation?.phase ?? "direction"]) : film.state === "ready" ? "Finished" : film.state === "assembling" ? (current?.key === "final" ? "Saving final film" : "Assembling chapters") : "Generating clips";
   const final_video_url = film.final_video_path ? await signed("film-media", film.final_video_path).catch(() => null) : null;
   return {
     film: { ...film, estimated_usd: Number(film.estimated_usd), final_video_url, mismatch: narrationMismatch(film.script, film.seconds), spoken_seconds: Math.round(narrationSeconds(film.script)) },
@@ -208,10 +208,7 @@ Deno.serve(async request => {
     if (body.action === "resume") {
       if (!["stopped", "attention", "billing_paused"].includes(film.state)) return json({ error: "This film does not need resuming." }, 409);
       if(film.preparation?.task)return json({error:"An interrupted preparation request needs reconciliation before resuming. No duplicate request will be sent."},409);
-      if(film.preparation&&film.preparation.phase!=="ready"){
-        const {shots}=await loadFilm(film.id);
-        if(shots.some(shot=>(shot.correction_attempts??0)>=2&&shot.frame_check&&Object.values(shot.frame_check).includes(false)))return json({error:"Automatic frame corrections are exhausted. Saved frames remain available for review; no additional charge was authorized."},409);
-      }
+      // Recovery stays inside the original allowance and cannot authorize video.
       const { error } = await admin.from("character_films").update({ state: film.preparation&&film.preparation.phase!=="ready"?"preparing":"running", error: null, updated_at: new Date().toISOString() }).eq("id", film.id).eq("owner_id", owner);
       if (error) throw error;
       kick(film.id);

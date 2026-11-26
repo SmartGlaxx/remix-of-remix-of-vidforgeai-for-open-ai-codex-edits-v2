@@ -16,3 +16,4 @@
 - Character film links may select an owner-scoped saved film with the film query parameter; direct review links must not silently open a newer draft.
 - Both bulk and per-shot storyboard generation use drawFrame's single-moment, single-character constraints to prevent before/after collages from becoming animation inputs.
 - Keep automatic film preparation as bounded server-owned ticks with saved scene/event records, operation intent, request allowances and frame-review results; preserve uncertain requests without automatic resubmission and authorize video only after every pair passes review.
+- After two camera/location corrections, replan unstarted actions once against the actual opening within the existing allowance; save edit provenance and review history, use localized PNG masks when available, and retain exact shared-boundary assets so recovery cannot invent a new opening or duplicate charges.
