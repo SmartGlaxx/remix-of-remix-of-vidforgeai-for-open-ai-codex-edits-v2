@@ -51,3 +51,18 @@ it("blocks planning when the brief is empty", () => {
   expect(screen.getByRole("button", { name: "Generate film" })).toBeDisabled();
   expect(invoke).not.toHaveBeenCalled();
 });
+it("uses one click to plan a whiteboard and export the six narrated scenes", async () => {
+  const { renderFilm } = await import("./renderFilm");
+  Object.defineProperty(URL,"createObjectURL",{configurable:true,value:()=>"blob:film"});
+  Object.defineProperty(URL,"revokeObjectURL",{configurable:true,value:()=>{}});
+  const scenes = Array.from({length:6}, (_, i) => ({line:"Line "+i, prompt:"Diagram "+i, label:"Step "+i}));
+  invoke.mockImplementation(async name => ({data:name === "generate-script" ? {scenes}
+    : name === "generate-visual" ? {image_url:"https://example.com/chart.png"}
+    : {audio_url:"https://example.com/audio.mp3"}}));
+  render(<FilmBuilder format="auto"/>);
+  fireEvent.change(screen.getByLabelText("What should your video explain?"), {target:{value:"Compound interest"}});
+  fireEvent.click(screen.getByRole("button",{name:"Create explainer"}));
+  await waitFor(() => expect(renderFilm).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({audio:"https://example.com/audio.mp3"})]),expect.any(Function),expect.any(AbortSignal),"whiteboard"));
+  expect(await screen.findByText("Download video")).toBeVisible();
+});
+vi.mock("./renderFilm", () => ({renderFilm:vi.fn(async () => new Blob(["video"],{type:"video/mp4"}))}));
