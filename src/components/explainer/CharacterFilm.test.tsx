@@ -2,12 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import CharacterFilm from "./CharacterFilm";
 
+const upload = vi.hoisted(() => vi.fn());
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     functions: { invoke },
-    storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: "https://illustration.test/reference.png" } }) }) },
+    storage: { from: () => ({ upload, createSignedUrl: async () => ({ data: { signedUrl: "https://illustration.test/reference.png" } }) }) },
   },
 }));
 
@@ -81,4 +82,22 @@ it("navigates a 180-shot film without rendering 180 shot buttons", async () => {
   fireEvent.click(screen.getByRole("button",{name:"Next shot"}));
   expect(screen.getByRole("heading",{name:"Shot 170"})).toBeInTheDocument();
   expect(screen.queryAllByRole("button",{name:/^Shot \d/})).toHaveLength(0);
+});
+
+it("creates from a topic with the default host and no user upload", async () => {
+  invoke.mockResolvedValue({ data: { ...view, film: { ...view.film, image_path: "owner/awaiting-illustration.png" } } });
+  upload.mockResolvedValue({ error: null });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Blob(["template"]))));
+  try {
+    render(<CharacterFilm />);
+    const create = await screen.findByRole("button", { name: /Create video/ });
+    await waitFor(() => expect(create).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Topic"), { target: { value: "How interest grows" } });
+    fireEvent.click(create);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("character-film", { body: expect.objectContaining({
+      action: "create", topic: "How interest grows", image_path: "owner/template-studio-v1.webp"
+    }) }));
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

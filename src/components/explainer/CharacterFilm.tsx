@@ -16,6 +16,11 @@ type Chapter = { key: string; indices: number[]; state: string; error?: string }
 type Film = { preparation?:Preparation;scenes?:SceneRecord[]; id: string; state: string; seconds: number; script: string; audio_mode: string; image_path: string; estimated_usd: number; final_video_url: string | null; error: string | null; mismatch: boolean; spoken_seconds: number; narration: { chapter: number; path: string; seconds: number }[]; chapters: Chapter[] };
 type View = { film: Film; shots: Shot[]; progress: { saved: number; total: number; chapter: number; chapters: number; phase: string } };
 
+const hosts = [
+  { id: "studio", name: "Studio presenter", image: "/explainer/studio-host.webp" },
+  { id: "ledger", name: "Finance storyteller", image: "/explainer/scene-0.webp" },
+] as const;
+
 const presets = [["30 seconds", 30], ["1 minute", 60], ["3 minutes", 180], ["5 minutes", 300], ["10 minutes", 600], ["15 minutes", 900], ["30 minutes", 1800]] as const;
 const shotLabels: Record<string, string> = { pending: "Waiting", submitting: "Submitting", checking: "Checking", queued: "Queued", generating: "Generating", saving: "Saving", ready: "Saved", failed: "Failed", save_failed: "Save failed" };
 
@@ -37,7 +42,9 @@ export default function CharacterFilm() {
 
 function Builder({ owner }: { owner: string }) {
   const [view, setView] = useState<View>();
-  const [image, setImage] = useState("");
+  const preference = `film-host-${owner}`;
+  const [host, setHost] = useState(() => hosts.find(h => h.id === localStorage.getItem(preference)) ?? hosts[0]);
+  const [image, setImage] = useState<string>(host.image);
   const [path, setPath] = useState("");
   const [script, setScript] = useState("");
   const [topic, setTopic] = useState("");
@@ -97,6 +104,17 @@ function Builder({ owner }: { owner: string }) {
     finally { setBusy(""); }
   }
 
+  async function referencePath() {
+    if (path) return path;
+    const response = await fetch(host.image);
+    if (!response.ok) throw new Error("The selected host could not be loaded.");
+    const destination = `${owner}/template-${host.id}-v1.webp`;
+    const { error } = await supabase.storage.from("character-inputs").upload(destination, await response.blob(), { contentType: "image/webp", upsert: false });
+    if (error && String(error.statusCode) !== "409" && error.name !== "Duplicate" && !/already exists/i.test(error.message)) throw error;
+    setPath(destination);
+    return destination;
+  }
+
   async function writeScript() {
     if (!topic.trim()) return;
     setBusy("Writing"); setError("");
@@ -113,7 +131,7 @@ function Builder({ owner }: { owner: string }) {
   async function plan() {
     setBusy("Planning"); setError("");
     try {
-      const next = await call({ action: "plan", request_id: crypto.randomUUID(), script: script.trim(), seconds, image_path: path, audio_mode: audioMode });
+      const next = await call({ action: "plan", request_id: crypto.randomUUID(), script: script.trim(), seconds, image_path: await referencePath(), audio_mode: audioMode });
       setView(next); setSelected(0);
       let previousBeat="";
       for(const chapter of Array.from(new Set(next.shots.map(item=>item.chapter)))){
@@ -160,8 +178,8 @@ function Builder({ owner }: { owner: string }) {
     if(view?.film.preparation?.phase==="ready" && view.film.script===script.trim() && view.film.image_path===path && view.film.seconds===seconds && view.film.audio_mode===audioMode && !topic.trim() && !prepareOnly){await generate();return;}
     setBusy(prepareOnly?"Preparing draft":"Creating video");setError("");
     const key=`film-create-${owner}`;
-    const input={action:"create",script:script.trim(),topic:topic.trim(),seconds,image_path:path,audio_mode:audioMode,prepare_only:prepareOnly};
-    try{
+    try {
+      const input={action:"create",script:script.trim(),topic:topic.trim(),seconds,image_path:await referencePath(),audio_mode:audioMode,prepare_only:prepareOnly};
       const pending=localStorage.getItem(key);
       const previous=pending?JSON.parse(pending):null;
       const body=previous&&Object.entries(input).every(([field,value])=>previous[field]===value)?previous:{...input,request_id:crypto.randomUUID()};
@@ -230,15 +248,6 @@ function Builder({ owner }: { owner: string }) {
       <div className="min-w-0 space-y-4 rounded-xl border bg-card p-4">
         <details open className="group"><summary className="cursor-pointer text-sm font-semibold">Film setup</summary><div className="mt-4 space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="film-image">Character illustration</Label>
-          <input ref={fileInput} id="film-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={e => void upload(e.target.files?.[0])} />
-          <div className="flex min-h-48 items-center justify-center rounded-lg border border-border bg-muted">
-            {image ? <img src={image} alt="Character illustration" className="max-h-72 w-full object-contain" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
-          </div>
-          <Button variant="outline" size="sm" disabled={!!busy || running} onClick={() => fileInput.current?.click()}><Upload className="mr-2 h-4 w-4" />{image ? "Replace illustration" : "Upload illustration"}</Button>
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="film-topic">Topic</Label>
           <div className="flex gap-2">
             <Input id="film-topic" value={topic} maxLength={300} disabled={!!busy || running} placeholder="Why saving $5 a day changes a year" onChange={e => {setTopic(e.target.value);if(e.target.value.trim())setScript("");}} />
@@ -246,6 +255,26 @@ function Builder({ owner }: { owner: string }) {
           </div>
         </div>
 
+        <details><summary className="cursor-pointer text-sm">Customize host</summary>        <div className="space-y-2">
+          <label htmlFor="host-template">Host template</label>
+          <select id="host-template" className="block w-full rounded border bg-background p-2" disabled={!!busy || running}
+            value={path && !hosts.some(h => path === `${owner}/template-${h.id}-v1.webp`) ? "custom" : hosts.find(h => path.endsWith("/template-"+h.id+"-v1.webp"))?.id ?? host.id}
+            onChange={event => {
+              const chosen = hosts.find(h => h.id === event.target.value);
+              if (!chosen) return;
+              setHost(chosen); setPath(""); setImage(chosen.image); localStorage.setItem(preference, chosen.id);
+            }}>
+            {path && <option hidden value="custom">Film reference</option>}
+            {hosts.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+          </select>
+          <input ref={fileInput} id="film-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={e => void upload(e.target.files?.[0])} />
+          <div className="flex min-h-48 items-center justify-center rounded-lg border border-border bg-muted">
+            {image ? <img src={image} alt="Character illustration" className="max-h-72 w-full object-contain" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
+          </div>
+          <Button variant="outline" size="sm" disabled={!!busy || running} onClick={() => fileInput.current?.click()}><Upload className="mr-2 h-4 w-4" />{image ? "Replace illustration" : "Upload illustration"}</Button>
+        </div>
+
+        </details>
         <div className="space-y-2">
           <Label htmlFor="film-script">Script · {script.trim().split(/\s+/).filter(Boolean).length} words</Label>
           <Textarea id="film-script" rows={6} maxLength={20000} value={script} disabled={!!busy || running} onChange={e => {setScript(e.target.value);if(e.target.value.trim())setTopic("");}} placeholder="Paste a finished script, or write one from a topic." />
@@ -282,7 +311,7 @@ function Builder({ owner }: { owner: string }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button disabled={!!busy || running || (!script.trim()&&!topic.trim()) || !path || !plan_ || (!!view?.film.preparation && view.film.state==="attention" && view.film.script===script.trim()) || (view?.film.state==="ready"&&view.film.script===script.trim())} onClick={()=>createVideo()}><Play className="mr-2 h-4 w-4" />Create video · {seconds}s · {prepared?"":"up to "}US${createEstimate.toFixed(2)}</Button>
+          <Button disabled={!!busy || running || (!script.trim()&&!topic.trim()) || !plan_ || (!!view?.film.preparation && view.film.state==="attention" && view.film.script===script.trim()) || (view?.film.state==="ready"&&view.film.script===script.trim())} onClick={()=>createVideo()}><Play className="mr-2 h-4 w-4" />Create video · {seconds}s · {prepared?"":"up to "}US${createEstimate.toFixed(2)}</Button>
           {running && view && <Button variant="outline" onClick={() => act({ action: "stop", id: view.film.id })}><Pause className="mr-2 h-4 w-4" />Stop</Button>}
           {view && ["stopped", "attention", "billing_paused"].includes(view.film.state) && <Button variant="outline" onClick={() => act({ action: "resume", id: view.film.id })}><Play className="mr-2 h-4 w-4" />Resume</Button>}
         </div>
@@ -308,8 +337,8 @@ function Builder({ owner }: { owner: string }) {
 
         <details className="space-y-4"><summary className="cursor-pointer font-semibold">Director details &amp; storyboard</summary>
         <div className="flex flex-wrap gap-2 pt-3">
-          <Button variant="outline" disabled={!!busy||running||(!script.trim()&&!topic.trim())||!path||!plan_} onClick={()=>createVideo(true)}><Wand2 className="mr-2 h-4 w-4"/>Prepare draft only</Button>
-          <Button variant="outline" disabled={!!busy||running||!script.trim()||!path||!plan_} onClick={plan}><Film className="mr-2 h-4 w-4"/>Plan film manually</Button>
+          <Button variant="outline" disabled={!!busy||running||(!script.trim()&&!topic.trim())||!plan_} onClick={()=>createVideo(true)}><Wand2 className="mr-2 h-4 w-4"/>Prepare draft only</Button>
+          <Button variant="outline" disabled={!!busy||running||!script.trim()||!plan_} onClick={plan}><Film className="mr-2 h-4 w-4"/>Plan film manually</Button>
           {draft&&view&&<Button variant="outline" disabled={!!busy} onClick={buildBoards}>Illustrate storyboard</Button>}
           {draft&&view&&!view.film.preparation&&<Button variant="outline" disabled={!!busy||!plan_} onClick={generate}><Play className="mr-2 h-4 w-4"/>Generate film · US${estimate.toFixed(2)}</Button>}
         </div>
