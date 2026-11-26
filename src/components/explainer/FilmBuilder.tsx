@@ -43,15 +43,24 @@ async function invoke(name: string, body: Record<string, unknown>, signal: Abort
   return data;
 }
 
-export default function FilmBuilder({format="illustrated"}: {format?:StoryFormat}) {
+type FormatChoice = StoryFormat | "auto";
+
+function selectFormat(topic: string): StoryFormat {
+  return /\b(chart|compare|comparison|compound|interest|percent|percentage|budget|formula|calculate|calculation|step.by.step|diagram|cycle)\b/i.test(topic)
+    ? "whiteboard" : "illustrated";
+}
+
+export default function FilmBuilder({format="illustrated"}: {format?:FormatChoice}) {
   const { user } = useAuth();
   return user ? <Builder format={format} key={user.id+format} storageKey={"genvast.film." + user.id + (format==="illustrated"?"":"."+format)}/> : null;
 }
 
-function Builder({storageKey,format}: {storageKey: string;format:StoryFormat}) {
+function Builder({storageKey,format: choice}: {storageKey: string;format:FormatChoice}) {
   const [selected,setSelected]=useState(0);
   const [draft, setDraft] = useState(() => load(storageKey));
   const [brief, setBrief] = useState(draft.brief);
+  const automatic = choice === "auto";
+  const format = automatic ? selectFormat(brief) : choice;
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{url: string; ext: string}>();
@@ -66,11 +75,15 @@ function Builder({storageKey,format}: {storageKey: string;format:StoryFormat}) {
     const signal = controller.signal;
     setBusy(true);
     try {
-      if (render) {
+      async function finish(scenes: FilmScene[]) {
         setStatus("Rendering. Keep this tab visible for one minute.");
-        const blob = await renderFilm(draft.scenes, sec => setStatus("Rendering " + sec + " / 60 seconds. Keep this tab visible."), signal, format);
+        const blob = await renderFilm(scenes, sec => setStatus("Rendering " + sec + " / 60 seconds. Keep this tab visible."), signal, format);
+        signal.throwIfAborted();
         setResult({url: URL.createObjectURL(blob), ext: blob.type.includes("mp4") ? "mp4" : "webm"});
         setStatus("Your film is ready.");
+      }
+      if (render) {
+        await finish(draft.scenes);
         return;
       }
       const film = structuredClone(draft);
@@ -118,7 +131,8 @@ function Builder({storageKey,format}: {storageKey: string;format:StoryFormat}) {
           save();
         }
       }
-      setStatus("All six scenes are ready to render.");
+      if (automatic) await finish(film.scenes);
+      else setStatus("All six scenes are ready to render.");
     } catch (error) {
       if (!signal.aborted) setStatus(error instanceof Error ? error.message : "Generation failed. Try again.");
     } finally { task.current = undefined; setBusy(false); }
@@ -127,9 +141,10 @@ function Builder({storageKey,format}: {storageKey: string;format:StoryFormat}) {
   const ready = draft.brief === brief.trim() && draft.scenes.length === 6 && draft.scenes.every(s => s.image && s.audio && (format==="whiteboard" || !s.endPrompt || s.endImage));
   return <section className="workspace-card space-y-4">
     <h2 className="text-2xl font-semibold">Create a one-minute explainer</h2>
-    <label htmlFor="film-brief">Video brief</label>
+    <label htmlFor="film-brief">{automatic ? "What should your video explain?" : "Video brief"}</label>
     <Textarea id="film-brief" placeholder="Explain how rental income becomes monthly cash flow…" value={brief} disabled={busy} maxLength={5000} onChange={e => setBrief(e.target.value)}/>
-    <Button disabled={busy || !brief.trim()} onClick={() => run(ready)}>{ready ? "Render video" : draft.brief === brief.trim() && draft.scenes.length ? "Resume generation" : "Generate film"}</Button>
+    {automatic && <p className="text-sm text-muted-foreground">{brief.trim() ? (format === "whiteboard" ? "Whiteboard / Hand Reveal" : "Illustrated Stories") + " · " : ""}1 minute · 6 narrated scenes. Generation uses your connected services. Keep this tab open through export.</p>}
+    <Button disabled={busy || !brief.trim()} onClick={() => run(ready)}>{automatic ? (busy ? "Creating explainer…" : ready ? "Export again" : draft.brief === brief.trim() && draft.scenes.length ? "Resume explainer" : "Create explainer") : ready ? "Render video" : draft.brief === brief.trim() && draft.scenes.length ? "Resume generation" : "Generate film"}</Button>
     <p role="status">{status}</p>
     {!!draft.scenes.length && <section className="grid gap-4 rounded-xl border p-4 sm:grid-cols-2">
       <div className="space-y-2"><label className="text-sm">Storyboard scene <select className="rounded border bg-background px-2 py-1" value={selected} onChange={e=>setSelected(Number(e.target.value))}>{draft.scenes.map((s,i)=><option key={i} value={i}>{i+1} · {s.label}</option>)}</select></label>

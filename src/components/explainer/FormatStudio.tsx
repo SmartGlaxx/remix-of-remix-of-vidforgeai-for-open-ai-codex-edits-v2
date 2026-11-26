@@ -30,12 +30,14 @@ export default function FormatStudio() {
         <p className="text-muted-foreground">Coming soon</p>
       </>}
     </> : <>
-      <header><h2 className="text-3xl font-bold tracking-tight">Explainer Studio</h2><p className="mt-1 text-muted-foreground">Choose how to tell your story.</p></header>
-      <div className="grid gap-4 sm:grid-cols-2">{formats.map(({id,title,description,icon:Icon}) =>
+      <header><h2 className="text-3xl font-bold tracking-tight">Explainer Studio</h2></header>
+      <FilmBuilder format="auto"/>
+      <details><summary className="cursor-pointer font-medium">Choose a format manually</summary>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">{formats.map(({id,title,description,icon:Icon}) =>
         <Button variant="outline" key={id} disabled={id==="comic"} onClick={() => select(id)} className="group block h-auto whitespace-normal rounded-lg p-5 text-left">
           <span className="mb-5 flex items-center justify-between"><span className="rounded-lg bg-primary/10 p-3 text-primary"><Icon size={24}/></span>{id!=="comic"?<ArrowUpRight size={18} className="text-muted-foreground group-hover:text-primary"/>:<span className="text-xs text-muted-foreground">Coming soon</span>}</span>
           <h3 className="text-xl font-semibold">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </Button>)}</div>
+        </Button>)}</div></details>
     </>}
   </section>;
 }
