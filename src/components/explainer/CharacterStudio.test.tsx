@@ -1,25 +1,18 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { expect, it, vi } from "vitest";
+import {render,screen,fireEvent,cleanup} from "@testing-library/react";
+import {MemoryRouter} from "react-router-dom";
+import {afterEach,expect,it,vi} from "vitest";
 import FormatStudio from "./FormatStudio";
-
-vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({user:{id:"test-editor"}})}));
-vi.mock("./AnimateImage", () => ({default: () => null}));
-
-it("opens Character Animation, edits the sequence, and restores it on return", () => {
-  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({user:{id:"viewer"}})}));
+const insert=vi.hoisted(()=>vi.fn(async()=>({error:null})));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>({
+  insert, select:()=>({eq:()=>({eq:()=>({order:()=>({limit:async()=>({data:[]})})})})})
+})}}));
+afterEach(cleanup);
+it("queues the chosen type, topic and runtime without collecting artwork or opening an editor",async()=>{
   render(<MemoryRouter><FormatStudio/></MemoryRouter>);
-  const open = () => fireEvent.click(screen.getByRole("button", {name:/Character Animation/}));
-  open();
-  fireEvent.click(screen.getByRole("button",{name:"Recorded actions"}));
-  fireEvent.click(screen.getByRole("button", {name:"+ Wave"}));
-  expect(screen.getByText("Sequence · 8s")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", {name:"Earlier"}));
-  expect(screen.getByText("1. Wave")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", {name:"Explainer formats"}));
-  open();
-  fireEvent.click(screen.getByRole("button",{name:"Recorded actions"}));
-  expect(screen.getByText("1. Wave")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", {name:"Remove"}));
-  expect(screen.getByText("Sequence · 5s")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Video type"),{target:{value:"whiteboard"}});
+  fireEvent.change(screen.getByLabelText("Topic"),{target:{value:"What is inflation?"}});
+  fireEvent.change(screen.getByLabelText("Length"),{target:{value:"180"}});
+  fireEvent.click(screen.getByRole("button",{name:"Generate video"}));
+  expect(insert).toHaveBeenCalledWith(expect.objectContaining({format:"whiteboard",topic:"What is inflation?",seconds:180,host:"none"}));
 });

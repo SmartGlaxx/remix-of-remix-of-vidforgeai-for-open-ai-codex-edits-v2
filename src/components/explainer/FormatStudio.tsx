@@ -1,43 +1,75 @@
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, Drama, Images, PanelsTopLeft, PenTool } from "lucide-react";
-import FilmBuilder from "./FilmBuilder";
-import CharacterStudio from "./CharacterStudio";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import CharacterFilm from "./CharacterFilm";
 
-const formats = [
-  { id: "character", title: "Character Animation", description: "Direct full-body performances across a sequence of shots.", icon: Drama },
-  { id: "illustrated", title: "Illustrated Stories", description: "Tell a narrated story with original scene illustrations.", icon: Images },
-  { id: "whiteboard", title: "Whiteboard / Hand Reveal", description: "Follow a moving pen as each idea takes shape.", icon: PenTool },
-  { id: "comic", title: "Motion Comics", description: "Stage action and dialogue across illustrated panels.", icon: PanelsTopLeft },
-] as const;
-
+const formats = { illustrated: "Illustrated Stories", whiteboard: "Whiteboard / Hand Reveal", character: "Character Animation", comic: "Motion Comics" };
+type Format = keyof typeof formats;
+type Job = { id:string; topic:string; state:string; progress:string; output_path:string|null; error:string|null };
+const field = "w-full rounded-md border bg-background px-3 py-2";
 export default function FormatStudio() {
-  const [params, setParams] = useSearchParams();
-  const format = formats.find(item => item.id === params.get("format"));
-  function select(id?: string) {
-    const next = new URLSearchParams(params);
-    if (id) next.set("format", id); else next.delete("format");
-    setParams(next);
-  }
-  return <section className="mx-auto w-full max-w-6xl space-y-5">
-    {format ? <>
-      <Button variant="ghost" className="gap-2" onClick={() => select()}><ArrowLeft size={16}/>Explainer formats</Button>
-      {format.id === "character" ? <CharacterStudio/> : format.id === "illustrated" || format.id === "whiteboard" ? <>
-        <h2 className="text-3xl font-bold tracking-tight">{format.title}</h2>
-        <FilmBuilder format={format.id}/>
-      </> : <>
-        <h2 className="text-3xl font-bold tracking-tight">{format.title}</h2>
-        <p className="text-muted-foreground">Coming soon</p>
-      </>}
-    </> : <>
-      <header><h2 className="text-3xl font-bold tracking-tight">Explainer Studio</h2></header>
-      <FilmBuilder format="auto"/>
-      <details><summary className="cursor-pointer font-medium">Choose a format manually</summary>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">{formats.map(({id,title,description,icon:Icon}) =>
-        <Button variant="outline" key={id} disabled={id==="comic"} onClick={() => select(id)} className="group block h-auto whitespace-normal rounded-lg p-5 text-left">
-          <span className="mb-5 flex items-center justify-between"><span className="rounded-lg bg-primary/10 p-3 text-primary"><Icon size={24}/></span>{id!=="comic"?<ArrowUpRight size={18} className="text-muted-foreground group-hover:text-primary"/>:<span className="text-xs text-muted-foreground">Coming soon</span>}</span>
-          <h3 className="text-xl font-semibold">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </Button>)}</div></details>
-    </>}
+  const [params,setParams] = useSearchParams();
+  const selected = params.get("format");
+  const format:Format = selected && Object.prototype.hasOwnProperty.call(formats,selected) ? selected as Format : "illustrated";
+  const {user} = useAuth();
+  return <section className="mx-auto max-w-3xl space-y-5">
+    <h2 className="text-3xl font-bold">Explainer Studio</h2>
+    <label className="block">Video type<select className={field} value={format} onChange={e=>setParams({format:e.target.value})}>
+      {Object.entries(formats).map(([id,name])=><option key={id} value={id}>{name}</option>)}
+    </select></label>
+    {format==="character" ? <CharacterFilm simple/> : user && <ExportForm key={user.id+format} owner={user.id} format={format}/>}
   </section>;
+}
+function ExportForm({owner,format}:{owner:string;format:Exclude<Format,"character">}) {
+  const [topic,setTopic]=useState("");
+  const [seconds,setSeconds]=useState(60);
+  const [host,setHost]=useState("auto");
+  const [jobs,setJobs]=useState<Job[]>([]);
+  const [error,setError]=useState("");
+  const [sending,setSending]=useState(false);
+  const [file,setFile]=useState("");
+  const pending=useRef({signature:"",id:""});
+  const table=supabase.from("explainer_exports" as never);
+  useEffect(()=>{
+    let active=true;
+    async function refresh(){
+      const response=await supabase.from("explainer_exports" as never).select("id,topic,state,progress,output_path,error").eq("owner_id",owner).eq("format",format).order("created_at",{ascending:false}).limit(25);
+      if(active && response.data)setJobs(response.data as Job[]);
+      if(active && response.error)setError(response.error.message);
+    }
+    void refresh(); const timer=setInterval(refresh,5000);
+    return ()=>{active=false;clearInterval(timer);};
+  },[owner,format]);
+  async function create(){
+    if(sending||!topic.trim())return;
+    setSending(true);setError("");
+    try{
+      const chosen=host==="auto" ? format==="whiteboard"?"none":/money|financ|budget|interest|debt/i.test(topic)?"finance":"studio" :host;
+      const input={format,topic:topic.trim(),seconds,host:chosen};
+      const signature=JSON.stringify(input);
+      if(signature!==pending.current.signature)pending.current={signature,id:crypto.randomUUID()};
+      const id=pending.current.id;
+      const {error}=await table.insert({...input,id} as never);
+      if(error && error.code!=="23505")throw error;
+      pending.current={signature:"",id:""};setTopic("");
+      setJobs(old=>[{id,topic:input.topic,state:"queued",progress:"Queued",output_path:null,error:null},...old.filter(j=>j.id!==id)]);
+    }catch(e){setError((e as Error).message);}finally{setSending(false);}
+  }
+  async function open(path:string,download:boolean){
+    const {data,error}=await supabase.storage.from("film-media").createSignedUrl(path,3600,download?{download:"explainer.mp4"}:undefined);
+    if(error){setError(error.message);return;}
+    if(download)location.assign(data.signedUrl);else setFile(data.signedUrl);
+  }
+  return <div className="space-y-4">
+    <label className="block">Topic<Input value={topic} maxLength={300} onChange={e=>setTopic(e.target.value)} placeholder="What should the video explain?"/></label>
+    <label className="block">Length<select className={field} value={seconds} onChange={e=>setSeconds(Number(e.target.value))}>{[30,60,180,300,600,900,1800].map(s=><option key={s} value={s}>{s<60?"30 seconds":s/60+" min"}</option>)}</select></label>
+    {format!=="whiteboard" && <details><summary>Host preference</summary><select aria-label="Host" className={field} value={host} onChange={e=>setHost(e.target.value)}><option value="auto">Recommend a host</option><option value="studio">Studio presenter</option><option value="finance">Finance storyteller</option><option value="none">No host</option></select></details>}
+    <Button disabled={sending||!topic.trim()} onClick={create}>{sending?"Submitting…":"Generate video"}</Button>
+    {error&&<p role="alert">{error}</p>}
+    {jobs.length>0 && <section className="space-y-2"><h3>Your videos</h3>{jobs.map(job=><article key={job.id} className="rounded border p-3"><strong>{job.topic}</strong><p>{job.error||job.progress}</p>{job.output_path && <><Button variant="outline" onClick={()=>open(job.output_path!,false)}>Play</Button> <Button onClick={()=>open(job.output_path!,true)}>Download MP4</Button></>}</article>)}</section>}
+    {file && <video src={file} controls className="w-full"/>}
+  </div>;
 }
