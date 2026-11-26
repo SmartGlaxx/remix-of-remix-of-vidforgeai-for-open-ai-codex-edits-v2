@@ -25,7 +25,7 @@ const view = {
   progress: { saved: 0, total: 3, chapter: 1, chapters: 1, phase: "Generating clips" },
 };
 
-beforeEach(() => { invoke.mockReset(); invoke.mockResolvedValue({ data: view, error: null }); });
+beforeEach(() => { localStorage.clear(); window.history.replaceState(null,"","/"); invoke.mockReset(); invoke.mockResolvedValue({ data: view, error: null }); });
 afterEach(cleanup);
 
 it("opens a planned 30-second, three-shot film costing US$0.15", async () => {
@@ -37,7 +37,16 @@ it("opens a planned 30-second, three-shot film costing US$0.15", async () => {
   expect(invoke).toHaveBeenCalledWith("character-film", { body: { action: "prepare" } });
 });
 
-it("keeps planning and paying as two separate actions", async () => {
+it("authorizes one automatic request with topic or script and the selected duration", async () => {
+  render(<CharacterFilm />);
+  const create = await screen.findByRole("button", { name: /Create video/ });
+  await waitFor(()=>expect(create).toBeEnabled());
+  fireEvent.click(create);
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("character-film", { body: expect.objectContaining({ action: "create", seconds: 30, script: view.film.script, image_path: "owner/reference.png", prepare_only: false, request_id: expect.any(String) }) }));
+  expect(invoke.mock.calls.filter(([, args]) => args.body.action === "generate")).toHaveLength(0);
+});
+
+it("keeps deliberate manual planning and paying available in director details", async () => {
   render(<CharacterFilm />);
   const plan = await screen.findByRole("button", { name: /Plan film/ });
   const generate = screen.getByRole("button", { name: /Generate film · US\$0\.15/ });

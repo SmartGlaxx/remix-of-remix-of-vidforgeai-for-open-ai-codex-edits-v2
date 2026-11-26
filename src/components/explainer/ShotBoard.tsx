@@ -2,7 +2,7 @@ import {useEffect,useState} from "react";
 import {Button} from "@/components/ui/button";
 import {supabase} from "@/integrations/supabase/client";
 
-export default function ShotBoard({id,start,end,continuation,enabled,onSaved}: {id:string;start?:string;end?:string;continuation:boolean;enabled:boolean;onSaved:()=>Promise<void>}){
+export default function ShotBoard({id,start,end,continuation,shared,enabled,onSaved}: {id:string;start?:string;end?:string;continuation:boolean;shared?:boolean;enabled:boolean;onSaved:()=>Promise<void>}){
   const [urls,setUrls]=useState<string[]>([]);
   const [working,setWorking]=useState(false);
   const [error,setError]=useState("");
@@ -25,7 +25,7 @@ export default function ShotBoard({id,start,end,continuation,enabled,onSaved}: {
   }
   return <section className="space-y-2"><div className="grid grid-cols-2 gap-2">{["Start frame","End frame"].map((label,i)=><figure key={label} className="overflow-hidden rounded-lg border bg-muted/30">
     {urls[i] && <img src={urls[i]} alt={label} className="aspect-video w-full object-cover"/>}<figcaption className="px-2 py-1.5 text-xs">{label}</figcaption></figure>)}</div>
-    {continuation && <p className="text-xs text-muted-foreground">Playback continues from the preceding clip’s actual final frame.</p>}
+    {continuation && <p className="text-xs text-muted-foreground">{shared?"Shared boundary image · preceding end = this start":"Playback continues from the preceding clip’s actual final frame."}</p>}
     {enabled && <Button type="button" size="sm" variant="outline" disabled={working} onClick={generate}>{working?"Illustrating…":"Generate storyboard frames"}</Button>}
     {enabled && <p className="text-xs text-muted-foreground">Uses image-generation credit. Save direction edits first. Pruna receives both frame references.</p>}
     {error && <p role="alert">{error}</p>}

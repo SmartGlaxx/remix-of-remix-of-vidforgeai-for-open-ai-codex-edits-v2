@@ -32,7 +32,7 @@ export function filmServices(id:string,owner:string):FilmServices {
   return {
     load:()=>loadFilm(id),
     async film(values){const {error}=await admin.from("character_films").update({...values,updated_at:new Date().toISOString()}).eq("id",id).eq("owner_id",owner);if(error)throw error;},
-    async shot(shotId,values){const {error}=await admin.from("character_film_shots").update(values).eq("id",shotId).eq("film_id",id).eq("owner_id",owner);if(error)throw error;},
+    async shot(shotId,values){const cleared=Object.fromEntries(Object.entries(values).map(([key,value])=>[key,value===undefined?null:value]));const {error}=await admin.from("character_film_shots").update(cleared).eq("id",shotId).eq("film_id",id).eq("owner_id",owner);if(error)throw error;},
     async animate(shot){
       const {data:current}=await admin.from("character_animation_jobs").select().eq("request_id",shot.request_id).eq("owner_id",owner).maybeSingle();
       const context=await loadFilm(id);

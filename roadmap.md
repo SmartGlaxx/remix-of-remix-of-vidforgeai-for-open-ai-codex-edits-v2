@@ -1,5 +1,12 @@
 # Video playback update
 
+# Automatic Character Animation direction
+
+- [x] Add durable one-click topic/script → observed scene direction → paired frames → continuity checks → Pruna → saved assembly; retain deliberate storyboard editing, three unwired format placeholders and the existing single-clip tool.
+- [x] Test scene anchors, shared boundary asset IDs, 2–10 second action timing, preparation allowance bounds, two overlapping jobs, restart safety, and rejection before paid submission. Full regression suite passed (113 tests), followed by the additional authoritative-boundary test.
+- [x] Deploy generate-script, character-film and character-film-worker; signed-in café preparation inspected the original image, saved three directed shots and frames, automatically attempted two bounded corrections, then STOPPED at failed continuity review without any animation attempts. Draft 260b6a70-3989-458e-af5b-b6f6ef65f95a; shot two end and shot three start use the identical asset. Desktop/phone checks show no page errors or mobile horizontal overflow; placeholders are disabled.
+- [ ] Café proof is not ready to render: the live frame reviewer rejects shot one's camera/landmark/pose changes after two corrections. Saved opening and corrected ending are available in Preview; no video authorization or public publish. Rendered 0/25/50/75/100% motion inspection remains blocked until valid frames and the owner's paid render.
+
 # PR #26 Preview verification
 
 - [x] Restore original single-Daniel café opening, replace seated and mug-raised poses, reuse reviewed end poses as continuation storyboard starts, verify all three pairs signed in and after refresh; Generate film remains unclicked and draft has no animation attempts.

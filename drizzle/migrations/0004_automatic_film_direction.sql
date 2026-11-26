@@ -1,0 +1,5 @@
+ALTER TABLE public.character_films ADD COLUMN IF NOT EXISTS scenes jsonb NOT NULL DEFAULT '[]', ADD COLUMN IF NOT EXISTS preparation jsonb;
+ALTER TABLE public.character_film_shots ADD COLUMN IF NOT EXISTS direction jsonb, ADD COLUMN IF NOT EXISTS frame_check jsonb, ADD COLUMN IF NOT EXISTS correction_attempts integer NOT NULL DEFAULT 0;
+CREATE OR REPLACE FUNCTION public.claim_character_film(p_id uuid,p_token uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN UPDATE public.character_films SET lease_token=p_token,lease_until=now()+interval '4 minutes' WHERE id=p_id AND state IN ('preparing','running','assembling') AND (lease_until IS NULL OR lease_until<now()); RETURN FOUND; END $$;
+REVOKE ALL ON FUNCTION public.claim_character_film(uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_character_film(uuid,uuid) TO service_role;

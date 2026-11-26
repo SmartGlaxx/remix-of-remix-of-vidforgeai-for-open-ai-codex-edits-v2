@@ -7,6 +7,7 @@ import { ownsImage } from "../_shared/prunaContract.ts";
 import { admin, kick, loadFilm, serviceKey, signed } from "../_shared/filmRuntime.ts";
 
 import { drawFrame } from "../_shared/shotBoard.ts";
+import { assertPreparedShot, automaticBudget } from "../_shared/automaticDirection.ts";
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -15,6 +16,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("list") }),
   z.object({ action: z.literal("status"), id: z.string().uuid() }),
   z.object({ action: z.literal("plan"), request_id: z.string().uuid(), script: z.string().trim().min(1).max(20000), seconds: z.number().int().min(30).max(1800), image_path: z.string().max(250), audio_mode: z.enum(["native", "uploaded"]) }),
+  z.object({ action: z.literal("create"), request_id: z.string().uuid(), script: z.string().trim().max(20000), topic: z.string().trim().max(300), seconds: z.number().int().min(30).max(1800), image_path: z.string().max(250), audio_mode: z.enum(["native", "uploaded"]), prepare_only: z.boolean().optional() }),
   z.object({ action:z.literal("board_frame"), id:z.string().uuid(), side:z.enum(["start","end"]) }),
   z.object({ action: z.literal("update_shot"), id: z.string().uuid(), line: z.string().trim().max(600).optional(), purpose: z.string().trim().max(300).optional(), visual: z.string().trim().max(2200).optional(), direction: z.string().trim().max(600).optional(), transition: z.enum(["cut", "continue"]).optional() }),
   z.object({ action: z.literal("generate"), id: z.string().uuid() }),
@@ -61,7 +63,7 @@ async function present(id: string) {
   const real = chapters.filter(a => a.key !== "final");
   const current = chapters.find(a => a.state !== "ready");
   const saved = shots.filter(s => s.state === "ready" && s.video_path).length;
-  const phase = film.state === "ready" ? "Finished" : film.state === "assembling" ? (current?.key === "final" ? "Saving final film" : "Assembling chapters") : "Generating clips";
+  const phase = film.state === "draft" ? (film.preparation?.phase === "ready" ? "Ready to render" : "Draft") : film.state === "preparing" ? ({script:"Writing narration",scene:"Inspecting the reference scene",direction:"Directing scenes",frames:"Preparing paired frames",review:"Checking continuity",ready:"Ready to render"}[film.preparation?.phase ?? "direction"]) : film.state === "ready" ? "Finished" : film.state === "assembling" ? (current?.key === "final" ? "Saving final film" : "Assembling chapters") : "Generating clips";
   const final_video_url = film.final_video_path ? await signed("film-media", film.final_video_path).catch(() => null) : null;
   return {
     film: { ...film, estimated_usd: Number(film.estimated_usd), final_video_url, mismatch: narrationMismatch(film.script, film.seconds), spoken_seconds: Math.round(narrationSeconds(film.script)) },
@@ -109,13 +111,20 @@ Deno.serve(async request => {
       if (!owned) return json({ error: "Film not found." }, 404);
       return json(await present(body.id));
     }
-    if (body.action === "plan") {
+    if (body.action === "plan" || body.action === "create") {
       if (!ownsImage(owner, body.image_path)) return json({ error: "Choose your own uploaded illustration." }, 400);
       const { data: file } = await admin.storage.from("character-inputs").info(body.image_path);
       if (!file) return json({ error: "Upload your illustration first." }, 400);
-      const { data: duplicate } = await admin.from("character_films").select("id").eq("request_id", body.request_id).maybeSingle();
+      const { data: duplicate } = await admin.from("character_films").select("id").eq("request_id", body.request_id).eq("owner_id",owner).maybeSingle();
       if (duplicate) return json(await present(duplicate.id));
-      const id = await insertFilm(owner, { script: body.script, seconds: body.seconds, image_path: body.image_path, audio_mode: body.audio_mode, request_id: body.request_id });
+      if(body.action==="create" && !body.script && !body.topic)return json({error:"Enter a topic or script."},400);
+      if(body.action==="create" && body.audio_mode==="uploaded")return json({error:"Plan a draft and attach chapter narration before creating the video."},400);
+      const id = await insertFilm(owner, { script: body.script || (body.action==="create"?body.topic:""), seconds: body.seconds, image_path: body.image_path, audio_mode: body.audio_mode, request_id: body.request_id });
+      if(body.action==="create"){
+        const {error}=await admin.from("character_films").update({state:"preparing",preparation:{phase:body.script?"scene":"script",chapter:0,authorized:!body.prepare_only,topic:body.topic,budget:automaticBudget(body.seconds)},estimated_usd:automaticBudget(body.seconds).max_video_clips*0.05}).eq("id",id).eq("owner_id",owner);
+        if(error)throw error;
+        kick(id);
+      }
       return json(await present(id));
     }
 
@@ -165,9 +174,11 @@ Deno.serve(async request => {
       const { data: shot } = await admin.from("character_film_shots").select("id,index").eq("id", body.id).eq("film_id", film.id).maybeSingle();
       if (!shot) return json({ error: "Shot not found." }, 404);
       if(shot.index===0 && body.transition==="continue")return json({error:"The first shot opens the film"},400);
-      const values: Record<string, string|null> = {board_start_path:null,board_end_path:null,image_path:film.image_path};
+      const values: Record<string, unknown> = {board_start_path:null,board_end_path:null,frame_check:null,image_path:film.image_path};
       for (const key of ["line", "purpose", "visual", "transition"] as const) if (body[key]) values[key] = body[key] as string;
       if (body.direction) values.action = body.direction;
+      // Manual direction editing leaves the automatic contract rather than retaining a stale passed review.
+      values.direction=null;
       if (Object.keys(values).length) {
         const { error } = await admin.from("character_film_shots").update(values).eq("id", shot.id).eq("film_id", film.id);
         if (error) throw error;
@@ -179,6 +190,9 @@ Deno.serve(async request => {
       if (!ownsImage(owner, film.image_path) || film.image_path.includes("awaiting-illustration")) return json({ error: "Upload your character illustration first." }, 400);
       const { data: file } = await admin.storage.from("character-inputs").info(film.image_path);
       if (!file) return json({ error: "Upload your character illustration first." }, 400);
+      const {shots}=await loadFilm(film.id);
+      if(film.preparation && film.preparation.phase!=="ready")return json({error:"Automatic preparation must finish before video submission."},409);
+      for(const shot of shots)assertPreparedShot(shot,shots.find(previous=>previous.index===shot.index-1));
       if (film.audio_mode === "uploaded" && film.seconds >= 120 && !(film.narration ?? []).length) return json({ error: "Add the chapter narration audio before generating." }, 400);
       const { error } = await admin.from("character_films").update({ state: "running", error: null, updated_at: new Date().toISOString() }).eq("id", film.id).eq("owner_id", owner).eq("state", "draft");
       if (error) throw error;
@@ -186,14 +200,19 @@ Deno.serve(async request => {
       return json(await present(film.id));
     }
     if (body.action === "stop") {
-      if (!["running", "assembling"].includes(film.state)) return json({ error: "This film is not running." }, 409);
+      if (!["preparing", "running", "assembling"].includes(film.state)) return json({ error: "This film is not running." }, 409);
       const { error } = await admin.from("character_films").update({ state: "stopped", error: "Stopped. Clips already generating may still be charged; finished clips are saved.", updated_at: new Date().toISOString() }).eq("id", film.id).eq("owner_id", owner);
       if (error) throw error;
       return json(await present(film.id));
     }
     if (body.action === "resume") {
       if (!["stopped", "attention", "billing_paused"].includes(film.state)) return json({ error: "This film does not need resuming." }, 409);
-      const { error } = await admin.from("character_films").update({ state: "running", error: null, updated_at: new Date().toISOString() }).eq("id", film.id).eq("owner_id", owner);
+      if(film.preparation?.task)return json({error:"An interrupted preparation request needs reconciliation before resuming. No duplicate request will be sent."},409);
+      if(film.preparation&&film.preparation.phase!=="ready"){
+        const {shots}=await loadFilm(film.id);
+        if(shots.some(shot=>(shot.correction_attempts??0)>=2&&shot.frame_check&&Object.values(shot.frame_check).includes(false)))return json({error:"Automatic frame corrections are exhausted. Saved frames remain available for review; no additional charge was authorized."},409);
+      }
+      const { error } = await admin.from("character_films").update({ state: film.preparation&&film.preparation.phase!=="ready"?"preparing":"running", error: null, updated_at: new Date().toISOString() }).eq("id", film.id).eq("owner_id", owner);
       if (error) throw error;
       kick(film.id);
       return json(await present(film.id));

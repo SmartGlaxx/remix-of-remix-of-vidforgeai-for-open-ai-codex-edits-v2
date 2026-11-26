@@ -1,6 +1,7 @@
 import { readyShots, orderedInputs, type Assembly, type FilmDirection } from "./filmWorkflow.ts";
-export type Shot = FilmDirection & {id:string;request_id:string;state:string;animation_id?:string;video_path?:string;frame_path?:string;board_start_path?:string;board_end_path?:string;frame_job_id?:string;error?:string};
-export type Film = {id:string;owner_id:string;state:string;seconds:number;audio_mode:string;narration:{chapter:number;path:string;seconds:number}[];chapters:Assembly[];final_video_path?:string;error?:string};
+import { assertPreparedShot, requiresExtraction, type EventDirection, type FrameCheck, type Preparation, type SceneRecord } from "./automaticDirection.ts";
+export type Shot = FilmDirection & {id:string;request_id:string;state:string;animation_id?:string;video_path?:string;frame_path?:string;board_start_path?:string;board_end_path?:string;frame_job_id?:string;error?:string;direction?:EventDirection;frame_check?:FrameCheck|null;correction_attempts?:number};
+export type Film = {id:string;owner_id:string;state:string;seconds:number;script?:string;image_path?:string;scenes?:SceneRecord[];preparation?:Preparation|null;audio_mode:string;narration:{chapter:number;path:string;seconds:number}[];chapters:Assembly[];final_video_path?:string;error?:string};
 export interface FilmServices {
   load():Promise<{film:Film;shots:Shot[]}>;
   film(values:Partial<Film>):Promise<void>;
@@ -29,8 +30,9 @@ export async function advanceFilm(s:FilmServices) {
     if((await s.load()).film.state!=="running")return;
     let shot=shots.find(x=>x.index===candidate.index);
     if(!shot)continue;
-    if(shot.transition==="continue") {
-      const previous=shots.find(x=>x.index===shot.index-1);
+    const previous=shots.find(x=>x.index===shot.index-1);
+    assertPreparedShot(shot,previous);
+    if(requiresExtraction(shot)) {
       if(!previous?.video_path)continue;
       const frame=await s.frame(shot,previous);
       await s.shot(shot.id,{frame_path:frame.path,frame_job_id:frame.job_id,error:frame.error});

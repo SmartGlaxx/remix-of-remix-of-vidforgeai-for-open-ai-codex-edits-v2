@@ -1,8 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight, Drama, Images, PanelsTopLeft, PenTool } from "lucide-react";
 import CharacterStudio from "./CharacterStudio";
-import FilmBuilder from "./FilmBuilder";
-import { IllustratedStories } from "./IllustratedStories";
+import { Button } from "@/components/ui/button";
 
 const formats = [
   { id: "character", title: "Character Animation", description: "Direct full-body performances across a sequence of shots.", icon: Drama },
@@ -21,19 +20,18 @@ export default function FormatStudio() {
   }
   return <section className="mx-auto w-full max-w-6xl space-y-5">
     {format ? <>
-      <button className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => select()}><ArrowLeft size={16}/>Explainer formats</button>
+      <Button variant="ghost" className="gap-2" onClick={() => select()}><ArrowLeft size={16}/>Explainer formats</Button>
       {format.id === "character" ? <CharacterStudio/> : <>
         <h2 className="text-3xl font-bold tracking-tight">{format.title}</h2>
-        <FilmBuilder key={format.id} format={format.id}/>
-        {format.id === "illustrated" && <details className="workspace-card"><summary className="cursor-pointer font-medium">Illustrated scene study</summary><IllustratedStories/></details>}
+        <p className="text-muted-foreground">Coming soon</p>
       </>}
     </> : <>
       <header><h2 className="text-3xl font-bold tracking-tight">Explainer Studio</h2><p className="mt-1 text-muted-foreground">Choose how to tell your story.</p></header>
       <div className="grid gap-4 sm:grid-cols-2">{formats.map(({id,title,description,icon:Icon}) =>
-        <button key={id} onClick={() => select(id)} className="workspace-card group text-left transition-colors hover:border-primary focus-visible:ring-2">
-          <span className="mb-5 flex items-center justify-between"><span className="rounded-xl bg-primary/10 p-3 text-primary"><Icon size={24}/></span><ArrowUpRight size={18} className="text-muted-foreground group-hover:text-primary"/></span>
+        <Button variant="outline" key={id} disabled={id!=="character"} onClick={() => select(id)} className="group block h-auto whitespace-normal rounded-lg p-5 text-left">
+          <span className="mb-5 flex items-center justify-between"><span className="rounded-lg bg-primary/10 p-3 text-primary"><Icon size={24}/></span>{id==="character"?<ArrowUpRight size={18} className="text-muted-foreground group-hover:text-primary"/>:<span className="text-xs text-muted-foreground">Coming soon</span>}</span>
           <h3 className="text-xl font-semibold">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </button>)}</div>
+        </Button>)}</div>
     </>}
   </section>;
 }

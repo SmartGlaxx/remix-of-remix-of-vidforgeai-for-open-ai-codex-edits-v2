@@ -29,6 +29,20 @@
       "when": 1795648423738,
       "tag": "0003_explainer_storyboard_frames",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795656040842,
+      "tag": "0004_automatic_film_direction",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795656157941,
+      "tag": "0005_install_directed_film_chapter",
+      "breakpoints": true
     }
   ]
 }

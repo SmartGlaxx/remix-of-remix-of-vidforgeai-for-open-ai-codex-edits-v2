@@ -75,9 +75,12 @@ export type Database = {
           board_end_path: string | null
           board_start_path: string | null
           chapter: number
+          correction_attempts: number
+          direction: Json | null
           duration: number
           error: string | null
           film_id: string
+          frame_check: Json | null
           frame_job_id: string | null
           frame_path: string | null
           id: string
@@ -98,9 +101,12 @@ export type Database = {
           board_end_path?: string | null
           board_start_path?: string | null
           chapter: number
+          correction_attempts?: number
+          direction?: Json | null
           duration: number
           error?: string | null
           film_id: string
+          frame_check?: Json | null
           frame_job_id?: string | null
           frame_path?: string | null
           id?: string
@@ -121,9 +127,12 @@ export type Database = {
           board_end_path?: string | null
           board_start_path?: string | null
           chapter?: number
+          correction_attempts?: number
+          direction?: Json | null
           duration?: number
           error?: string | null
           film_id?: string
+          frame_check?: Json | null
           frame_job_id?: string | null
           frame_path?: string | null
           id?: string
@@ -162,7 +171,9 @@ export type Database = {
           lease_until: string | null
           narration: Json
           owner_id: string
+          preparation: Json | null
           request_id: string
+          scenes: Json
           script: string
           seconds: number
           state: string
@@ -182,7 +193,9 @@ export type Database = {
           lease_until?: string | null
           narration?: Json
           owner_id: string
+          preparation?: Json | null
           request_id: string
+          scenes?: Json
           script: string
           seconds: number
           state?: string
@@ -202,7 +215,9 @@ export type Database = {
           lease_until?: string | null
           narration?: Json
           owner_id?: string
+          preparation?: Json | null
           request_id?: string
+          scenes?: Json
           script?: string
           seconds?: number
           state?: string
@@ -219,6 +234,16 @@ export type Database = {
       claim_character_film: {
         Args: { p_id: string; p_token: string }
         Returns: boolean
+      }
+      install_character_film_chapter: {
+        Args: {
+          p_chapter: number
+          p_id: string
+          p_owner: string
+          p_scenes: Json
+          p_shots: Json
+        }
+        Returns: undefined
       }
     }
     Enums: {
