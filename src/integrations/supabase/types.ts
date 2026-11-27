@@ -226,6 +226,60 @@ export type Database = {
         }
         Relationships: []
       }
+      explainer_exports: {
+        Row: {
+          created_at: string
+          error: string | null
+          format: string
+          host: string
+          id: string
+          lease: string | null
+          lease_until: string | null
+          operation: string | null
+          output_path: string | null
+          owner_id: string
+          progress: string
+          scenes: Json
+          seconds: number
+          state: string
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          format: string
+          host: string
+          id: string
+          lease?: string | null
+          lease_until?: string | null
+          operation?: string | null
+          output_path?: string | null
+          owner_id?: string
+          progress?: string
+          scenes?: Json
+          seconds: number
+          state?: string
+          topic: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          format?: string
+          host?: string
+          id?: string
+          lease?: string | null
+          lease_until?: string | null
+          operation?: string | null
+          output_path?: string | null
+          owner_id?: string
+          progress?: string
+          scenes?: Json
+          seconds?: number
+          state?: string
+          topic?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -234,6 +288,32 @@ export type Database = {
       claim_character_film: {
         Args: { p_id: string; p_token: string }
         Returns: boolean
+      }
+      claim_explainer_export: {
+        Args: { token: string }
+        Returns: {
+          created_at: string
+          error: string | null
+          format: string
+          host: string
+          id: string
+          lease: string | null
+          lease_until: string | null
+          operation: string | null
+          output_path: string | null
+          owner_id: string
+          progress: string
+          scenes: Json
+          seconds: number
+          state: string
+          topic: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "explainer_exports"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       install_character_film_chapter: {
         Args: {

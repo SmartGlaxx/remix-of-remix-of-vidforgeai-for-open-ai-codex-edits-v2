@@ -1,5 +1,12 @@
 # Video playback update
 
+# Explainer Studio release verification
+
+- [x] Apply the existing background export migration to the connected live backend, preserve owner-only RLS and worker-only claiming, remove the disallowed auth foreign key in a follow-up migration, and refresh the schema cache.
+- [x] Live opt-in security test passed: owner reads, foreign/anonymous denial, ownership spoof/update/delete denial, worker-only claim RPC. Signed-in 30-second submission was held before generation, persisted across browser close/reopen, then cleaned up; schema cache table read returned HTTP 200.
+- [ ] Deploy a persistent CPU Docker export worker connected to this backend; no export worker is found on RunPod (two stopped unrelated pods), no persistent host is connected, and this sandbox cannot host Docker. Run on an always-on Linux CPU VPS/container service; securely provision backend access or implement a server-side worker bridge since Cloud owners cannot retrieve the managed service-role key.
+- [ ] Authorized browser-closed export and reopened MP4 playback; blocked on worker deployment and owner authorization of paid image/speech generation. Do not mark the factory complete.
+
 # Automatic Character Animation direction
 
 - [x] Add bounded action replanning after two failed camera/location corrections; validate live planner against the actual opening, preserve durations/narration/cuts, retain private edit provenance and reviews, and pass 118 regression tests. Deploy character-film and character-film-worker.
