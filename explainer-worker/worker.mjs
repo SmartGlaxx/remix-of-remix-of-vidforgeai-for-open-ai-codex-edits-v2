@@ -1,27 +1,32 @@
 import { chromium } from "playwright";
-import { createClient } from "@supabase/supabase-js";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 
-const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
-async function invoke(name,body){
-  const {data,error}=await db.functions.invoke(name,{body});
-  if(error||data?.error)throw new Error(data?.error||error.message);
+// Talks only to the explainer-bridge function; no service-role key on this host.
+const BRIDGE=process.env.EXPLAINER_BRIDGE_URL, TOKEN=process.env.EXPLAINER_WORKER_TOKEN;
+if(!BRIDGE||!TOKEN)throw new Error("Set EXPLAINER_BRIDGE_URL and EXPLAINER_WORKER_TOKEN");
+async function bridge(body){
+  const r=await fetch(BRIDGE,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+TOKEN},body:JSON.stringify(body)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||data.error)throw new Error(typeof data.error==="string"?data.error:"Bridge HTTP "+r.status);
   return data;
 }
 const art={illustrated:"Editorial narrative illustration",whiteboard:"Sparse black marker drawing on white paper",comic:"Expressive full-color inked comic panel without lettering"};
 const hosts={studio:"A slim friendly young man with wavy brown hair, tan skin, teal sweater, navy trousers",finance:"A woman with dark wavy hair reviewing a ledger, amber and teal palette",none:"Use props and scenes without a recurring host"};
 
 async function work(job,token){
-  const bucket=db.storage.from("film-media");
+  const invoke=(name,body)=>bridge({action:"invoke",id:job.id,token,name,body});
+  const bucket={
+    async download(path){const {url}=await bridge({action:"download_url",id:job.id,token,path});const r=await fetch(url);return r.ok?{data:r}:{error:new Error("Download HTTP "+r.status)};},
+    async upload(path,bytes,{contentType}){const {url}=await bridge({action:"upload_url",id:job.id,token,path});const r=await fetch(url,{method:"PUT",headers:{"Content-Type":contentType,"x-upsert":"true"},body:bytes});return r.ok?{}:{error:new Error("Upload HTTP "+r.status)};},
+  };
   const dir=await mkdtemp(join(tmpdir(),"explainer-"));
   const scenes=job.scenes;
   async function save(patch){
-    const {data,error}=await db.from("explainer_exports").update({...patch,lease_until:new Date(Date.now()+300000).toISOString()}).eq("id",job.id).eq("lease",token).select("id").single();
-    if(error||!data)throw new Error("Lost export lease");
+    await bridge({action:"save",id:job.id,token,patch});
   }
   async function operation(label,fn){
     // Persist intent before a billable call. A crashed submission needs reconciliation.
@@ -94,9 +99,8 @@ async function work(job,token){
 while(true){
   try{
     const token=crypto.randomUUID();
-    const {data,error}=await db.rpc("claim_explainer_export",{token});
-    if(error)throw error;
-    if(data?.length){await work(data[0],token);continue;}
+    const {job}=await bridge({action:"claim",token});
+    if(job){await work(job,token);continue;}
   }catch(e){console.error("Worker:",e.message);}
   await wait(5000);
 }
