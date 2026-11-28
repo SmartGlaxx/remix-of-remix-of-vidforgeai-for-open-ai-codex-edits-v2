@@ -45,7 +45,7 @@ async function work(job,token){
       scenes.push(...plan.scenes.slice(0,count-scenes.length));
       await save({scenes,operation:null});
     }
-    browser=await chromium.launch({args:["--autoplay-policy=no-user-gesture-required"]});
+    browser=await chromium.launch({args:["--autoplay-policy=no-user-gesture-required","--disable-dev-shm-usage","--no-sandbox"]});
     for(const [i,s] of scenes.entries()){
       const clipPath=job.owner_id+"/"+job.id+"/scene-"+i+".mp4";
       const local=join(dir,i+".mp4");
