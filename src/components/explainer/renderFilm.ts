@@ -43,8 +43,8 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
     }));
     signal.throwIfAborted();
     const total = assets.reduce((sum, asset) => sum + asset.audio.duration, 0);
-    const rate = total / seconds;
-    if (!(rate > 0)) throw new Error("Narration has no playable duration.");
+    const rate = 1; const duration = total;
+    if (!(duration > 0)) throw new Error("Narration has no playable duration.");
     const output = ctx.createMediaStreamDestination();
     stream = canvas.captureStream(30);
     stream.addTrack(output.stream.getAudioTracks()[0]);
@@ -98,7 +98,7 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
       pen.font = "bold 52px sans-serif";
       pen.fillText(scenes[i].label, 64, 617 + 26*Math.max(0,1-p*8), 1152);
       pen.fillStyle = "#54dab4";
-      pen.fillRect(64, 655, 1152 * t / seconds, 5);
+      pen.fillRect(64, 655, 1152 * t / duration, 5);
     }
     draw(0);
     return await new Promise<Blob>((resolve, reject) => {
@@ -122,9 +122,9 @@ export async function renderFilm(scenes: FilmScene[], progress: (seconds: number
       });
       function tick() {
         const t = ctx.currentTime - start;
-        draw(Math.min(seconds,t));
+        draw(Math.min(duration,t));
         progress(Math.floor(t));
-        if (t >= seconds) recorder.stop();
+        if (t >= duration) recorder.stop();
         else frame = requestAnimationFrame(tick);
       }
       tick();

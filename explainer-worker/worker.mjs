@@ -14,7 +14,7 @@ async function bridge(body){
   if(!r.ok||data.error)throw new Error(typeof data.error==="string"?data.error:"Bridge HTTP "+r.status);
   return data;
 }
-const art={illustrated:"Editorial narrative illustration",whiteboard:"Sparse black marker drawing on white paper",comic:"Expressive full-color inked comic panel without lettering"};
+const art={illustrated:"Editorial narrative illustration",whiteboard:"Sparse colored marker art on white paper. No text",comic:"Expressive full-color inked comic panel without lettering"};
 const hosts={studio:"A slim friendly young man with wavy brown hair, tan skin, teal sweater, navy trousers",finance:"A woman with dark wavy hair reviewing a ledger, amber and teal palette",none:"Use props and scenes without a recurring host"};
 
 async function work(job,token){

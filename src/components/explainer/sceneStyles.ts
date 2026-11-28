@@ -3,44 +3,53 @@ export type StoryFormat = "illustrated" | "whiteboard" | "comic";
 export const artDirections = {
   illustrated: "Editorial narrative illustration, readable silhouettes, natural light, consistent cast and palette.",
   comic: "Single cinematic inked graphic novel panel, expressive gesture, consistent costume and palette. No lettering or gutters.",
-  whiteboard: "One large recognizable subject as clean sparse black marker line art on pure white. No text, shading or fills.",
+  whiteboard: "One large recognizable subject as clean sparse colored marker line art on white paper. No text, shading or fills.",
 };
+
+export interface BoardStroke {
+  points: number[];
+  color: string;
+}
 
 // Sample the actual ink in the illustration. Blank paper never becomes a visible stroke.
 export function boardStrokes(image: HTMLImageElement) {
   const paper = document.createElement("canvas");
   paper.width = 384; paper.height = 216;
-  const ctx = paper.getContext("2d", {willReadFrequently:true})!;
+  const ctx = paper.getContext("2d", {willReadFrequently:true});
+  if (!ctx) throw new Error("Could not sample whiteboard ink.");
   ctx.fillStyle = "white"; ctx.fillRect(0,0,384,216);
   ctx.drawImage(image,0,0,384,216);
   const pixels = ctx.getImageData(0,0,384,216).data;
   const ink = new Set<number>();
   for (let i=0;i<384*216;i++) {
     const k=i*4;
-    if ((pixels[k]*.299+pixels[k+1]*.587+pixels[k+2]*.114)<165) ink.add(i);
+    if (Math.max(255-pixels[k],255-pixels[k+1],255-pixels[k+2])>40) ink.add(i);
   }
-  const strokes: number[][]=[];
+  const strokes: BoardStroke[]=[];
   const steps=[1,384,-1,-384,385,383,-385,-383];
   for (const seed of ink) {
     const stroke: number[]=[];
+    const color=[0,0,0];
     let point: number|undefined=seed;
     while(point!==undefined) {
       const current:number=point;
       ink.delete(current); stroke.push(current);
+      for (let channel=0;channel<3;channel++) color[channel]+=pixels[current*4+channel];
       point=steps.map(d=>current+d).find(n=>Math.abs(n%384-current%384)<=1 && ink.has(n));
     }
-    strokes.push(stroke);
+    strokes.push({points:stroke,color:`rgb(${color.map(value=>Math.round(value/stroke.length)).join(",")})`});
   }
   return strokes;
 }
 
-export function drawBoard(ctx: CanvasRenderingContext2D, strokes:number[][], progress:number) {
+export function drawBoard(ctx: CanvasRenderingContext2D, strokes:BoardStroke[], progress:number) {
   ctx.fillStyle="#fffdf7"; ctx.fillRect(0,0,1280,720);
-  let count=Math.ceil(strokes.reduce((n,s)=>n+s.length,0)*Math.min(1,progress*1.18));
+  let count=Math.ceil(strokes.reduce((n,s)=>n+s.points.length,0)*Math.min(1,progress*1.18));
   let x=0,y=0;
-  ctx.strokeStyle="#18212a"; ctx.fillStyle=ctx.strokeStyle; ctx.lineWidth=3.5; ctx.lineCap="round";
-  for (const stroke of strokes) {
+  ctx.lineWidth=3.5; ctx.lineCap="round";
+  for (const {points:stroke,color} of strokes) {
     if(count<=0) break;
+    ctx.strokeStyle=color;
     ctx.beginPath();
     for(let i=0;i<Math.min(count,stroke.length);i++){
       x=(stroke[i]%384)*3.32; y=Math.floor(stroke[i]/384)*3.32;

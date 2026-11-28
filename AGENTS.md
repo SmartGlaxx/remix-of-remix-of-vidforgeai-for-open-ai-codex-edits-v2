@@ -19,3 +19,4 @@
 - After two camera/location corrections, replan unstarted actions once against the actual opening within the existing allowance; save edit provenance and review history, use localized PNG masks when available, and retain exact shared-boundary assets so recovery cannot invent a new opening or duplicate charges.
 - Background explainer exports expose only owner-scoped reads and input-column inserts to authenticated users; only the service role may claim or update exports, because clients must not control ownership, leases, or completion.
 - The external explainer worker talks only to the explainer-bridge function with a shared bearer token; the bridge enforces live leases and job-scoped storage paths, because the service-role key must never leave the backend.
+- Whiteboard sampling returns BoardStroke records with points and average source-ink color; reveal rendering consumes those records so colored artwork survives export.
