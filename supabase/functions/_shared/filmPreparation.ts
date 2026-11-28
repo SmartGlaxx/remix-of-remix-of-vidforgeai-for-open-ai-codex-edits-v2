@@ -98,6 +98,38 @@ export async function prepareFilm(s: PreparationServices) {
     await persist({ ...p, budget, replans, task: null, recovery_shot: undefined, phase: "direction", frame_revision: (p.frame_revision ?? 0) + 1, chapter: failed.chapter + 1 });
     return;
   }
+  // A film paused before movement masks shipped can already have a rejected ending
+  // and two spent corrections. Reviewing that same saved image again cannot repair it.
+  if (p.phase === "review" || p.phase === "frames") {
+    const legacy = shots.find(shot => {
+      const prefix = film.owner_id + "/boards/" + shot.id + "-";
+      const path = shot.board_end_path;
+      return shot.direction && shot.board_start_path && path?.startsWith(prefix)
+        && /^(?:auto-end|corrected-end)-\d+-r\d+\.png$/.test(path.slice(prefix.length))
+        && shot.frame_check?.offending_frame === "end" && !checkPassed(shot.frame_check);
+    });
+    if (legacy) {
+      if (p.phase === "review") {
+        await persist({ ...p, phase: "frames" });
+        return;
+      }
+      const chain = [legacy];
+      for (const next of shots.filter(item => item.index > legacy.index)) {
+        const prior = chain[chain.length - 1];
+        if (next.index !== prior.index + 1 || next.transition !== "continue"
+          || next.direction?.continuity !== "shared" || !prior.board_end_path
+          || next.board_start_path !== prior.board_end_path) break;
+        chain.push(next);
+      }
+      if (chain.some(item => item.state !== "pending" || item.animation_id)) throw new Error("Cannot replace a storyboard for a started shot.");
+      // Clear dependants first. If interrupted, the rejected root remains discoverable.
+      for (const item of chain.reverse()) {
+        await s.shot(item.id, { board_end_path: undefined, frame_check: null,
+          ...(item.id === legacy.id ? {} : { board_start_path: undefined, image_path: film.image_path ?? "" }) });
+      }
+      return;
+    }
+  }
   if (p.phase === "frames") {
     for (const scene of film.scenes ?? []) {
       if (!scene.reference_path) throw new Error("The location has no canonical reference path.");

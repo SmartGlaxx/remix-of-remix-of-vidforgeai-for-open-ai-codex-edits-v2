@@ -189,3 +189,21 @@ it("uses a tight mask even when the reviewer supplies no correction box", async 
   expect(h.shots[1].board_start_path).toBe(repair?.target);
   expect(h.draws.some(draw => draw.source === repair?.target && draw.target === h.shots[1].board_end_path)).toBe(true);
 });
+
+it("resumes a rejected legacy ending at its correction limit and rebuilds only its shared chain", async () => {
+  const h = preparationHarness();
+  h.film.preparation!.phase = "review";
+  Object.assign(h.shots[0], { board_start_path: h.film.image_path, board_end_path: "owner/boards/s0-corrected-end-2-r0.png", correction_attempts: 2,
+    frame_check: { ...passed, camera: false, issues: ["Panoramic opening replaced by a closer view"] } });
+  Object.assign(h.shots[1], { board_start_path: h.shots[0].board_end_path, board_end_path: "owner/shared.png", frame_check: passed });
+  Object.assign(h.shots[2], { transition: "cut", board_start_path: "owner/cut.png", board_end_path: "owner/cut-end.png", frame_check: passed });
+  for (let i = 0; i < 20 && h.film.state === "preparing"; i++) await prepareFilm(h.services);
+  expect(h.film.state).toBe("draft");
+  expect(h.draws).toHaveLength(2);
+  expect(h.draws[0].source).toBe("owner/original.png");
+  expect(h.draws[1].source).toBe(h.draws[0].target);
+  expect(h.draws.every(edit => edit.region && edit.target.includes("-masked-"))).toBe(true);
+  expect(h.shots[0].correction_attempts).toBe(2);
+  expect(h.shots[2].board_end_path).toBe("owner/cut-end.png");
+  expect(h.film.preparation?.budget.image_calls).toBe(2);
+});
