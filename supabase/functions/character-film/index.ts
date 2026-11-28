@@ -6,6 +6,8 @@ import { assemblies, draftDirections, narrationMismatch, narrationSeconds, SAMPL
 import { ownsImage } from "../_shared/prunaContract.ts";
 import { admin, kick, loadFilm, serviceKey, signed } from "../_shared/filmRuntime.ts";
 
+import { openingTag, tightRegion } from "../_shared/frameMask.ts";
+import { locateMovement } from "../_shared/filmPreparationRuntime.ts";
 import { drawFrame } from "../_shared/shotBoard.ts";
 import { assertPreparedShot, automaticBudget } from "../_shared/automaticDirection.ts";
 
@@ -151,7 +153,7 @@ Deno.serve(async request => {
       const tag=Array.from(new Uint8Array(revision).slice(0,8),v=>v.toString(16).padStart(2,"0")).join("");
       const base=root+shot.id+"-"+tag;
       const start=base+"-start.png";
-      const end=base+"-end.png";
+      let end = "";
       if(body.side==="start"){
         await drawFrame(owner,film.image_path,start,shot.visual+" Show the opening pose immediately before this action: "+shot.action);
         if(shot.transition==="cut"){
@@ -163,7 +165,13 @@ Deno.serve(async request => {
           if(error)throw error;
         }
       } else {
-        await drawFrame(owner,start,end,shot.visual+" Show the final pose immediately after this action completes: "+shot.action);
+        const opening = shot.board_start_path ?? start;
+        end = base + "-end-masked-" + await openingTag(opening) + ".png";
+        if (!(await admin.storage.from("character-inputs").info(end)).data) {
+          const suggested = shot.direction?.edit_region;
+          const region = tightRegion(suggested) ? suggested : await locateMovement(opening, shot);
+          await drawFrame(owner, opening, end, shot.visual + " Show the final pose immediately after this action completes: " + shot.action, region);
+        }
         const {error}=await admin.from("character_film_shots").update({board_end_path:end}).eq("id",shot.id).eq("owner_id",owner);
         if(error)throw error;
       }

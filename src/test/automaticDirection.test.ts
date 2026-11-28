@@ -1,10 +1,14 @@
-import { expect, it } from "vitest";
+import { webcrypto } from "node:crypto";
+import { afterAll, beforeAll, vi, expect, it } from "vitest";
 import { advanceFilm, type Film, type Shot, type FilmServices } from "../../supabase/functions/_shared/filmEngine";
 import { anchorDirectedChapter, automaticBudget, assertPreparedShot, checkPassed, reservePreparationCall, sharesBoundary, validateDirectedChapter, type SceneRecord, type EventDirection, type FrameCheck, type DirectedChapter } from "../../supabase/functions/_shared/automaticDirection";
 import { filmAnimationRequest } from "../../supabase/functions/_shared/filmAnimationRequest";
 import { prepareFilm, type PreparationServices } from "../../supabase/functions/_shared/filmPreparation";
 import { validateRecoveryPlan } from "../../supabase/functions/_shared/filmRecovery";
 import { maskPixels } from "../../supabase/functions/_shared/frameMask";
+
+beforeAll(() => vi.stubGlobal("crypto", webcrypto));
+afterAll(() => vi.unstubAllGlobals());
 
 const scene: SceneRecord = { id: "cafe", layout: "Window west of Daniel; table in front", materials: "Wooden table", lighting: "Window daylight from west", cast: [{ id: "daniel", appearance: "One Daniel, glasses and blue shirt", position: "At chair", facing: "Table north" }], props: [{ id: "teal-mug", position: "Table in front of right hand", owner: "daniel", hand: "right" }, { id: "notebook", position: "Table beside mug", owner: "daniel", hand: "left" }], landmarks: [{ id: "window", position: "west wall" }], reference_path: "owner/original.png" };
 const passed: FrameCheck = { identity: true, pose: true, camera: true, lighting: true, landmarks: true, props: true, feasible: true, issues: [], correction: "", offending_frame: "end" };
@@ -72,9 +76,9 @@ function preparationHarness(authorized = false) {
   const shots: Shot[] = cafeShots().map(shot => ({ ...shot, board_start_path: undefined, board_end_path: undefined, frame_check: null }));
   const film: Film = { id: "film", owner_id: "owner", image_path: "owner/original.png", script: "Sit down Lift mug Take a sip", seconds: 30, audio_mode: "native", state: "preparing", scenes: [scene], chapters: [{ key: "chapter-0", indices: [0, 1, 2], state: "pending" }], narration: [], preparation: { phase: "frames", chapter: 1, authorized, budget: automaticBudget(30) } };
   const images = new Set(["owner/original.png"]);
-  const draws: { source: string; target: string; prompt: string }[] = [];
+  const draws: { source: string; target: string; prompt: string; region?: FrameCheck["edit_region"] }[] = [];
   let plans = 0;
-  const services: PreparationServices = { replan: async () => ({ scenes: [scene], shots: cafeShots() }), load: async () => ({ film: structuredClone(film), shots: structuredClone(shots) }), film: async values => { Object.assign(film, values); }, shot: async (id, values) => { const shot = shots.find(shot => shot.id === id); if (shot) Object.assign(shot, values); }, script: async () => "Sit down Lift mug Take a sip", observe: async()=>scene, plan: async () => { plans++; return { scenes: [scene], shots: cafeShots() }; }, install: async (_chapter, plan: DirectedChapter) => { shots.splice(0, shots.length, ...plan.shots.map((shot, i) => ({ ...shot, id: "s" + i, request_id: "r" + i, index: i, chapter: 0, state: "pending", image_path: "owner/original.png" }))); }, draw: async (source, target, prompt) => { draws.push({ source, target, prompt }); images.add(target); }, exists: async path => images.has(path), review: async () => ({ ...passed }) };
+  const services: PreparationServices = { replan: async () => ({ scenes: [scene], shots: cafeShots() }), load: async () => ({ film: structuredClone(film), shots: structuredClone(shots) }), film: async values => { Object.assign(film, values); }, shot: async (id, values) => { const shot = shots.find(shot => shot.id === id); if (shot) Object.assign(shot, values); }, script: async () => "Sit down Lift mug Take a sip", observe: async()=>scene, plan: async () => { plans++; return { scenes: [scene], shots: cafeShots() }; }, install: async (_chapter, plan: DirectedChapter) => { shots.splice(0, shots.length, ...plan.shots.map((shot, i) => ({ ...shot, id: "s" + i, request_id: "r" + i, index: i, chapter: 0, state: "pending", image_path: "owner/original.png" }))); }, locate: async () => ({ x: 0.3, y: 0.4, width: 0.15, height: 0.1 }), draw: async (source, target, prompt, region) => { draws.push({ source, target, prompt, region }); images.add(target); return { source, target, prompt, edit_region: region ?? null, model: "test", quality: "test", status: 200, source_sha256: "test", provider_request_id: null }; }, exists: async path => images.has(path), review: async () => ({ ...passed }) };
   return { film, shots, services, draws, plans: () => plans };
 }
 it("prepares the café across fresh worker ticks using original opening and attached-start edits, without video authorization", async () => {
@@ -84,6 +88,7 @@ it("prepares the café across fresh worker ticks using original opening and atta
   expect(h.film.preparation?.phase).toBe("ready");
   expect(h.shots[0].board_start_path).toBe("owner/original.png");
   expect(h.draws).toHaveLength(3);
+  expect(h.draws.every(draw => draw.region?.width === 0.15)).toBe(true);
   expect(h.draws[1].source).toBe(h.shots[0].board_end_path);
   expect(h.shots[1].board_start_path).toBe(h.shots[0].board_end_path);
   expect(h.shots[2].board_start_path).toBe(h.shots[1].board_end_path);
@@ -146,4 +151,41 @@ it("masks only the moving hand/forearm/mug region and rejects whole-frame edits"
   expect(pixels[3]).toBe(255);
   expect(pixels[(5 * 10 + 2) * 4 + 3]).toBe(255);
   expect(() => maskPixels(10, 10, { x: 0, y: 0, width: 1, height: 1 })).toThrow("localized");
+});
+it("uses a tight directed box without buying a localization call", async () => {
+  const h = preparationHarness();
+  const region = { x: 0.4, y: 0.6, width: 0.1, height: 0.08 };
+  h.shots[0].direction!.edit_region = region;
+  h.services.locate = async () => { throw new Error("Unexpected localization"); };
+  await prepareFilm(h.services);
+  await prepareFilm(h.services);
+  expect(h.draws[0].region).toEqual(region);
+  expect(h.film.preparation?.budget).toMatchObject({ check_calls: 0, image_calls: 1 });
+});
+
+it("localizes a broad suggestion on the actual opening and blocks an invalid result before drawing", async () => {
+  const h = preparationHarness();
+  h.shots[0].direction!.edit_region = { x: 0, y: 0, width: 1, height: 0.5 };
+  h.services.locate = async (opening, shot) => {
+    expect(opening).toBe(shot.board_start_path);
+    expect(h.film.preparation?.budget.check_calls).toBe(1);
+    return { x: 0.95, y: 0, width: 0.1, height: 0.1 };
+  };
+  await prepareFilm(h.services);
+  await expect(prepareFilm(h.services)).rejects.toThrow("Invalid localized");
+  expect(h.draws).toHaveLength(0);
+  expect(h.film.preparation?.budget.image_calls).toBe(0);
+});
+
+it("uses a tight mask even when the reviewer supplies no correction box", async () => {
+  const h = preparationHarness();
+  let reviews = 0;
+  h.services.review = async () => ++reviews === 1
+    ? { ...passed, pose: false, issues: ["Card tilted"], correction: "Translate it with the grip fixed", edit_region: null }
+    : passed;
+  for (let i = 0; i < 40 && h.film.state === "preparing"; i++) await prepareFilm(h.services);
+  const repair = h.draws.find(draw => draw.target.includes("-corrected-end"));
+  expect(repair?.region).toEqual(h.draws[0].region);
+  expect(h.shots[1].board_start_path).toBe(repair?.target);
+  expect(h.draws.some(draw => draw.source === repair?.target && draw.target === h.shots[1].board_end_path)).toBe(true);
 });

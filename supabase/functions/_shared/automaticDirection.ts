@@ -9,6 +9,7 @@ export type SceneRecord = {
 };
 export type EventDirection = {
   scene_id: string; camera: string; start_pose: string; end_pose: string;
+  edit_region?: FrameCheck["edit_region"];
   movements: string[]; motion_prompt: string;
   start_state: string; end_state: string;
   continuity: "shared" | "extracted";
@@ -20,7 +21,7 @@ export type FrameCheck = {
   edit_region?: { x: number; y: number; width: number; height: number } | null;
 };
 export type FrameEditReceipt = { source: string; target: string; model: string; quality: string; prompt: string; edit_region: FrameCheck["edit_region"]; source_sha256: string; provider_request_id: string | null; status: number };
-export type Preparation = { phase: "script" | "scene" | "direction" | "frames" | "review" | "replan" | "ready"; chapter: number; authorized: boolean; topic?: string; budget: PreparationBudget; task?: string | null; recovery_shot?: string; frame_revision?: number; edits?: FrameEditReceipt[]; replans?: Record<string, number>; evidence?: { shot_id: string; start: string; end: string; attempt: number; check: FrameCheck }[] };
+export type Preparation = { phase: "script" | "scene" | "direction" | "frames" | "review" | "replan" | "ready"; chapter: number; authorized: boolean; topic?: string; budget: PreparationBudget; task?: string | null; recovery_shot?: string; frame_revision?: number; located_ending?: { target: string; region: NonNullable<FrameCheck["edit_region"]> }; edits?: FrameEditReceipt[]; replans?: Record<string, number>; evidence?: { shot_id: string; start: string; end: string; attempt: number; check: FrameCheck }[] };
 export type DirectedEvent = { line: string; purpose: string; visual: string; action: string; transition: "cut" | "continue"; duration: number; direction: EventDirection };
 export type DirectedChapter = { scenes: SceneRecord[]; shots: DirectedEvent[] };
 export function anchorDirectedChapter(plan: DirectedChapter, previous?: Shot): DirectedChapter {
