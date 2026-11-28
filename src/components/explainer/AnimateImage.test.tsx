@@ -3,11 +3,22 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import AnimateImage, { restoreDraft, type AnimationJob } from "./AnimateImage";
 import { PRESET, ESTIMATED_COST, canSave, imageError, ownsImage, shouldSubmit } from "../../../supabase/functions/character-animation/contract";
 const invoke=vi.hoisted(()=>vi.fn());
+const upload=vi.hoisted(()=>vi.fn());
+const convert=vi.hoisted(()=>vi.fn());
+vi.mock("./referencePng",()=>({referencePng:convert}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({user:{id:"owner"}})}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{functions:{invoke},storage:{from:vi.fn()}}}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{functions:{invoke},storage:{from:()=>({upload,createSignedUrl:async()=>({data:{signedUrl:"https://example.test/converted.png"},error:null})})}}}));
 const saved:AnimationJob={id:"job",request_id:"req",prompt:"Turn and wave.",image_path:"owner/image.png",image_url:"https://example.test/image.png",video_url:"https://example.test/clip.mp4",state:"ready",error:null,prediction_id:"prediction-1",created_at:"2026-11-22T02:31:00Z"};
-beforeEach(()=>{localStorage.clear();invoke.mockReset();invoke.mockResolvedValue({data:{jobs:[saved]},error:null});});
+beforeEach(()=>{localStorage.clear();upload.mockReset();upload.mockResolvedValue({error:null});convert.mockReset();convert.mockResolvedValue(new Blob(["png"],{type:"image/png"}));invoke.mockReset();invoke.mockResolvedValue({data:{jobs:[saved]},error:null});});
 describe("image-animation rules",()=>{
+  it.each(["image/jpeg","image/png","image/webp"])("stores a %s animation upload as PNG",async type=>{
+    render(<AnimateImage/>);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Replace image"})).toBeEnabled());
+    const file=new File(["input"],"input",{type});
+    fireEvent.change(screen.getByLabelText("Character illustration"),{target:{files:[file]}});
+    await waitFor(()=>expect(upload).toHaveBeenCalledWith(expect.stringMatching(/^owner\/.+\.png$/),expect.objectContaining({type:"image/png"}),{contentType:"image/png"}));
+    expect(convert).toHaveBeenCalledWith(file);
+  });
   it("keeps the exact $0.05 10-second 720p/24fps Draft/audio preset",()=>{expect(PRESET).toEqual({duration:10,resolution:"720p",fps:24,draft:true,save_audio:true,prompt_upsampling:false,disable_safety_filter:false});expect(ESTIMATED_COST).toBe(10*0.005);});
   it("never starts another paid prediction for an existing uncertain attempt",()=>{expect(shouldSubmit({state:"checking",request_id:"same"})).toBe(false);expect(shouldSubmit(null)).toBe(true);});
   it("rejects another owner's image and path traversal",()=>{expect(ownsImage("owner","other/image.png")).toBe(false);expect(ownsImage("owner","owner/../other/image.png")).toBe(false);expect(ownsImage("owner","owner/image.png")).toBe(true);});

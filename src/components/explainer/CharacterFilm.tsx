@@ -1,4 +1,5 @@
 import ShotBoard from "./ShotBoard";
+import { referencePng } from "./referencePng";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Download, Film, Loader2, Pause, Play, RefreshCw, Upload, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,8 +96,9 @@ function Builder({ owner,simple }: { owner: string; simple:boolean }) {
     if (invalid) { setError(invalid); return; }
     setBusy("Uploading"); setError("");
     try {
-      const next = `${owner}/${crypto.randomUUID()}.${file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"}`;
-      const { error: uploaded } = await supabase.storage.from("character-inputs").upload(next, file, { contentType: file.type });
+      const png = await referencePng(file);
+      const next = `${owner}/${crypto.randomUUID()}.png`;
+      const { error: uploaded } = await supabase.storage.from("character-inputs").upload(next, png, { contentType: "image/png" });
       if (uploaded) throw uploaded;
       const { data } = await supabase.storage.from("character-inputs").createSignedUrl(next, 3600);
       setPath(next); setImage(data?.signedUrl ?? "");
@@ -108,8 +110,9 @@ function Builder({ owner,simple }: { owner: string; simple:boolean }) {
     if (path) return path;
     const response = await fetch(host.image);
     if (!response.ok) throw new Error("The selected host could not be loaded.");
-    const destination = `${owner}/template-${host.id}-v1.webp`;
-    const { error } = await supabase.storage.from("character-inputs").upload(destination, await response.blob(), { contentType: "image/webp", upsert: false });
+    const png = await referencePng(await response.blob());
+    const destination = `${owner}/template-${host.id}-v2.png`;
+    const { error } = await supabase.storage.from("character-inputs").upload(destination, png, { contentType: "image/png", upsert: false });
     if (error && String(error.statusCode) !== "409" && error.name !== "Duplicate" && !/already exists/i.test(error.message)) throw error;
     setPath(destination);
     return destination;

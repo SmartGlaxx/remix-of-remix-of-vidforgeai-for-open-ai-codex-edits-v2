@@ -4,6 +4,7 @@ import { ownsImage } from "./prunaContract.ts";
 import { decode, encode } from "npm:fast-png@8.0.0";
 import type { FrameEditReceipt } from "./automaticDirection.ts";
 import { maskPixels, type EditRegion } from "./frameMask.ts";
+import { requirePng } from "./pngSignature.ts";
 
 export async function drawFrame(owner:string, source:string, target:string, prompt:string, region?: EditRegion | null) {
   if (!ownsImage(owner,source) || !ownsImage(owner,target)) throw new Error("Invalid storyboard image");
@@ -16,7 +17,9 @@ export async function drawFrame(owner:string, source:string, target:string, prom
   const form=new FormData();
   form.set("image",reference.data,source.split("/").pop() ?? "reference.png");
   if (region) {
-    const original = decode(new Uint8Array(await reference.data.arrayBuffer()));
+    const referenceBytes = new Uint8Array(await reference.data.arrayBuffer());
+    requirePng(referenceBytes);
+    const original = decode(referenceBytes);
     const mask = encode({ width: original.width, height: original.height, channels: 4, data: maskPixels(original.width, original.height, region) });
     form.set("mask", new Blob([new Uint8Array(mask)], { type: "image/png" }), "movement-mask.png");
   }

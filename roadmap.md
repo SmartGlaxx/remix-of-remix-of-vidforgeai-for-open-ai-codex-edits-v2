@@ -1,5 +1,9 @@
 # Video playback update
 
+# Character reference PNG fix
+
+- [x] Convert film uploads, host templates, and single-image uploads to PNG; guard masked decoding. All 41 Explainer tests and Preview build pass; real browser conversion preserves dimensions and PNG bytes for JPG/WebP/PNG. No paid generation. Live upload flow and function deployment remain unverified; existing non-PNG references need re-upload and replanning.
+
 # Explainer narration and colored whiteboard render
 
 - [x] Play narration at rate 1 and stop clips at the decoded narration duration; regression test verifies 2s + 3s narration stops at 5s, not the requested 60s slot. Local Chromium recording with 2s sample audio contains playable video/audio (1.949s container duration); no paid generation.

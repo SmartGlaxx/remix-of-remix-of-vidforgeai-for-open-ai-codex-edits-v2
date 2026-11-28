@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { referencePng } from "./referencePng";
 import { Download, Film, Loader2, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -48,10 +49,9 @@ export default function AnimateImage() {
     const invalid=imageError(file.type,file.size); if(invalid){setError(invalid);return;}
     setBusy(true);setError("");
     try {
-      const bitmap=await createImageBitmap(file); bitmap.close();
-      const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
-      const next=`${user.id}/${crypto.randomUUID()}.${ext}`;
-      const {error:up}=await supabase.storage.from("character-inputs").upload(next,file,{contentType:file.type});if(up)throw up;
+      const png=await referencePng(file);
+      const next=`${user.id}/${crypto.randomUUID()}.png`;
+      const {error:up}=await supabase.storage.from("character-inputs").upload(next,png,{contentType:"image/png"});if(up)throw up;
       const {data,error:read}=await supabase.storage.from("character-inputs").createSignedUrl(next,3600);if(read||!data)throw read ?? new Error("Could not preview image.");
       setPath(next);setImage(data.signedUrl);setRequest(undefined);
     } catch(e){setError(e instanceof Error?e.message:"Could not upload this illustration.");}finally{setBusy(false);}

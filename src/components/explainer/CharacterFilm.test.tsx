@@ -4,6 +4,8 @@ import CharacterFilm from "./CharacterFilm";
 
 const upload = vi.hoisted(() => vi.fn());
 const invoke = vi.hoisted(() => vi.fn());
+const convert = vi.hoisted(() => vi.fn());
+vi.mock("./referencePng", () => ({ referencePng: convert }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -26,7 +28,7 @@ const view = {
   progress: { saved: 0, total: 3, chapter: 1, chapters: 1, phase: "Generating clips" },
 };
 
-beforeEach(() => { localStorage.clear(); window.history.replaceState(null,"","/"); invoke.mockReset(); invoke.mockResolvedValue({ data: view, error: null }); });
+beforeEach(() => { localStorage.clear(); window.history.replaceState(null,"","/"); upload.mockReset(); convert.mockReset(); convert.mockResolvedValue(new Blob(["png"], { type: "image/png" })); invoke.mockReset(); invoke.mockResolvedValue({ data: view, error: null }); });
 afterEach(cleanup);
 
 it("opens a planned 30-second, three-shot film costing US$0.15", async () => {
@@ -95,9 +97,23 @@ it("creates from a topic with the default host and no user upload", async () => 
     fireEvent.change(screen.getByLabelText("Topic"), { target: { value: "How interest grows" } });
     fireEvent.click(create);
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("character-film", { body: expect.objectContaining({
-      action: "create", topic: "How interest grows", image_path: "owner/template-studio-v1.webp"
+      action: "create", topic: "How interest grows", image_path: "owner/template-studio-v2.png"
     }) }));
+    expect(convert).toHaveBeenCalledOnce();
+    expect(upload).toHaveBeenCalledWith("owner/template-studio-v2.png", expect.objectContaining({ type: "image/png" }), { contentType: "image/png", upsert: false });
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it.each(["image/jpeg", "image/png", "image/webp"])("stores a %s film upload as PNG", async type => {
+  upload.mockResolvedValue({ error: null });
+  render(<CharacterFilm />);
+  await waitFor(() => expect(screen.getByRole("button", { name: /Create video/ })).toBeEnabled());
+  const file = new File(["input"], "input", { type });
+  const input = document.getElementById("film-image");
+  if (!input) throw new Error("Missing film image input");
+  fireEvent.change(input, { target: { files: [file] } });
+  await waitFor(() => expect(upload).toHaveBeenCalledWith(expect.stringMatching(/^owner\/.+\.png$/), expect.objectContaining({ type: "image/png" }), { contentType: "image/png" }));
+  expect(convert).toHaveBeenCalledWith(file);
 });
