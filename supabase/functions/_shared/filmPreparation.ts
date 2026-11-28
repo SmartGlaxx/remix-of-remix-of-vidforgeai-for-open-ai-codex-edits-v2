@@ -1,3 +1,4 @@
+import { openingTag, tightRegion, validRegion, type EditRegion } from "./frameMask.ts";
 import type { Film, Shot } from "./filmEngine.ts";
 import { needsActionReplan, validateRecoveryPlan } from "./filmRecovery.ts";
 import { anchorDirectedChapter, checkPassed, reservePreparationCall, sceneFramePrompt, validateDirectedChapter, type DirectedChapter, type FrameEditReceipt, type FrameCheck, type Preparation, type SceneRecord } from "./automaticDirection.ts";
@@ -12,6 +13,7 @@ export interface PreparationServices {
   replan(shots: Shot[], scene: SceneRecord, check: FrameCheck): Promise<DirectedChapter>;
   install(chapter: number, plan: DirectedChapter): Promise<void>;
   draw(source: string, target: string, prompt: string, region?: FrameCheck["edit_region"]): Promise<void | FrameEditReceipt>;
+  locate(opening: string, shot: Shot): Promise<EditRegion>;
   exists(path: string): Promise<boolean>;
   review(shot: Shot, scene: SceneRecord): Promise<FrameCheck>;
 }
@@ -25,6 +27,21 @@ export async function prepareFilm(s: PreparationServices) {
   const edits = [...(p.edits ?? [])];
   const persist = async (next: Preparation) => s.film({ preparation: { ...next, edits } });
   const draw: PreparationServices["draw"] = async (...args) => { const receipt = await s.draw(...args); if (receipt) edits.push(receipt); return receipt; };
+  async function endingRegion(shot: Shot, state: Preparation, suggestion?: FrameCheck["edit_region"]) {
+    const opening = shot.board_start_path;
+    if (!opening) throw new Error("An opening frame is required to localize movement.");
+    if (tightRegion(suggestion)) return { region: suggestion, budget: state.budget };
+    if (tightRegion(shot.direction?.edit_region)) return { region: shot.direction.edit_region, budget: state.budget };
+    const previous = edits.find(edit => edit.source === opening && edit.target === shot.board_end_path);
+    if (tightRegion(previous?.edit_region)) return { region: previous.edit_region, budget: state.budget };
+    // Check image allowance before spending a vision call. The caller reserves the image before drawing.
+    reservePreparationCall(state.budget, "image");
+    const budget = reservePreparationCall(state.budget, "check");
+    await persist({ ...state, budget, task: "localizing movement " + shot.id });
+    const region = await s.locate(opening, shot);
+    if (!validRegion(region)) throw new Error("Invalid localized movement in the opening frame.");
+    return { region, budget };
+  }
   if (p.phase === "script") {
     await persist({ ...p, task: "script" });
     const script = await s.script(p.topic ?? "", film.seconds);
@@ -112,12 +129,20 @@ export async function prepareFilm(s: PreparationServices) {
         return;
       }
       if (!shot.board_end_path) {
-        const target = `${film.owner_id}/boards/${shot.id}-auto-end-${shot.correction_attempts ?? 0}-r${p.frame_revision ?? 0}.png`;
+        const target = `${film.owner_id}/boards/${shot.id}-auto-end-masked-${await openingTag(shot.board_start_path)}-${shot.correction_attempts ?? 0}-r${p.frame_revision ?? 0}.png`;
         if (!(await s.exists(target))) {
+          let region = shot.direction.edit_region;
+          if (p.located_ending?.target === target && validRegion(p.located_ending.region)) {
+            region = p.located_ending.region;
+          } else if (!tightRegion(region)) {
+            const located = await endingRegion(shot, p);
+            await persist({ ...p, budget: located.budget, located_ending: { target, region: located.region }, task: null });
+            return;
+          }
           const budget = reservePreparationCall(p.budget, "image");
           await persist({ ...p, budget, task: "ending frame " + shot.id });
-          await draw(shot.board_start_path, target, sceneFramePrompt(scene, shot.direction, "end"));
-          await persist({ ...p, budget, task: null });
+          await draw(shot.board_start_path, target, sceneFramePrompt(scene, shot.direction, "end"), region);
+          await persist({ ...p, budget, located_ending: undefined, task: null });
         }
         await s.shot(shot.id, { board_end_path: target });
         return;
@@ -146,10 +171,12 @@ export async function prepareFilm(s: PreparationServices) {
       if ((shot.correction_attempts ?? 0) >= 2 || check.offending_frame === "start" && (shot.index === 0 || shot.transition === "continue")) throw new Error("Continuity needs attention: " + check.issues.join("; ") + ". No video was submitted.");
       const correction = (shot.correction_attempts ?? 0) + 1;
       const side = check.offending_frame;
-      const target = `${film.owner_id}/boards/${shot.id}-corrected-${side}-${correction}-r${p.frame_revision ?? 0}.png`;
-      const correctedBudget = reservePreparationCall(budget, "image");
+      const correctionSide = side === "end" ? "end-masked-" + await openingTag(shot.board_start_path ?? "") : side;
+      const target = `${film.owner_id}/boards/${shot.id}-corrected-${correctionSide}-${correction}-r${p.frame_revision ?? 0}.png`;
+      const located = side === "end" ? await endingRegion(shot, reviewed, check.edit_region) : null;
+      const correctedBudget = reservePreparationCall(located?.budget ?? budget, "image");
       await persist({ ...reviewed, budget: correctedBudget, task: "correcting " + shot.id });
-      await draw(side === "end" ? shot.board_start_path ?? "" : scene.reference_path ?? film.image_path ?? "", target, sceneFramePrompt(scene, shot.direction, side) + "\nCorrect these issues: " + check.correction, side === "end" ? check.edit_region : null);
+      await draw(side === "end" ? shot.board_start_path ?? "" : scene.reference_path ?? film.image_path ?? "", target, sceneFramePrompt(scene, shot.direction, side) + "\nCorrect these issues: " + check.correction, located?.region ?? null);
       await s.shot(shot.id, { correction_attempts: correction, frame_check: null, ...(side === "end" ? { board_end_path: target } : { board_start_path: target, image_path: target, board_end_path: undefined }) });
       // A shared boundary is ONE asset, including after repair; downstream endings must be redrawn.
       for (const next of shots.filter(next => next.index > shot.index && next.transition === "continue")) {
