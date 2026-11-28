@@ -78,7 +78,7 @@ async function work(job,token){
         await page.addScriptTag({path:"bundle.js"});
         const bytes=await page.evaluate(async ({scene,format,length})=>{
           const blob=await Studio.renderFilm([scene],()=>{},new AbortController().signal,format,length);
-          return await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(",")[1]);reader.readAsDataURL(blob);});
+          return await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).slice(String(reader.result).indexOf(";base64,")+8));reader.readAsDataURL(blob);});
         },{scene:s,format:job.format,length:job.seconds/count});
         const recording=join(dir,"recording");await writeFile(recording,Buffer.from(bytes,"base64"));
         execFileSync("ffmpeg",["-loglevel","error","-y","-i",recording,"-c:v","libx264","-pix_fmt","yuv420p","-c:a","aac","-ar","48000","-r","30",local]);
