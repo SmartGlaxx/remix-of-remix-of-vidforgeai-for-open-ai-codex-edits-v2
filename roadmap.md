@@ -1,3 +1,7 @@
+# Cut-based Character Animation
+
+- [x] Default new automatic explainer drafts to independent single-image shots with opening-frame safety review; retain paired/shared contracts for existing films. Deployed generate-script, character-film and character-film-worker. 146 regression tests pass (8 opt-in live checks skipped); signed-in saved draft and prepare-only payload checked with submission intercepted before provider execution. No paid generation or public publish; actual generated cut-film MP4 remains unverified pending owner rendering.
+
 # Video playback update
 
 # Character reference PNG fix

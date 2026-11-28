@@ -117,3 +117,13 @@ it.each(["image/jpeg", "image/png", "image/webp"])("stores a %s film upload as P
   await waitFor(() => expect(upload).toHaveBeenCalledWith(expect.stringMatching(/^owner\/.+\.png$/), expect.objectContaining({ type: "image/png" }), { contentType: "image/png" }));
   expect(convert).toHaveBeenCalledWith(file);
 });
+
+it("lets a blocked simple-screen draft prepare a new scene-cut draft without authorizing video", async () => {
+  invoke.mockResolvedValue({ data: { ...view, film: { ...view.film, state: "attention", error: "Continuity needs attention", preparation: { phase: "review" } } }, error: null });
+  render(<CharacterFilm simple />);
+  const prepare = await screen.findByRole("button", { name: "Prepare scene-cut draft" });
+  await waitFor(() => expect(prepare).toBeEnabled());
+  fireEvent.click(prepare);
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("character-film", { body: expect.objectContaining({ action: "create", script: view.film.script, seconds: 30, prepare_only: true }) }));
+  expect(invoke.mock.calls.filter(([, args]) => args.body.action === "generate")).toHaveLength(0);
+});

@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 import { afterAll, beforeAll, vi, expect, it } from "vitest";
 import { advanceFilm, type Film, type Shot, type FilmServices } from "../../supabase/functions/_shared/filmEngine";
-import { anchorDirectedChapter, automaticBudget, assertPreparedShot, checkPassed, reservePreparationCall, sharesBoundary, validateDirectedChapter, type SceneRecord, type EventDirection, type FrameCheck, type DirectedChapter } from "../../supabase/functions/_shared/automaticDirection";
+import { anchorDirectedChapter, cutDirectedChapter, automaticBudget, assertPreparedShot, checkPassed, reservePreparationCall, sharesBoundary, validateDirectedChapter, type SceneRecord, type EventDirection, type FrameCheck, type DirectedChapter } from "../../supabase/functions/_shared/automaticDirection";
 import { filmAnimationRequest } from "../../supabase/functions/_shared/filmAnimationRequest";
 import { prepareFilm, type PreparationServices } from "../../supabase/functions/_shared/filmPreparation";
 import { validateRecoveryPlan } from "../../supabase/functions/_shared/filmRecovery";
@@ -206,4 +206,48 @@ it("resumes a rejected legacy ending at its correction limit and rebuilds only i
   expect(h.shots[0].correction_attempts).toBe(2);
   expect(h.shots[2].board_end_path).toBe("owner/cut-end.png");
   expect(h.film.preparation?.budget.image_calls).toBe(2);
+});
+
+it("directs new explainers as independent cuts without rewriting narration or durations", () => {
+  const original = cafeShots();
+  const plan = cutDirectedChapter({ scenes: [scene], shots: original });
+  expect(plan.shots.map(shot => shot.transition)).toEqual(["cut", "cut", "cut"]);
+  expect(plan.shots.map(shot => shot.direction.continuity)).toEqual(["independent", "independent", "independent"]);
+  expect(plan.shots.map(shot => [shot.line, shot.duration])).toEqual(original.map(shot => [shot.line, shot.duration]));
+  expect(original[1].transition).toBe("continue");
+});
+
+it("prepares a 30-second cut draft using only openings and never masks an ending", async () => {
+  const h = preparationHarness();
+  h.shots.forEach(shot => {
+    shot.transition = "cut";
+    if (shot.direction) shot.direction.continuity = "independent";
+  });
+  h.services.locate = async () => { throw new Error("No ending localization allowed"); };
+  h.services.review = async shot => {
+    expect(shot.board_start_path).toBeTruthy();
+    expect(shot.board_end_path).toBeUndefined();
+    return { ...passed, offending_frame: "start" };
+  };
+  for (let i = 0; i < 20 && h.film.state === "preparing"; i++) await prepareFilm(h.services);
+  expect(h.film).toMatchObject({ state: "draft", seconds: 30, preparation: { authorized: false, phase: "ready" } });
+  expect(h.draws).toHaveLength(2);
+  expect(h.draws.every(draw => draw.region === undefined && draw.target.includes("auto-start"))).toBe(true);
+  expect(h.shots.map(shot => filmAnimationRequest(shot, "owner", "native").end_image_path)).toEqual([undefined, undefined, undefined]);
+});
+
+it("keeps identity failures blocking single-image cut submissions", () => {
+  const shot = { ...cafeShots()[0], board_end_path: undefined, direction: { ...direction("standing", "gesturing"), continuity: "independent" as const }, frame_check: { ...passed, identity: false } };
+  expect(() => filmAnimationRequest(shot, "owner", "native")).toThrow("review must pass");
+  expect(() => assertPreparedShot({ ...shot, frame_check: passed, transition: "continue" })).toThrow("require a cut");
+});
+
+it("rejects a failed cut opening twice without submitting video or endless correction", async () => {
+  const h = preparationHarness();
+  h.shots.forEach(shot => { shot.transition = "cut"; if (shot.direction) shot.direction.continuity = "independent"; });
+  h.services.review = async () => ({ ...passed, identity: false, issues: ["Duplicated host"], correction: "One host only", offending_frame: "start" });
+  await expect((async () => { for (let i = 0; i < 30; i++) await prepareFilm(h.services); })()).rejects.toThrow("Continuity needs attention");
+  expect(h.film.preparation?.authorized).toBe(false);
+  expect(h.shots[0].correction_attempts).toBe(2);
+  expect(h.draws.filter(draw => draw.target.includes("corrected-start"))).toHaveLength(2);
 });

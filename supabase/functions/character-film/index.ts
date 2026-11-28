@@ -65,7 +65,7 @@ async function present(id: string) {
   const real = chapters.filter(a => a.key !== "final");
   const current = chapters.find(a => a.state !== "ready");
   const saved = shots.filter(s => s.state === "ready" && s.video_path).length;
-  const phase = film.state === "draft" ? (film.preparation?.phase === "ready" ? "Ready to render" : "Draft") : film.state === "preparing" ? ({script:"Writing narration",scene:"Inspecting the reference scene",direction:"Directing scenes",frames:"Preparing paired frames",review:"Checking continuity",replan:"Replanning the action",ready:"Ready to render"}[film.preparation?.phase ?? "direction"]) : film.state === "ready" ? "Finished" : film.state === "assembling" ? (current?.key === "final" ? "Saving final film" : "Assembling chapters") : "Generating clips";
+  const phase = film.state === "draft" ? (film.preparation?.phase === "ready" ? "Ready to render" : "Draft") : film.state === "preparing" ? ({script:"Writing narration",scene:"Inspecting the reference scene",direction:"Directing scenes",frames:film.preparation?.shot_style==="cuts"?"Preparing scene images":"Preparing paired frames",review:film.preparation?.shot_style==="cuts"?"Checking scene images":"Checking continuity",replan:"Replanning the action",ready:"Ready to render"}[film.preparation?.phase ?? "direction"]) : film.state === "ready" ? "Finished" : film.state === "assembling" ? (current?.key === "final" ? "Saving final film" : "Assembling chapters") : "Generating clips";
   const final_video_url = film.final_video_path ? await signed("film-media", film.final_video_path).catch(() => null) : null;
   return {
     film: { ...film, estimated_usd: Number(film.estimated_usd), final_video_url, mismatch: narrationMismatch(film.script, film.seconds), spoken_seconds: Math.round(narrationSeconds(film.script)) },
@@ -123,7 +123,7 @@ Deno.serve(async request => {
       if(body.action==="create" && body.audio_mode==="uploaded")return json({error:"Plan a draft and attach chapter narration before creating the video."},400);
       const id = await insertFilm(owner, { script: body.script || (body.action==="create"?body.topic:""), seconds: body.seconds, image_path: body.image_path, audio_mode: body.audio_mode, request_id: body.request_id });
       if(body.action==="create"){
-        const {error}=await admin.from("character_films").update({state:"preparing",preparation:{phase:body.script?"scene":"script",chapter:0,authorized:!body.prepare_only,topic:body.topic,budget:automaticBudget(body.seconds)},estimated_usd:automaticBudget(body.seconds).max_video_clips*0.05}).eq("id",id).eq("owner_id",owner);
+        const {error}=await admin.from("character_films").update({state:"preparing",preparation:{phase:body.script?"scene":"script",chapter:0,authorized:!body.prepare_only,shot_style:"cuts",topic:body.topic,budget:automaticBudget(body.seconds)},estimated_usd:automaticBudget(body.seconds).max_video_clips*0.05}).eq("id",id).eq("owner_id",owner);
         if(error)throw error;
         kick(id);
       }

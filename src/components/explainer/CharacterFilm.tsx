@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { planCharacterFilm } from "../../../supabase/functions/_shared/characterFilmPlan";
 import { ESTIMATED_COST, imageError } from "../../../supabase/functions/character-animation/contract";
-import { automaticBudget, checkPassed, type Preparation, type SceneRecord, type EventDirection, type FrameCheck } from "../../../supabase/functions/_shared/automaticDirection";
+import { automaticBudget, checkPassed, independentShot, type Preparation, type SceneRecord, type EventDirection, type FrameCheck } from "../../../supabase/functions/_shared/automaticDirection";
 
 type Shot = { direction?:EventDirection;frame_check?:FrameCheck;board_start_path?:string;board_end_path?:string; id: string; index: number; chapter: number; duration: number; line: string; purpose: string; visual: string; action: string; transition: "cut" | "continue"; state: string; error: string | null; video_path: string | null };
 type Chapter = { key: string; indices: number[]; state: string; error?: string };
@@ -158,7 +158,7 @@ function Builder({ owner,simple }: { owner: string; simple:boolean }) {
     setError("");
     try{
       for(const item of view.shots){
-        for(const side of ["start","end"] as const){
+        for(const side of (independentShot(item)?["start"]:["start","end"]) as ("start"|"end")[]){
           if(side==="start"?item.board_start_path:item.board_end_path)continue;
           setBusy("Drawing shot "+(item.index+1)+" of "+view.shots.length);
           const {data,error}=await supabase.functions.invoke("character-film",{body:{action:"board_frame",id:item.id,side}});
@@ -247,7 +247,9 @@ function Builder({ owner,simple }: { owner: string; simple:boolean }) {
     <details><summary>Host</summary><select aria-label="Host" disabled={running||!!busy} value={path && !path.includes("/template-")?"custom":hosts.find(h=>path.endsWith("/template-"+h.id+"-v1.webp"))?.id??host.id} onChange={e=>{
       const next=hosts.find(h=>h.id===e.target.value);if(next){setHost(next);setPath("");setImage(next.image);localStorage.setItem(preference,next.id);}
     }}>{path && <option hidden value="custom">Saved film reference</option>}{hosts.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}</select></details>
-    <Button disabled={!topic.trim()||running||!!busy} onClick={()=>createVideo()}>Generate video · up to US${createEstimate.toFixed(2)}</Button>
+    <div className="flex flex-wrap gap-2"><Button disabled={(!topic.trim()&&!script.trim())||running||!!busy} onClick={()=>createVideo()}>Generate video · up to US${createEstimate.toFixed(2)}</Button>
+    <Button variant="outline" disabled={(!topic.trim()&&!script.trim())||running||!!busy} onClick={()=>createVideo(true)}><Wand2 className="mr-2 h-4 w-4"/>Prepare scene-cut draft</Button>
+    </div>
     <p role="status">{busy||view?.film.error||view?.progress.phase}</p>{error&&<p role="alert">{error}</p>}
     {view?.film.final_video_url&&<><video controls src={view.film.final_video_url} className="w-full"/><Button onClick={download}>Download MP4</Button></>}
   </section>;
@@ -376,7 +378,7 @@ function Builder({ owner,simple }: { owner: string; simple:boolean }) {
 
         {shot && <div className="space-y-3 rounded-lg border border-border p-3">
           <div className="flex items-center justify-between"><h4 className="font-semibold">Shot {shot.index + 1}</h4><span className="text-xs text-muted-foreground">{shotLabels[shot.state] ?? shot.state}</span></div>
-          <ShotBoard key={shot.id} id={shot.id} start={shot.board_start_path} end={shot.board_end_path} onSaved={async()=>{if(view)await load(view.film.id);}} continuation={shot.transition==="continue"} shared={shot.direction?.continuity==="shared"} enabled={!!draft && !busy}/>
+          <ShotBoard key={shot.id} id={shot.id} start={shot.board_start_path} end={shot.board_end_path} onSaved={async()=>{if(view)await load(view.film.id);}} continuation={shot.transition==="continue"} shared={shot.direction?.continuity==="shared"} independent={independentShot(shot)} enabled={!!draft && !busy}/>
           {shot.direction&&<div className="space-y-1 text-sm"><p><strong>Opening:</strong> {shot.direction.start_pose}</p><p><strong>Ending:</strong> {shot.direction.end_pose}</p><p>{shot.direction.camera}</p><p>{shot.direction.motion_prompt}</p><p className={checkPassed(shot.frame_check)?"text-primary":"text-muted-foreground"}>{checkPassed(shot.frame_check)?"Continuity checked":"Continuity review pending"}</p></div>}
           {draft ? <div className="space-y-2">
             <Label htmlFor="shot-purpose">Purpose</Label>

@@ -15,7 +15,7 @@ export const directedChapterSchema = z.object({
     action: z.string().min(1).max(600), transition: z.enum(["cut", "continue"]), duration: z.number().int().min(2).max(10),
     direction: z.object({ edit_region: regionSchema.nullish(), scene_id: z.string().min(1).max(80), camera: text, start_pose: text, end_pose: text,
       movements: z.array(text).min(1).max(5), motion_prompt: z.string().min(1).max(2200),
-      start_state: text, end_state: text, continuity: z.enum(["shared", "extracted"]) }),
+      start_state: text, end_state: text, continuity: z.enum(["shared", "extracted", "independent"]) }),
   })).min(1).max(48),
 });
 // The strict wire schema intentionally has no optional fields or numeric/string bounds.

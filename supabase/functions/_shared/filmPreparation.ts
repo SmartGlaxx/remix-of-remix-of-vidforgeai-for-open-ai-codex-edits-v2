@@ -1,7 +1,7 @@
 import { openingTag, tightRegion, validRegion, type EditRegion } from "./frameMask.ts";
 import type { Film, Shot } from "./filmEngine.ts";
 import { needsActionReplan, validateRecoveryPlan } from "./filmRecovery.ts";
-import { anchorDirectedChapter, checkPassed, reservePreparationCall, sceneFramePrompt, validateDirectedChapter, type DirectedChapter, type FrameEditReceipt, type FrameCheck, type Preparation, type SceneRecord } from "./automaticDirection.ts";
+import { anchorDirectedChapter, cutDirectedChapter, independentShot, checkPassed, reservePreparationCall, sceneFramePrompt, validateDirectedChapter, type DirectedChapter, type FrameEditReceipt, type FrameCheck, type Preparation, type SceneRecord } from "./automaticDirection.ts";
 
 export interface PreparationServices {
   load(): Promise<{ film: Film; shots: Shot[] }>;
@@ -67,7 +67,8 @@ export async function prepareFilm(s: PreparationServices) {
     await persist({ ...p, task: "direction chapter " + (p.chapter + 1) });
     const chapterWords = line.split(/\s+/);
     const lines = group.map((_, i) => chapterWords.slice(Math.floor(i * chapterWords.length / group.length), Math.floor((i + 1) * chapterWords.length / group.length)).join(" "));
-    const plan = anchorDirectedChapter(await s.plan(lines, chapterSeconds, film.scenes ?? [], previous), previous);
+    const directed = await s.plan(lines, chapterSeconds, film.scenes ?? [], previous);
+    const plan = p.shot_style === "cuts" ? cutDirectedChapter(directed) : anchorDirectedChapter(directed, previous);
     validateDirectedChapter(plan, chapterSeconds, Math.ceil(chapterSeconds / 5), previous, film.scenes);
     if (plan.shots.map(shot => shot.line).join(" ").replace(/\s+/g, " ").trim() !== line.replace(/\s+/g, " ").trim()) throw new Error("The director changed the narration. Saved script retained; no video submitted.");
     await s.install(p.chapter, plan);
@@ -104,7 +105,7 @@ export async function prepareFilm(s: PreparationServices) {
     const legacy = shots.find(shot => {
       const prefix = film.owner_id + "/boards/" + shot.id + "-";
       const path = shot.board_end_path;
-      return shot.direction && shot.board_start_path && path?.startsWith(prefix)
+      return !independentShot(shot) && shot.direction && shot.board_start_path && path?.startsWith(prefix)
         && /^(?:auto-end|corrected-end)-\d+-r\d+\.png$/.test(path.slice(prefix.length))
         && shot.frame_check?.offending_frame === "end" && !checkPassed(shot.frame_check);
     });
@@ -160,7 +161,7 @@ export async function prepareFilm(s: PreparationServices) {
         await s.shot(shot.id, { image_path: target, board_start_path: target });
         return;
       }
-      if (!shot.board_end_path) {
+      if (!independentShot(shot) && !shot.board_end_path) {
         const target = `${film.owner_id}/boards/${shot.id}-auto-end-masked-${await openingTag(shot.board_start_path)}-${shot.correction_attempts ?? 0}-r${p.frame_revision ?? 0}.png`;
         if (!(await s.exists(target))) {
           let region = shot.direction.edit_region;
@@ -191,6 +192,7 @@ export async function prepareFilm(s: PreparationServices) {
     const budget = reservePreparationCall(p.budget, "check");
     await persist({ ...p, budget, task: "continuity review " + shot.id });
     const check = await s.review(shot, scene);
+    if (independentShot(shot) && check.offending_frame !== "start") throw new Error("Opening-frame review returned an invalid result. No video was submitted.");
     await s.shot(shot.id, { frame_check: check });
     const evidence = [...(p.evidence ?? []), { shot_id: shot.id, start: shot.board_start_path ?? "", end: shot.board_end_path ?? "", attempt: shot.correction_attempts ?? 0, check }];
     const reviewed = { ...p, budget, evidence, task: null };
@@ -200,7 +202,7 @@ export async function prepareFilm(s: PreparationServices) {
         await persist({ ...reviewed, phase: "replan", recovery_shot: shot.id });
         return;
       }
-      if ((shot.correction_attempts ?? 0) >= 2 || check.offending_frame === "start" && (shot.index === 0 || shot.transition === "continue")) throw new Error("Continuity needs attention: " + check.issues.join("; ") + ". No video was submitted.");
+      if ((shot.correction_attempts ?? 0) >= 2 || check.offending_frame === "start" && !independentShot(shot) && (shot.index === 0 || shot.transition === "continue")) throw new Error("Continuity needs attention: " + check.issues.join("; ") + ". No video was submitted.");
       const correction = (shot.correction_attempts ?? 0) + 1;
       const side = check.offending_frame;
       const correctionSide = side === "end" ? "end-masked-" + await openingTag(shot.board_start_path ?? "") : side;

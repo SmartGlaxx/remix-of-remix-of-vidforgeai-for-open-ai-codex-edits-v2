@@ -17,8 +17,10 @@
 - Expose capscify/extract-frame as a non-generation gateway utility and reverse the decoded tail before selecting one frame; otherwise an earlier near-end pose is mistaken for the actual final frame.
 - Character film links may select an owner-scoped saved film with the film query parameter; direct review links must not silently open a newer draft.
 - Both bulk and per-shot storyboard generation use drawFrame's single-moment, single-character constraints to prevent before/after collages from becoming animation inputs.
-- Keep automatic film preparation as bounded server-owned ticks with saved scene/event records, operation intent, request allowances and frame-review results; preserve uncertain requests without automatic resubmission and authorize video only after every pair passes review.
+- Keep automatic film preparation as bounded server-owned ticks with saved scene/event records, operation intent, request allowances and frame-review results; preserve uncertain requests without automatic resubmission and authorize video only after every required frame review passes.
 - After two camera/location corrections, replan unstarted actions once against the actual opening within the existing allowance; save edit provenance and review history, use localized PNG masks when available, and retain exact shared-boundary assets so recovery cannot invent a new opening or duplicate charges.
 - Background explainer exports expose only owner-scoped reads and input-column inserts to authenticated users; only the service role may claim or update exports, because clients must not control ownership, leases, or completion.
 - The external explainer worker talks only to the explainer-bridge function with a shared bearer token; the bridge enforces live leases and job-scoped storage paths, because the service-role key must never leave the backend.
 - Whiteboard sampling returns BoardStroke records with points and average source-ink color; reveal rendering consumes those records so colored artwork survives export.
+
+- New automatic explainers use independent single-opening-image shots with deliberate cuts and opening-frame safety review; preserve paired/shared contracts for existing continuous drafts so cut films avoid pixel-matched ending edits without bypassing identity checks.
